@@ -45,6 +45,13 @@ export function useQuery(key, fetcher, topics = []) {
   return { ...state, refetch: () => { for (const fn of active.get(full) ?? []) fn(); } };
 }
 
+/** Load a query into the cache ahead of time, so the view that asks for it first renders with it at once. */
+export function prefetch(key, fetcher, topics = []) {
+  const full = `${topics.join(',')}|${key}`;
+  if (cache.has(full) || active.has(full)) return;
+  fetcher().then((data) => { if (!cache.has(full)) cache.set(full, data); }, () => {});
+}
+
 // ------------------------------------------------------------------ suspense queries (page data)
 // Pages read their data through Suspense, so a navigation inside startTransition keeps the current page on screen
 // until the next one is ready — and the view transition can morph between two complete pages.

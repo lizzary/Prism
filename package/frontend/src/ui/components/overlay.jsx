@@ -2,13 +2,17 @@ import { createPortal } from 'react-dom';
 import { cloneElement, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useT } from '../../i18n/index.jsx';
 import { Icon } from '../icons/Icon.jsx';
+import { pageCover } from '../lib/pageCover.js';
 import s from './overlay.module.css';
 
 export const Portal = ({ children }) => createPortal(children, document.body);
 
-/** Keep something mounted while it animates out. state: 'enter' → 'open' → 'exit' → unmounted. */
+/**
+ * Keep something mounted while it animates out. state: 'enter' → 'open' → 'exit' → unmounted.
+ * Something that mounts already open (an overlay opened for the first time) still comes in from its 'enter' look.
+ */
 export function usePresence(open, ms = 240) {
-  const [state, setState] = useState(open ? 'open' : 'closed');
+  const [state, setState] = useState(open ? 'enter' : 'closed');
   useEffect(() => {
     if (open) {
       setState((cur) => (cur === 'open' ? cur : 'enter'));
@@ -24,12 +28,14 @@ export function usePresence(open, ms = 240) {
 }
 
 // ------------------------------------------------------------------ scroll lock & focus
+/** A modal layer: the page under it stops scrolling, and its moving art rests (see pageCover). */
 let locks = 0;
 export function useScrollLock(active) {
   useEffect(() => {
     if (!active) return undefined;
     if (locks++ === 0) document.documentElement.style.overflow = 'hidden';
-    return () => { if (--locks === 0) document.documentElement.style.overflow = ''; };
+    const leave = pageCover.enter();
+    return () => { leave(); if (--locks === 0) document.documentElement.style.overflow = ''; };
   }, [active]);
 }
 

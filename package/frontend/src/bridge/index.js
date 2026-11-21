@@ -1,16 +1,24 @@
 // The bridge: React hooks and actions over the data layer. UI components import from here and nowhere else.
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
 import * as api from '../data/api/index.js';
-import { useQuery, useSuspenseQuery, useDebounced } from './query.js';
+import { useQuery, useSuspenseQuery, useDebounced, prefetch } from './query.js';
 
 export { useDebounced };
+
+/** Queries that several views share, and that can be loaded ahead of the view that shows them. */
+const Q = {
+  groups: ['groups', api.library.groups, ['library']],
+  colorGroups: ['color-groups', api.library.colorGroups, ['library']],
+  capabilities: ['search-capabilities', api.search.capabilities, ['library']],
+  tagIndex: ['tag-index', api.tags.index, ['library']],
+};
 
 // ------------------------------------------------------------------ gallery
 // Page data suspends (see useSuspenseQuery); smaller pieces load in place.
 export const useHome = () => useSuspenseQuery('home', api.library.home, ['library']);
 export const useGroup = (id) => useSuspenseQuery(`group:${id}`, () => api.library.group(id), ['library']);
-export const useGroupList = () => useQuery('groups', api.library.groups, ['library']);
-export const useColorGroupList = () => useQuery('color-groups', api.library.colorGroups, ['library']);
+export const useGroupList = () => useQuery(...Q.groups);
+export const useColorGroupList = () => useQuery(...Q.colorGroups);
 export const useGroupPictures = (id) => useQuery(id ? `group-pictures:${id}` : null, () => api.library.groupPictures(id), ['library']);
 
 export const libraryActions = {
@@ -37,11 +45,14 @@ export function useSearch(text, domains, image) {
   const res = useQuery(key, () => api.search.query({ text: q, domains, image }), ['library']);
   return { ...res, data: (ready && res.data) || EMPTY_RESULT, settled: ready ? { text: q, image } : null };
 }
-export const useSearchCapabilities = () => useQuery('search-capabilities', api.search.capabilities, ['library']);
+export const useSearchCapabilities = () => useQuery(...Q.capabilities);
 export const searchActions = { queryImage: api.search.queryImage };
+/** What the search palette shows as soon as it opens: where it can look, and whether the image index is there. */
+export const prefetchSearch = () => { prefetch(...Q.capabilities); prefetch(...Q.groups); prefetch(...Q.colorGroups); };
 
 // ------------------------------------------------------------------ tags
-export const useTagIndex = () => useQuery('tag-index', api.tags.index, ['library']);
+export const useTagIndex = () => useQuery(...Q.tagIndex);
+export const prefetchTagIndex = () => prefetch(...Q.tagIndex);
 export const useTagSamples = (key) => useQuery(key ? `tag-samples:${key}` : null, () => api.tags.samples(key, 6), ['library']);
 
 // ------------------------------------------------------------------ live stores

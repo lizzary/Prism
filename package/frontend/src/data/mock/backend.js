@@ -43,8 +43,15 @@ function openLibrary(path) {
     if (seededLib && !L.prefs.lastViewed) L.prefs.lastViewed = { fileId: L.filesByGroup.get('g_starry')?.[41]?.id, at: ago(0.09) };
     libraries.set(path, L);
     if (seededLib) seedTasks(L);
+    warmIndexes(L);
   }
   return L;
+}
+
+/** Build the search and tag indexes while the page is idle (the Go service keeps its own, ready before it is asked). */
+function warmIndexes(L) {
+  const idle = globalThis.requestIdleCallback ?? ((fn) => setTimeout(fn, 1200));
+  idle(() => { searchDocs(L); tagIndexOf(L); }, { timeout: 2500 });
 }
 const lib = () => openLibrary(config.dbPath);
 const savePrefs = (L) => saveDbPrefs(L.path, L.prefs);
@@ -330,9 +337,7 @@ export function search({ text = '', domains, image }) {
 }
 
 // ------------------------------------------------------------------ tags
-/** Every tag in the gallery, once: how many files carry it, and how many of those the user tagged by hand. */
-export function getTagIndex() {
-  const L = lib();
+function tagIndexOf(L) {
   if (!L.tags) {
     const map = new Map();
     for (const f of L.files) {
@@ -345,7 +350,12 @@ export function getTagIndex() {
     }
     L.tags = [...map.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
   }
-  return { tags: L.tags.map((t) => ({ ...t, source: t.user === t.count ? 'user' : 'model' })), files: L.files.length };
+  return L.tags;
+}
+/** Every tag in the gallery, once: how many files carry it, and how many of those the user tagged by hand. */
+export function getTagIndex() {
+  const L = lib();
+  return { tags: tagIndexOf(L).map((t) => ({ ...t, source: t.user === t.count ? 'user' : 'model' })), files: L.files.length };
 }
 
 /** A few files carrying a tag (newest first), to show what it looks like. */

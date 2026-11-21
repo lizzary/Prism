@@ -2,6 +2,7 @@
 //   • the spirals turn slowly; moving the pointer across the sky stirs them, scrolling spins them
 //   • stars breathe; a star or the moon answers a click with a flare
 //   • the cypress sways gently, and once more when the pointer brushes it; village windows light up in waves
+//   • it rests while off screen, while the tab is hidden and while a dialog covers the page
 // Arrival:
 //   • first time: a primed canvas (night tone, linen weave) holds the place, with a progress thread if it takes a
 //     while; once every layer is painted the whole picture opens out from the great spiral
@@ -9,6 +10,7 @@
 //     after a long time away only a small preview is kept, shown at once and sharpened from the disk cache
 import { useLayoutEffect, useRef } from 'react';
 import { W, H, C0, STARS, MOON, CYP } from './composition.js';
+import { pageCover } from '../../lib/pageCover.js';
 import s from './StarryNight.module.css';
 
 const ANCHOR_X = 0.72;                 // which part of the panel stays in view when the page is narrow
@@ -197,16 +199,23 @@ export function StarryNight({ className, onReady }) {
       ctx.restore();
     }
 
-    // ---------------------------------------------------------- loop (only while visible; slower when idle)
-    let skip = false;
+    // ---------------------------------------------------------- loop (only while visible and uncovered; slower when idle)
+    // While it rests, the painting's clock stands still: it goes on from the same moment, with no jump.
+    let skip = false, covered = pageCover.active(), restedAt = 0;
     const loop = (now) => {
       raf = requestAnimationFrame(loop);
       const idle = now - lastInput > 2500 && now - firstFrame > 4000;
       if (idle) { skip = !skip; if (skip) return; }
       frame(now);
     };
-    const start = () => { if (!raf && visible && !reduce && layers.main) { last = performance.now(); raf = requestAnimationFrame(loop); } };
-    const stop = () => { cancelAnimationFrame(raf); raf = 0; };
+    const start = () => {
+      if (raf || !visible || covered || reduce || !layers.main) return;
+      if (restedAt) { t0 += performance.now() - restedAt; restedAt = 0; }
+      last = performance.now();
+      raf = requestAnimationFrame(loop);
+    };
+    const stop = () => { if (raf) restedAt = performance.now(); cancelAnimationFrame(raf); raf = 0; };
+    const unCover = pageCover.subscribe((on) => { covered = on; if (on) stop(); else start(); });
 
     // ---------------------------------------------------------- layers from the worker
     const r0 = el.getBoundingClientRect();
@@ -329,6 +338,7 @@ export function StarryNight({ className, onReady }) {
 
     return () => {
       stop();
+      unCover();
       clearTimeout(revealTimer);
       worker?.terminate();
       io.disconnect();

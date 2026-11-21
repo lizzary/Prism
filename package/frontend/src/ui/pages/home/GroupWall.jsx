@@ -1,7 +1,8 @@
 // The home page's wall of groups. Covers keep their own proportions in justified rows (or all become squares);
 // every card is placed from computed geometry, so a new layout, a new order or a filter lets the cards glide to
 // their places instead of jumping. Moving across a cover glances through the pictures inside the group.
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+// The wall's bar carries the wall in miniature (GroupStrip), which follows the page and jumps to any group.
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { libraryActions, mediaUrl, useOptimisticView } from '../../../bridge/index.js';
 import { useOverlays } from '../../../app/shell.jsx';
 import { Link, cameBack, paths } from '../../../app/router.jsx';
@@ -13,6 +14,7 @@ import { Icon } from '../../icons/Icon.jsx';
 import { Button, IconButton, Segmented } from '../../components/controls.jsx';
 import { Portal, Tooltip } from '../../components/overlay.jsx';
 import { Empty, EmptyArt } from '../../components/feedback.jsx';
+import { GroupStrip } from './GroupStrip.jsx';
 import s from './GroupWall.module.css';
 
 const GAP_X = 20;          // between cards in a row
@@ -69,13 +71,41 @@ function useWallWidth(ref, present) {
   return [width, resizing];
 }
 
+/**
+ * Which of the wall's cards are on screen (under the bars), as the range of their places: [first, last] | null.
+ * `layout` re-attaches the watch whenever the cards are laid out anew (they exist only once the wall has a width).
+ */
+function useOnScreen(ref, ids, layout) {
+  const [range, setRange] = useState(null);
+  const key = ids.join();
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const seen = new Set();
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) seen.add(e.target.dataset.reorderId);
+        else seen.delete(e.target.dataset.reorderId);
+      }
+      const at = ids.flatMap((id, i) => (seen.has(id) ? [i] : []));
+      setRange((cur) => {
+        const next = at.length ? [at[0], at[at.length - 1]] : null;
+        return cur && next && cur[0] === next[0] && cur[1] === next[1] ? cur : next;
+      });
+    }, { rootMargin: `-${BAR_H}px 0px 0px 0px`, threshold: 0.3 });
+    for (const card of el.querySelectorAll('[data-reorder-id]')) io.observe(card);
+    return () => io.disconnect();
+  }, [ref, key, layout]); // eslint-disable-line react-hooks/exhaustive-deps
+  return range;
+}
+
 export function GroupWall({ home }) {
   const t = useT();
   const { open } = useOverlays();
   const [view, setView] = useOptimisticView(home.view, libraryActions.saveHomeView);
   const [order, setOrder] = useState(null);     // the order as last arranged here (saved in the background)
   const [query, setQuery] = useState('');
-  const [flash, setFlash] = useState(null);     // a group to light up once (just created)
+  const [flash, setFlash] = useState(null);     // { id, always }: a group to bring into view and light up once
   const wall = useRef(null);
   const [width, resizing] = useWallWidth(wall, home.groups.length > 0);
   const settle = useRef(null);                  // a card just dropped: glide it from where it was let go
@@ -91,6 +121,7 @@ export function GroupWall({ home }) {
   const ids = [...shown.map((g) => g.id), ...(q ? [] : [ADD])];
   const ratios = useMemo(() => new Map([[ADD, 0.8], ...groups.map((g) => [g.id, g.cover ? g.cover.width / g.cover.height : 1])]), [groups]);
   const layout = useMemo(() => place(ids, ratios, width, view.naturalRatio), [ids.join(), ratios, width, view.naturalRatio]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onScreen = useOnScreen(wall, shown.map((g) => g.id), layout);
 
   const drag = useReorder({
     listRef: wall, mode: 'grid', axis: 'y', inset: { top: BAR_H }, disabled: !!q,
@@ -123,25 +154,25 @@ export function GroupWall({ home }) {
     setTimeout(() => { el.style.removeProperty('transition'); el.style.removeProperty('z-index'); }, 520);
   }, [layout]);
 
-  // a new group: bring it into view and let it glow once
+  // a group just created, or picked in the strip: bring it into view and let it glow once
   useLayoutEffect(() => {
     if (!flash) return undefined;
-    const el = wall.current?.querySelector(`[data-reorder-id="${CSS.escape(flash)}"]`);
+    const el = wall.current?.querySelector(`[data-reorder-id="${CSS.escape(flash.id)}"]`);
     if (el) {
       const r = el.getBoundingClientRect();
-      if (r.top < BAR_H || r.bottom > innerHeight) window.scrollTo({ top: r.top + window.scrollY - BAR_H - 40, behavior: 'smooth' });
+      if (flash.always || r.top < BAR_H || r.bottom > innerHeight) window.scrollTo({ top: r.top + window.scrollY - BAR_H - 28, behavior: 'smooth' });
     }
     const timer = setTimeout(() => setFlash(null), 1800);
     return () => clearTimeout(timer);
   }, [flash]);
 
-  const newGroup = () => open('groupEditor', { onCreated: (g) => setFlash(g.id) });
+  const newGroup = () => open('groupEditor', { onCreated: (g) => setFlash({ id: g.id }) });
 
   if (!home.groups.length) {
     return (
       <section className={s.section}>
         <div ref={wall} />
-        <Empty title={t('home.emptyTitle')} action={<Button variant="primary" icon="gallery-plus" onClick={newGroup}>{t('home.newGroup')}</Button>}>{t('home.emptyBody')}</Empty>
+        <Empty title={t('home.emptyTitle')} action={<Button variant="primary" icon="gallery-plus" data-overlay="groupEditor" onClick={newGroup}>{t('home.newGroup')}</Button>}>{t('home.emptyBody')}</Empty>
       </section>
     );
   }
@@ -150,6 +181,7 @@ export function GroupWall({ home }) {
     <section className={s.section}>
       <div className={s.bar}>
         <h2 className={s.title}>{t('home.groups')}<span className={`${s.count} num`}>{q ? `${shown.length}/${groups.length}` : groups.length}</span></h2>
+        <GroupStrip groups={shown} range={onScreen} onJump={(id) => setFlash({ id, always: true })} />
         <label className={s.find}>
           <Icon name="search" size={15} />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('home.findGroup')} spellCheck={false} />
@@ -159,14 +191,14 @@ export function GroupWall({ home }) {
           onChange={(v) => setView({ naturalRatio: v === 'natural' })}
           options={[{ value: 'natural', icon: 'ratio-natural', label: t('home.ratioNatural') }, { value: 'square', icon: 'ratio-square', label: t('home.ratioSquare') }]} />
         <span className={s.sep} />
-        <Button variant="ghost" size="sm" icon="gallery-plus" className={s.newBtn} onClick={newGroup}>{t('home.newGroup')}</Button>
+        <Button variant="ghost" size="sm" icon="gallery-plus" className={s.newBtn} data-overlay="groupEditor" onClick={newGroup}>{t('home.newGroup')}</Button>
       </div>
 
       <div ref={wall} className={s.wall} style={{ height: layout.height }} data-resizing={resizing || undefined} data-quiet={quiet || undefined}>
         {shown.map((g, i) => {
           const box = layout.boxes.get(g.id);
           return box && (
-            <GroupCard key={g.id} group={g} box={box} index={i} eager={i < 10} flash={flash === g.id} drag={drag.handle(g.id)}
+            <GroupCard key={g.id} group={g} box={box} index={i} eager={i < 10} flash={flash?.id === g.id} drag={drag.handle(g.id)}
               onEdit={() => open('groupEditor', { group: g })} />
           );
         })}
@@ -190,7 +222,7 @@ function GroupCard({ group, box, index, eager, flash, drag, onEdit }) {
         <Link to={to} className={s.coverLink} draggable={false} aria-label={group.name}>
           <Cover group={group} eager={eager} />
         </Link>
-        <IconButton icon="edit" size="sm" tone="art" label={t('home.editGroup')} className={s.edit} onClick={onEdit} placement="top" />
+        <IconButton icon="edit" size="sm" tone="art" label={t('home.editGroup')} className={s.edit} data-overlay="groupEditor" onClick={onEdit} placement="top" />
         <div className={s.label}>
           <Link to={to} className={s.name} draggable={false} tabIndex={-1}>{group.name}</Link>
           <div className={s.meta}>
@@ -263,7 +295,7 @@ function AddTile({ box, index, onClick }) {
   const t = useT();
   return (
     <div className={s.slot} style={slotStyle(box, index)}>
-      <button type="button" className={`${s.card} ${s.add}`} onClick={onClick}>
+      <button type="button" className={`${s.card} ${s.add}`} data-overlay="groupEditor" onClick={onClick}>
         <span className={s.addFrame}>
           <span className={s.addPlus}><Icon name="plus" size={22} /></span>
           <span>{t('home.newGroup')}</span>

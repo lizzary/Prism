@@ -2,16 +2,22 @@
 import { createContext, use, useCallback, useLayoutEffect, useMemo, useState } from 'react';
 
 // ------------------------------------------------------------------ overlays
-const OverlayCtx = createContext(null);
+// Two contexts: the actions never change, so the many places that open an overlay are not re-rendered when one
+// opens or closes; only the overlay layer itself reads what is open.
+const ActionsCtx = createContext(null);
+const StackCtx = createContext(null);
 
 export function OverlayProvider({ children }) {
   const [stack, setStack] = useState({});
   const open = useCallback((name, props = {}) => setStack((s) => ({ ...s, [name]: { open: true, props, nonce: Date.now() } })), []);
   const close = useCallback((name) => setStack((s) => (s[name] ? { ...s, [name]: { ...s[name], open: false } } : s)), []);
-  const value = useMemo(() => ({ stack, open, close }), [stack, open, close]);
-  return <OverlayCtx value={value}>{children}</OverlayCtx>;
+  const actions = useMemo(() => ({ open, close }), [open, close]);
+  return <ActionsCtx value={actions}><StackCtx value={stack}>{children}</StackCtx></ActionsCtx>;
 }
-export const useOverlays = () => use(OverlayCtx);
+/** { open(name, props), close(name) } */
+export const useOverlays = () => use(ActionsCtx);
+/** name → { open, props, nonce } for every overlay opened so far */
+export const useOverlayStack = () => use(StackCtx);
 
 // ------------------------------------------------------------------ page meta (what the top bar shows)
 const MetaCtx = createContext(null);

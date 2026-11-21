@@ -1,0 +1,55 @@
+.strip {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  margin: 0 14px 0 6px;
+  padding: 0 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  opacity: 0;
+  transition: opacity 400ms var(--ease-out);
+}
+.strip::-webkit-scrollbar { display: none; }
+.strip[data-ready] { opacity: 1; }
+.track { position: relative; display: inline-flex; align-items: center; gap: var(--gap); height: 100%; }
+
+/* the groups on screen: a soft starlit window behind their covers, gliding along as the page scrolls */
+.window {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: calc(var(--s) + 8px);
+  margin-top: calc(var(--s) / -2 - 4px);
+  border-radius: 7px;
+  background: var(--star-soft);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--star) 45%, transparent) inset;
+  opacity: 0;
+  transition: transform 420ms var(--ease-out), width 420ms var(--ease-out), opacity 300ms var(--ease-out);
+  pointer-events: none;
+}
+.window[data-on] { opacity: 1; }
+
+.thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: var(--s);
+  height: var(--s);
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--field);
+  box-shadow: 0 0 0 1px var(--line);
+  opacity: 0.5;
+  animation: thumbIn 520ms var(--ease-out) backwards;
+  animation-delay: calc(260ms + var(--i) * 18ms);
+  transition: opacity 320ms var(--ease-out), transform 260ms var(--ease-back), box-shadow 200ms;
+}
+@keyframes thumbIn { from { opacity: 0; transform: translateY(5px) scale(0.8); } }
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
+.thumb[data-in] { opacity: 1; }
+.thumb:hover { z-index: 1; opacity: 1; transform: translateY(-2px) scale(1.16); box-shadow: 0 0 0 1px var(--line-2), var(--shadow-2); }
+.thumb:active { transform: translateY(-1px) scale(1.06); }
+.blank { position: absolute; inset: 3px; border-radius: 2px; border: 1px dashed var(--line-2); }
+
+@media (max-width: 900px) { .strip { display: none; } }

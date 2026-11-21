@@ -1,6 +1,9 @@
-// Every overlay of the app, loaded on first use.
-import { Component, Suspense, lazy, useEffect } from 'react';
-import { useOverlays } from '../../app/shell.jsx';
+// Every overlay of the app. Their code (and the data they show first) is fetched once the page has settled, or as
+// soon as the pointer heads for one of their entries (any element with `data-overlay="name"`): by the time an
+// overlay is opened it is ready, so even the first opening comes in with its animation.
+import { Component, useEffect, useReducer } from 'react';
+import { prefetchSearch, prefetchTagIndex } from '../../bridge/index.js';
+import { useOverlayStack, useOverlays } from '../../app/shell.jsx';
 import { useT } from '../../i18n/index.jsx';
 import { toast } from '../components/feedback.jsx';
 
@@ -10,23 +13,47 @@ const load = {
   settings: () => import('./settings/SettingsDialog.jsx'),
   groupEditor: () => import('./editors/GroupDialog.jsx'),
 };
-const PANELS = Object.fromEntries(Object.entries(load).map(([k, fn]) => [k, lazy(() => fn().then((m) => ({ default: m.default })))]));
+const prefetch = { search: prefetchSearch, tags: prefetchTagIndex };
+
+const panels = {};          // name → component, once its code is in
+const pending = {};         // name → promise while it loads
+function fetchPanel(name) {
+  if (!load[name]) return Promise.resolve();
+  prefetch[name]?.();
+  pending[name] ??= load[name]().then((m) => { panels[name] = m.default; }, () => { delete pending[name]; });
+  return pending[name];
+}
 
 export function Overlays() {
-  const { stack, close } = useOverlays();
-  // warm the chunks once the page has settled, so the first open is instant
+  const stack = useOverlayStack();
+  const { close } = useOverlays();
+  const [, rerender] = useReducer((x) => x + 1, 0);
+
   useEffect(() => {
-    const idle = window.requestIdleCallback ?? ((fn) => setTimeout(fn, 1500));
-    const id = idle(() => Object.values(load).forEach((fn) => fn()));
-    return () => (window.cancelIdleCallback ?? clearTimeout)(id);
+    const idle = window.requestIdleCallback ?? ((fn) => setTimeout(fn, 800));
+    const id = idle(() => Object.keys(load).forEach(fetchPanel), { timeout: 1500 });
+    const intent = (e) => { const name = e.target.closest?.('[data-overlay]')?.dataset.overlay; if (name) fetchPanel(name); };
+    document.addEventListener('pointerover', intent, { passive: true });
+    document.addEventListener('focusin', intent);
+    return () => {
+      (window.cancelIdleCallback ?? clearTimeout)(id);
+      document.removeEventListener('pointerover', intent);
+      document.removeEventListener('focusin', intent);
+    };
   }, []);
+
+  // opened before its code arrived (a keyboard shortcut right after loading): it opens as soon as it is in
+  useEffect(() => {
+    let alive = true;
+    for (const name of Object.keys(stack)) if (load[name] && !panels[name]) fetchPanel(name).then(() => { if (alive) rerender(); });
+    return () => { alive = false; };
+  }, [stack]);
+
   return Object.entries(stack).map(([name, entry]) => {
-    const Panel = PANELS[name] ?? NotYet;
-    return (
+    const Panel = load[name] ? panels[name] : NotYet;
+    return Panel && (
       <OverlayBoundary key={name} onError={() => close(name)} resetKey={entry.nonce}>
-        <Suspense fallback={null}>
-          <Panel open={entry.open} onClose={() => close(name)} {...entry.props} nonce={entry.nonce} />
-        </Suspense>
+        <Panel open={entry.open} onClose={() => close(name)} {...entry.props} nonce={entry.nonce} />
       </OverlayBoundary>
     );
   });

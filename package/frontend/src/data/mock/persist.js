@@ -13,11 +13,10 @@ function write(key, value) {
 
 export const DEFAULT_DB_PATH = 'D:\\Prism\\data';
 
-/** config.toml — the first run follows the system's language and theme. */
+/** config.toml — English unless chosen otherwise; the first run follows the system's light or dark. */
 export function loadConfig() {
   const sysDark = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
-  const sysZh = typeof navigator !== 'undefined' && /^zh/i.test(navigator.language ?? '');
-  return read(CONFIG_KEY, { language: sysZh ? 'zh-CN' : 'en', theme: sysDark ? 'dark' : 'light', dbPath: DEFAULT_DB_PATH });
+  return read(CONFIG_KEY, { language: 'en', theme: sysDark ? 'dark' : 'light', dbPath: DEFAULT_DB_PATH });
 }
 export const saveConfig = (cfg) => write(CONFIG_KEY, cfg);
 

@@ -71,14 +71,14 @@ export function TopBar({ route }) {
           )}
         </div>
 
-        <button type="button" className={s.search} onClick={() => open('search', { groupId: meta.scope === 'group' ? meta.groupId : null })}>
+        <button type="button" className={s.search} data-overlay="search" onClick={() => open('search', { groupId: meta.scope === 'group' ? meta.groupId : null })}>
           <Icon name="search" size={17} />
           <span className={s.searchText}>{t('bar.searchHint')}</span>
           <kbd className={s.kbd}>{isMac ? 'Cmd K' : 'Ctrl K'}</kbd>
         </button>
 
         <div className={s.right}>
-          <button type="button" className={s.action} onClick={() => open('tags')}>
+          <button type="button" className={s.action} data-overlay="tags" onClick={() => open('tags')}>
             <Icon name="tags" size={18} /><span>{t('bar.tags')}</span>
           </button>
           <button type="button" className={s.action} onClick={() => open('export', scope)}>
@@ -86,7 +86,7 @@ export function TopBar({ route }) {
           </button>
           <span className={s.divider} />
           <TasksButton art={art} />
-          <IconButton icon="settings" label={t('bar.settings')} tone={art ? 'art' : undefined} onClick={() => open('settings')} />
+          <IconButton icon="settings" label={t('bar.settings')} tone={art ? 'art' : undefined} data-overlay="settings" onClick={() => open('settings')} />
         </div>
       </div>
     </header>

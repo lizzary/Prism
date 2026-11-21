@@ -90,7 +90,7 @@ export default function TagIndex({ open, onClose }) {
         <Segmented size="sm" value={sort} onChange={setSort} label={t('tagIndex.title')}
           options={['count', 'name'].map((v) => ({ value: v, label: t(`tagIndex.sort.${v}`) }))} />
       </div>
-      <div ref={body} className={s.body}>
+      <div ref={body} className={s.body} data-overlay="search">
         {!data && loading && <div className={s.wait}><Spinner size={20} /></div>}
         {data && !data.tags.length && <Empty title={t('tagIndex.emptyTitle')}>{t('tagIndex.emptyBody')}</Empty>}
         {data && data.tags.length > 0 && !tags.length && <Empty compact title={t('tagIndex.none')} />}

@@ -1,0 +1,195 @@
+.section {
+  position: relative;
+  z-index: 1;
+  max-width: calc(var(--maxw) + 2 * var(--gutter));
+  margin: -6vh auto 0;
+  padding: 0 var(--gutter) 120px;
+}
+
+/* ------------------------------------------------------------------ the wall's bar (sticks under the top bar) */
+.bar {
+  position: sticky;
+  top: var(--bar-h);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 calc(var(--gutter) * -1) 28px;
+  padding: 10px var(--gutter);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(10px) saturate(1.1);
+  border-bottom: 1px solid var(--line);
+}
+.title { display: flex; align-items: baseline; gap: 10px; margin-right: auto; font-size: 18px; font-weight: 640; letter-spacing: -0.015em; white-space: nowrap; }
+.count { font-size: 13px; font-weight: 500; letter-spacing: 0; color: var(--ink-3); }
+.find { display: flex; align-items: center; gap: 7px; width: 210px; height: 32px; padding: 0 8px 0 10px; border-radius: var(--r-2); background: var(--field); color: var(--ink-3); box-shadow: 0 0 0 1px var(--line) inset; transition: box-shadow var(--dur-2), background-color var(--dur-2); }
+.find:focus-within { background: var(--bg-raised); box-shadow: 0 0 0 1px var(--accent) inset, 0 0 0 3px var(--accent-soft); }
+.find input { flex: 1; min-width: 0; border: 0; background: none; font-size: 13px; color: var(--ink); }
+.find input:focus-visible { box-shadow: none; }
+.find button { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; color: var(--ink-3); }
+.find button:hover { background: var(--hover); color: var(--ink); }
+.sep { width: 1px; height: 20px; margin: 0 4px; background: var(--line-2); }
+.newBtn { color: var(--ink); }
+
+/* ------------------------------------------------------------------ the wall: every card placed by the layout */
+.wall { position: relative; transition: height 560ms var(--ease-out); }
+.slot {
+  position: absolute;
+  height: calc(var(--h) + 50px);
+  transition: left 560ms var(--ease-out), top 560ms var(--ease-out), width 560ms var(--ease-out), height 560ms var(--ease-out);
+}
+.wall[data-resizing], .wall[data-resizing] .slot, .wall[data-resizing] .cover, .wall[data-resizing] .addFrame { transition: none; }
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  animation: cardIn 760ms var(--ease-out) both;
+  animation-delay: calc(140ms + var(--i) * 42ms);
+}
+@keyframes cardIn { from { opacity: 0; transform: translateY(16px); } }
+.wall[data-quiet] .card { animation: none; }
+
+.coverLink {
+  display: block;
+  border-radius: var(--r-2);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-1);
+  transition: transform 520ms var(--ease-out), box-shadow 520ms var(--ease-out);
+}
+.card:hover .coverLink { transform: translateY(-4px); box-shadow: 0 0 0 1px var(--line), var(--shadow-2); }
+.cover {
+  position: relative;
+  height: var(--h);
+  overflow: hidden;
+  border-radius: var(--r-2);
+  background: color-mix(in srgb, var(--bg-sunken) 85%, var(--ink) 4%);
+  isolation: isolate;
+  transition: height 560ms var(--ease-out);
+}
+.coverImg, .frame { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.coverImg { opacity: 0; transform: scale(1.015); transition: opacity 520ms var(--ease-out), transform 1200ms var(--ease-out); }
+.coverImg[data-ready] { opacity: 1; transform: none; }
+.card:hover .coverImg, .card:hover .frame { transform: scale(1.035); }
+.frame { opacity: 0; transition: opacity 90ms linear, transform 1200ms var(--ease-out); }
+.frame[data-on='true'] { opacity: 1; }
+.coverEmpty { display: grid; place-items: center; background: var(--field); box-shadow: 0 0 0 1px var(--line) inset; }
+
+/* glancing through the group: one tick per picture, the lit one is on show */
+.ticks {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 9px;
+  z-index: 2;
+  display: flex;
+  gap: 3px;
+  opacity: 0;
+  transition: opacity 240ms var(--ease-out);
+  pointer-events: none;
+}
+.ticks i { flex: 1; height: 2px; border-radius: 1px; background: rgba(250, 246, 236, 0.36); box-shadow: 0 1px 3px rgba(8, 12, 28, 0.35); transition: background-color 120ms; }
+.ticks i[data-on='true'] { background: #fbf7ee; }
+.cover:hover .ticks { opacity: 1; }
+.cover::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 1;
+  height: 46px;
+  background: linear-gradient(transparent, rgba(8, 12, 28, 0.32));
+  opacity: 0;
+  transition: opacity 240ms var(--ease-out);
+  pointer-events: none;
+}
+.cover:hover::after { opacity: 1; }
+.videoMark {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-1);
+  background: rgba(12, 18, 38, 0.5);
+  color: #fbf7ee;
+  backdrop-filter: blur(6px);
+}
+
+/* editing is quiet: it shows on the cover when the card is hovered or focused */
+.edit {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  background: rgba(12, 18, 38, 0.42);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity var(--dur-2), transform var(--dur-2) var(--ease-out), background-color var(--dur-1), color var(--dur-1);
+}
+.card:hover .edit, .edit:focus-visible { opacity: 1; transform: translateY(-4px); }
+.edit:hover:not(:disabled) { background: rgba(12, 18, 38, 0.62); }
+@media (hover: none) { .edit { opacity: 1; } }
+
+.label { display: flex; flex-direction: column; gap: 2px; height: 50px; padding: 10px 2px 0; min-width: 0; container-type: inline-size; }
+.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15.5px; font-weight: 540; letter-spacing: -0.005em; transition: color var(--dur-2); }
+.card:hover .name { color: var(--ink); }
+.meta { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.when { overflow: hidden; text-overflow: ellipsis; }
+.when::before { content: '·'; margin-right: 8px; color: var(--ink-4); }
+.palette { display: inline-flex; align-items: center; margin-left: auto; padding-left: 6px; }
+.palette i {
+  width: 9px;
+  height: 9px;
+  margin-left: -3px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--bg);
+  transition: transform 340ms var(--ease-back);
+  transition-delay: calc(var(--k) * 28ms);
+}
+/* the paint dots fan out a little when the card is looked at */
+.card:hover .palette i { transform: translateX(calc(var(--k) * 2.2px)); }
+/* a narrow card keeps the count and lets the date go */
+@container (max-width: 230px) { .when { display: none; } }
+
+/* ------------------------------------------------------------------ a new group */
+.add { animation-delay: calc(240ms + var(--i) * 42ms); }
+.addFrame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: var(--h);
+  border-radius: var(--r-2);
+  border: 1.5px dashed var(--line-2);
+  color: var(--ink-3);
+  font-size: 14px;
+  transition: color var(--dur-2), border-color var(--dur-2), background-color var(--dur-2), height 560ms var(--ease-out);
+}
+.add:hover .addFrame { color: var(--ink); border-color: var(--ink-4); background: var(--hover); }
+.addPlus { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--field); transition: transform 520ms var(--ease-back); }
+.add:hover .addPlus { transform: rotate(90deg); }
+
+/* ------------------------------------------------------------------ reordering */
+.marker { position: fixed; z-index: 300; border-radius: 2px; background: var(--star); box-shadow: 0 0 0 2px var(--bg), 0 0 12px color-mix(in srgb, var(--star) 60%, transparent); pointer-events: none; }
+.slot[data-dragging] { cursor: grabbing; }
+.slot[data-dragging] .coverLink { transform: none; box-shadow: 0 0 0 1px var(--line-2), var(--shadow-3); }
+/* a card being carried shows its cover, not the pictures under the pointer */
+.slot[data-dragging] .frame, .slot[data-dragging] .ticks, .slot[data-dragging] .videoMark, .slot[data-dragging] .cover::after { visibility: hidden; }
+
+/* a group just created glows once, so the eye finds it */
+.slot[data-flash] .coverLink { animation: found 1.8s var(--ease-out); }
+@keyframes found {
+  0%, 100% { box-shadow: 0 0 0 1px var(--line), var(--shadow-1); }
+  30% { box-shadow: 0 0 0 2px var(--star), 0 0 0 9px var(--star-soft), var(--shadow-2); }
+}
+
+@media (max-width: 760px) {
+  .find { width: 150px; }
+  .sep, .newBtn span { display: none; }
+}

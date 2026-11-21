@@ -1,0 +1,161 @@
+.bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  height: var(--bar-h);
+  transition: background-color 360ms var(--ease-out), box-shadow 360ms var(--ease-out), color 360ms var(--ease-out), backdrop-filter 360ms;
+}
+.inner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  max-width: calc(var(--maxw) + 2 * var(--gutter));
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+.onArt { color: #f6f1e4; background: linear-gradient(180deg, rgba(8, 13, 32, 0.62) 0%, rgba(8, 13, 32, 0.34) 55%, rgba(8, 13, 32, 0) 100%); text-shadow: 0 1px 8px rgba(6, 10, 26, 0.6); }
+.onArt svg { filter: drop-shadow(0 1px 3px rgba(6, 10, 26, 0.55)); }
+.solid {
+  color: var(--ink);
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.left { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1 1 0; }
+.brand { display: inline-flex; align-items: center; gap: 10px; padding: 6px 8px 6px 2px; border-radius: var(--r-2); flex-shrink: 0; }
+.mark { --logo-prism: currentColor; --logo-facet: rgba(20, 26, 44, 0.22); transition: transform 500ms var(--ease-back); }
+.solid .mark { --logo-prism: var(--ink); --logo-facet: color-mix(in srgb, var(--bg) 24%, transparent); }
+.brand:hover .mark { transform: rotate(-8deg) translateY(-1px); }
+.word { font-weight: 720; font-size: 17px; letter-spacing: -0.025em; }
+.crumbs { display: flex; align-items: center; min-width: 0; font-size: 13.5px; }
+.crumb { display: inline-flex; align-items: center; min-width: 0; }
+.crumbSep { margin: 0 4px; opacity: 0.45; flex-shrink: 0; }
+.crumbLink, .crumbText { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.78; border-radius: var(--r-1); }
+.crumbLink:hover { opacity: 1; }
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(420px, 34vw);
+  height: 38px;
+  padding: 0 8px 0 14px;
+  border-radius: var(--r-3);
+  font-size: 14px;
+  transition: background-color var(--dur-2), box-shadow var(--dur-2), color var(--dur-2);
+}
+.onArt .search { color: rgba(246, 241, 228, 0.86); background: rgba(12, 18, 38, 0.32); box-shadow: 0 0 0 1px rgba(246, 241, 228, 0.16) inset; backdrop-filter: blur(10px); }
+.onArt .search:hover { background: rgba(12, 18, 38, 0.46); color: #fffaf0; }
+.solid .search { color: var(--ink-3); background: var(--field); box-shadow: 0 0 0 1px var(--line) inset; }
+.solid .search:hover { color: var(--ink-2); background: var(--field-hover); }
+.searchText { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kbd {
+  padding: 2px 7px;
+  border-radius: var(--r-1);
+  font: 500 11.5px/1.4 var(--font-sans);
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+  box-shadow: 0 0 0 1px currentColor inset;
+}
+
+.right { display: flex; align-items: center; justify-content: flex-end; gap: 4px; flex: 1 1 0; min-width: max-content; }
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--r-2);
+  font-size: 14px;
+  font-weight: 560;
+  white-space: nowrap;
+  transition: background-color var(--dur-1), color var(--dur-1);
+}
+.onArt .action { color: rgba(246, 241, 228, 0.92); }
+.onArt .action:hover { background: rgba(246, 241, 228, 0.12); color: #fffaf0; }
+.solid .action { color: var(--ink-2); }
+.solid .action:hover { background: var(--hover); color: var(--ink); }
+.action svg { transition: transform 600ms var(--ease-out); }
+.action:hover svg { transform: rotate(-30deg); }
+.divider { width: 1px; height: 20px; margin: 0 8px; background: currentColor; opacity: 0.18; }
+
+.iconBtn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-2);
+  color: var(--ink-2);
+  transition: background-color var(--dur-1), color var(--dur-1);
+}
+.iconBtn:hover, .iconOn { background: var(--hover); color: var(--ink); }
+.iconArt { color: rgba(246, 241, 228, 0.88); }
+.iconArt:hover, .iconArt.iconOn { background: rgba(246, 241, 228, 0.12); color: #fffaf0; }
+.count {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--star);
+  color: #1b1f2c;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+}
+
+.panel { width: 400px; }
+
+.taskPill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 11px 0 10px;
+  overflow: hidden;
+  border-radius: var(--r-2);
+  background: var(--field);
+  box-shadow: 0 0 0 1px var(--line) inset;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  isolation: isolate;
+  transition: background-color var(--dur-1);
+}
+.taskPill:hover, .taskPill.iconOn { background: var(--hover); }
+.taskFill { position: absolute; inset: 0; z-index: -1; background: var(--star-soft); transform-origin: left; transform: scaleX(var(--p)); transition: transform 600ms var(--ease-out); }
+.taskFill::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--star); }
+.taskFill[data-indeterminate='true'] { transform: none; animation: taskBreath 1.6s ease-in-out infinite; }
+@keyframes taskBreath { 50% { opacity: 0.45; } }
+.taskSpin { flex-shrink: 0; color: var(--star-ink); }
+.taskNum { min-width: 0; }
+.taskMore { padding: 0 5px; border-radius: 7px; background: color-mix(in srgb, var(--ink) 10%, transparent); font-size: 11px; line-height: 15px; }
+.taskPillArt { background: rgba(246, 241, 228, 0.1); box-shadow: 0 0 0 1px rgba(246, 241, 228, 0.18) inset; color: #fffaf0; }
+.taskPillArt:hover, .taskPillArt.iconOn { background: rgba(246, 241, 228, 0.16); }
+.taskPillArt .taskFill { background: rgba(232, 194, 96, 0.22); }
+.taskPillArt .taskSpin { color: var(--star); }
+.taskPillArt .taskMore { background: rgba(246, 241, 228, 0.16); }
+
+@media (max-width: 1180px) {
+  .crumbs { display: none; }
+  .action span { display: none; }
+  .action { width: 38px; padding: 0; justify-content: center; }
+  .kbd { display: none; }
+}
+@media (max-width: 860px) {
+  .word { display: none; }
+  .search { width: auto; flex: 1; }
+}
+
+/* switching pages: the bar takes its new look at once (see TopBar) */
+.bar[data-instant], .bar[data-instant] * { transition: none !important; }

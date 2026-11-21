@@ -1,0 +1,74 @@
+/* The reveal radius is animated, so it has to be a typed property. */
+@property --reveal { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
+
+.wrap { position: absolute; inset: 0; overflow: hidden; background: #131b36; --rx: 56%; --ry: 28%; --progress: 0; }
+
+/* ------------------------------------------------------------------ waiting: a primed canvas
+   Not a sketch of the picture: the bare night-toned ground the painting will be laid on, with the linen weave
+   showing through. It sits exactly where the painting will be, so the greeting and cards read the same before
+   and after, and nothing shifts when the picture arrives. */
+.primer {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 90% at var(--rx) 30%, rgba(60, 86, 150, 0.22), transparent 70%),
+    repeating-linear-gradient(0deg, rgba(255, 248, 228, 0.028) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(4, 8, 22, 0.22) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #121a35 0%, #16214a 58%, #18233c 100%);
+  transition: opacity 1200ms var(--ease-out) 900ms;
+}
+/* progress, as one thread of the weave being drawn tight; only if the wait is long enough to notice */
+.thread {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  width: 168px;
+  height: 2px;
+  margin-left: -84px;
+  overflow: hidden;
+  border-radius: 1px;
+  background: rgba(246, 240, 222, 0.12);
+  opacity: 0;
+  animation: threadIn 600ms var(--ease-out) 700ms forwards;
+}
+.thread::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #e8c260;
+  box-shadow: 0 0 8px rgba(232, 194, 96, 0.6);
+  transform-origin: left;
+  transform: scaleX(var(--progress));
+  transition: transform 700ms var(--ease-out);
+}
+@keyframes threadIn { to { opacity: 1; } }
+.wrap[data-ready='true'] .thread { animation: none; opacity: 0; transition: opacity 300ms; }
+
+/* ------------------------------------------------------------------ the painting */
+.canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+
+/* first arrival: the finished picture opens out from the great spiral and settles from a slight zoom */
+.wrap[data-mode='cold'] .canvas {
+  opacity: 1;
+  transform: scale(1.035);
+  transform-origin: var(--rx) var(--ry);
+  -webkit-mask-image: radial-gradient(circle at var(--rx) var(--ry), #000 calc(var(--reveal) - 24%), transparent var(--reveal));
+  mask-image: radial-gradient(circle at var(--rx) var(--ry), #000 calc(var(--reveal) - 24%), transparent var(--reveal));
+}
+.wrap[data-mode='cold'][data-ready='true'] { --reveal: 128%; transition: --reveal 2200ms cubic-bezier(0.45, 0.05, 0.2, 1); }
+.wrap[data-mode='cold'][data-ready='true'] .canvas { transform: none; transition: transform 2600ms var(--ease-out); }
+.wrap[data-mode='cold'][data-ready='true'] .primer { opacity: 0; }
+.wrap[data-revealed='true'] .canvas { -webkit-mask-image: none; mask-image: none; }
+.wrap[data-revealed='true'] .primer { display: none; }
+
+/* coming back: the picture (or its preview) is already there */
+.wrap[data-mode='warm'] .canvas,
+.wrap[data-mode='preview'] .canvas { opacity: 1; }
+.wrap[data-mode='warm'] .primer,
+.wrap[data-mode='preview'] .primer { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wrap[data-mode='cold'][data-ready='true'] { transition: none; }
+  .wrap[data-mode='cold'] .canvas { transform: none; }
+  .wrap[data-mode='cold'][data-ready='true'] .canvas { transition: opacity 400ms; }
+}

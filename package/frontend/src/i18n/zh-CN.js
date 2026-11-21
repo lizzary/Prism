@@ -1,0 +1,61 @@
+export default {
+  common: { cancel: '取消', save: '保存', close: '关闭', clear: '清除', remove: '移除', notYet: '这部分还在制作中' },
+  bar: {
+    search: '搜索', searchHint: '搜索标签、提示词或分组', tags: '标签', export: '导出', tasks: '任务', settings: '设置', home: '首页',
+    running: '{n} 个任务进行中',
+  },
+  home: {
+    greeting: { morning: '早上好', noon: '中午好', afternoon: '下午好', evening: '晚上好', night: '夜深了' },
+    prompt: '要看点什么？',
+    lastViewed: '上次浏览', position: '第 {n} 张，共 {total} 张', random: '随机一张', drawing: '正在挑选',
+    stats: '{groups} 个分组 · {files} 个文件 · {size}', thisWeek: '本周新增 {n} 个文件',
+    groups: '分组', newGroup: '新增分组', findGroup: '查找分组', editGroup: '编辑分组',
+    ratio: '封面比例', ratioNatural: '原始比例', ratioSquare: '统一为方形',
+    files: '{n} 个文件', updated: '{date}更新', emptyGroup: '还没有文件',
+    emptyTitle: '还没有分组', emptyBody: '新增一个分组，然后把图片和视频放进去。', noMatch: '没有找到「{q}」',
+  },
+  groupEditor: {
+    newTitle: '新增分组', editTitle: '编辑分组', name: '名称', namePlaceholder: '例如：星空与夜景', nameRequired: '请填写分组名称',
+    cover: '封面', coverAuto: '自动', noPictures: '分组里还没有图片，添加图片后可以在这里选择封面。',
+    create: '创建分组', created: '已新增分组「{name}」', saved: '已保存分组', summary: '{files} 个文件 · {size}',
+    delete: '删除分组', deleteTitle: '删除分组', deleteBody: '将删除「{name}」以及其中的 {n} 个文件，删除后无法恢复。',
+    deleteEmpty: '将删除「{name}」，它目前是空的。', deleteConfirm: '删除', deleted: '已删除分组「{name}」',
+  },
+  search: {
+    placeholder: '搜索标签、提示词或分组…', domains: '搜索范围',
+    d: { tags: '标签', positive: '正向提示词', negative: '负向提示词', semantic: '以文搜图', similar: '以图搜图' },
+    locked: '建立图像索引后可用',
+    allGroups: '全部分组', groupsCount: '{n} 个分组', chooseGroups: '选择分组', findGroup: '查找分组',
+    allColors: '全部颜色组', colorsCount: '{n} 个颜色组', chooseColors: '选择颜色组', findColor: '查找颜色组或分组',
+    resultsGroups: '分组', resultsColors: '颜色组', resultsFiles: '文件', results: '{n} 个结果', more: '还有 {n} 个',
+    none: '没有找到相关内容', idle: '输入关键词开始搜索',
+    matched: { tags: '标签', positive: '正向', negative: '负向', semantic: '以文搜图', similar: '以图搜图' },
+    similarity: '{n}% 相似', pickImage: '选择图片', dropImage: '拖入一张图片，或点击选择', removeImage: '移除图片',
+    selected: '已选 {n} 个', none2: '没有匹配的项目',
+  },
+  tagIndex: {
+    title: '标签一览', summary: '{n} 个标签 · 来自 {files} 个文件', find: '查找标签',
+    source: { all: '全部', model: '模型', user: '手动' }, sort: { count: '按数量', name: '按名称' },
+    files: '{n} 个文件', userTag: '手动添加', search: '搜索这个标签', none: '没有匹配的标签', other: '其他',
+    emptyTitle: '还没有标签', emptyBody: '为文件生成标签后，它们会出现在这里。',
+  },
+  tasks: {
+    title: '任务', running: '进行中', queued: '排队中', history: '已结束', clearHistory: '清空历史', cleared: '已清空历史记录', empty: '当前没有任务',
+    cancel: '取消任务', positions: '第 {n} 位',
+    types: { import: '导入文件', reindex: '重新索引', export: '导出', 'model-download': '下载模型', download: '打包下载' },
+    stages: {
+      queued: '排队中', preparing: '准备中', importing: '导入中', tagging: '生成标签', embedding: '建立图像索引', metadata: '读取元信息',
+      copying: '复制文件', connecting: '连接中', downloading: '下载中', packing: '打包中', done: '已完成', failed: '失败', canceled: '已取消',
+    },
+    kinds: { tagging: '标签', embedding: '图像索引', metadata: '元信息' },
+    result: {
+      import: '已导入 {files} 个文件', reindex: '已处理 {files} 个文件', export: '{files} 个文件 · {size}', 'model-download': '已下载 {size}', download: '{files} 个文件',
+    },
+    errors: { modelMissing: '标签模型尚未下载' },
+  },
+  settings: {
+    title: '设置', sections: { general: '常规' }, language: '语言', theme: '主题', light: '浅色', dark: '深色', about: 'Prism {version}',
+  },
+  group: { notFound: '没有找到这个分组' },
+  time: { justNow: '刚刚' },
+};

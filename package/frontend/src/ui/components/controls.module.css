@@ -1,0 +1,265 @@
+/* ------------------------------------------------------------------ buttons */
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  border-radius: var(--r-2);
+  font-weight: 560;
+  letter-spacing: 0.01em;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1), border-color var(--dur-1), box-shadow var(--dur-2), transform var(--dur-1) var(--ease-out), opacity var(--dur-1);
+  user-select: none;
+}
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: 0.45; }
+.sm { height: 30px; padding: 0 12px; font-size: 13px; gap: 6px; }
+.md { height: 36px; padding: 0 16px; font-size: 14px; }
+.lg { height: 44px; padding: 0 22px; font-size: 15px; gap: 10px; border-radius: var(--r-3); }
+.label { display: inline-block; }
+.iconRight { margin-right: -3px; opacity: 0.7; }
+
+.primary { background: var(--primary); color: var(--on-primary); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 1px 2px rgba(0, 0, 0, 0.12); }
+.primary:hover:not(:disabled) { background: var(--primary-hover); }
+.primary:disabled { opacity: 1; background: var(--press); color: var(--ink-3); box-shadow: none; }
+.secondary { background: var(--bg-raised); color: var(--ink); box-shadow: 0 0 0 1px var(--line-2) inset, var(--shadow-1); }
+.secondary:hover:not(:disabled) { box-shadow: 0 0 0 1px var(--ink-4) inset, var(--shadow-1); background: color-mix(in srgb, var(--bg-raised) 92%, var(--ink) 3%); }
+.ghost { color: var(--ink-2); }
+.ghost:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.quiet { color: var(--ink-3); padding-inline: 8px; }
+.quiet:hover:not(:disabled) { color: var(--ink); }
+.danger { color: var(--danger); box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 40%, transparent) inset; }
+.danger:hover:not(:disabled) { background: var(--danger-soft); }
+.loading { pointer-events: none; }
+
+/* buttons that sit on the painting: cream on a smoked glass, the same in both themes */
+.onArt {
+  color: #f6f1e4;
+  background: rgba(12, 18, 38, 0.36);
+  box-shadow: 0 0 0 1px rgba(246, 241, 228, 0.16) inset;
+  backdrop-filter: blur(10px) saturate(1.1);
+}
+.onArt:hover:not(:disabled) { background: rgba(12, 18, 38, 0.52); box-shadow: 0 0 0 1px rgba(246, 241, 228, 0.28) inset; }
+.onArt.primary { background: #f3e7c6; color: #1c2440; box-shadow: 0 6px 20px -8px rgba(0, 0, 0, 0.5); backdrop-filter: none; }
+.onArt.primary:hover:not(:disabled) { background: #fbf0d2; }
+
+/* ------------------------------------------------------------------ icon buttons */
+.iconBtn {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: var(--r-2);
+  color: var(--ink-2);
+  transition: background-color var(--dur-1), color var(--dur-1), transform var(--dur-1) var(--ease-out);
+}
+.iconBtn:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.iconBtn:active:not(:disabled) { transform: scale(0.94); }
+.iconBtn:disabled { opacity: 0.4; }
+.ib_sm { width: 30px; height: 30px; }
+.ib_md { width: 36px; height: 36px; }
+.ib_lg { width: 42px; height: 42px; }
+.ibActive { background: var(--press); color: var(--ink); }
+.ibArt { color: rgba(246, 241, 228, 0.88); }
+.ibArt:hover:not(:disabled) { background: rgba(246, 241, 228, 0.12); color: #fffaf0; }
+.ibArt.ibActive { background: rgba(246, 241, 228, 0.16); color: #fffaf0; }
+.badge {
+  position: absolute;
+  top: 3px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--star);
+  color: #1d2030;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.ibArt .badge { box-shadow: 0 0 0 2px rgba(20, 28, 56, 0.9); }
+
+/* ------------------------------------------------------------------ checkbox */
+.check { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.check.disabled { opacity: 0.45; cursor: default; }
+.box {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 4.5px;
+  background: var(--bg-raised);
+  box-shadow: 0 0 0 1.5px var(--line-2) inset;
+  transition: background-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2), transform var(--dur-1) var(--ease-out);
+}
+.check:hover .box { box-shadow: 0 0 0 1.5px var(--ink-4) inset; }
+.check:active .box { transform: scale(0.9); }
+.check input:focus-visible + .box { box-shadow: 0 0 0 1.5px var(--accent) inset, var(--focus-ring); }
+.box svg { width: 78%; height: 78%; fill: none; stroke: var(--on-primary); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tick { stroke-dasharray: 14; stroke-dashoffset: 14; transition: stroke-dashoffset 260ms var(--ease-out) 40ms; }
+.dash { stroke-dasharray: 8; stroke-dashoffset: 8; transition: stroke-dashoffset 200ms var(--ease-out); }
+.check[data-state='on'] .box, .check[data-state='mixed'] .box { background: var(--primary); box-shadow: 0 0 0 1.5px var(--primary) inset; }
+.check[data-state='on'] .tick { stroke-dashoffset: 0; }
+.check[data-state='mixed'] .dash { stroke-dashoffset: 0; }
+.checkLabel { color: var(--ink); }
+
+/* ------------------------------------------------------------------ switch
+   Small corners rather than a pill: the track and knob share the app's 3–8 px radii. */
+.switch {
+  --sw-w: 38px;
+  --sw-h: 22px;
+  --sw-k: 16px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  width: var(--sw-w);
+  height: var(--sw-h);
+  padding: calc((var(--sw-h) - var(--sw-k)) / 2);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
+  transition: background-color 260ms var(--ease-out), box-shadow var(--dur-2);
+}
+.sw_sm { --sw-w: 32px; --sw-h: 19px; --sw-k: 13px; border-radius: 5px; }
+.switch:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 24%, transparent); }
+.swKnob {
+  width: var(--sw-k);
+  height: var(--sw-k);
+  border-radius: 4px;
+  background: #fbf8f2;
+  box-shadow: 0 1px 2px rgba(20, 22, 30, 0.22), 0 0 0 0.5px rgba(20, 22, 30, 0.08);
+  transition: transform 340ms var(--ease-back), width 180ms var(--ease-out), background-color 260ms;
+}
+.sw_sm .swKnob { border-radius: 3px; }
+.swOn, .swOn:hover:not(:disabled) { background: var(--primary); }
+.swOn .swKnob { transform: translateX(calc(var(--sw-w) - var(--sw-h))); background: var(--on-primary); }
+.switch:active:not(:disabled) .swKnob { width: calc(var(--sw-k) + 4px); }
+.swOn:active:not(:disabled) .swKnob { transform: translateX(calc(var(--sw-w) - var(--sw-h) - 4px)); }
+.switch:disabled { opacity: 0.45; }
+:global(:root[data-theme='dark']) .swKnob { background: #c9c5ba; }
+:global(:root[data-theme='dark']) .swOn .swKnob { background: var(--on-primary); }
+
+/* ------------------------------------------------------------------ segmented */
+.seg {
+  position: relative;
+  display: inline-flex;
+  padding: 3px;
+  border-radius: var(--r-3);
+  background: var(--field);
+  isolation: isolate;
+}
+.segInd {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  border-radius: calc(var(--r-3) - 2px);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-1), 0 0 0 1px var(--line);
+  transition: transform 360ms var(--ease-out), width 360ms var(--ease-out);
+  z-index: -1;
+}
+.segOpt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: calc(var(--r-3) - 2px);
+  color: var(--ink-3);
+  font-weight: 540;
+  transition: color var(--dur-2);
+}
+.segOpt:hover { color: var(--ink-2); }
+.segOpt[data-selected='true'] { color: var(--ink); }
+.seg_md .segOpt { height: 32px; padding: 0 14px; font-size: 13.5px; }
+.seg_sm .segOpt { height: 28px; padding: 0 10px; font-size: 13px; }
+.seg_sm .segOpt:has(svg:only-child) { width: 30px; padding: 0; }
+
+/* ------------------------------------------------------------------ fields */
+.field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fieldHead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.fieldLabel { font-size: 13px; font-weight: 560; color: var(--ink-2); letter-spacing: 0.02em; }
+.fieldHint { font-size: 12.5px; color: var(--ink-3); }
+.fieldError { font-size: 12.5px; color: var(--danger); }
+
+.inputWrap { position: relative; display: flex; align-items: center; }
+.inputIcon { position: absolute; left: 12px; color: var(--ink-3); pointer-events: none; }
+.input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: var(--field);
+  box-shadow: 0 0 0 1px var(--line) inset;
+  color: var(--ink);
+  font-size: 14.5px;
+  transition: box-shadow var(--dur-2) var(--ease-out), background-color var(--dur-2);
+}
+.input:hover { background: var(--field-hover); }
+.input:focus, .input:focus-visible { background: var(--bg-raised); box-shadow: 0 0 0 1px var(--accent) inset, 0 0 0 4px var(--accent-soft); }
+.withIcon { padding-left: 36px; }
+.textarea { height: auto; min-height: 84px; padding: 10px 12px; resize: none; line-height: 1.65; }
+.invalid .input, .input.invalid { box-shadow: 0 0 0 1px var(--danger) inset; }
+
+/* ------------------------------------------------------------------ select */
+.select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border-radius: var(--r-2);
+  color: var(--ink);
+  background: var(--bg-raised);
+  box-shadow: 0 0 0 1px var(--line-2) inset;
+  transition: box-shadow var(--dur-1), background-color var(--dur-1);
+}
+.select:hover, .selOpen { box-shadow: 0 0 0 1px var(--ink-4) inset; }
+.sel_md { height: 36px; padding: 0 10px 0 12px; font-size: 14px; }
+.sel_sm { height: 30px; padding: 0 8px 0 10px; font-size: 13px; }
+.selIcon { color: var(--ink-3); flex-shrink: 0; }
+.selValue { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selChevron { color: var(--ink-3); transition: transform var(--dur-2) var(--ease-out); }
+.selOpen .selChevron { transform: rotate(180deg); }
+.listbox { padding: 5px; max-height: 320px; overflow: auto; }
+.option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-2);
+  font-size: 14px;
+  color: var(--ink-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.option[data-hi='true'] { background: var(--hover); color: var(--ink); }
+.option[aria-selected='true'] { color: var(--ink); font-weight: 560; }
+.optCheck { margin-left: auto; color: var(--star); }
+
+/* ------------------------------------------------------------------ chips */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: var(--r-2);
+  font-size: 13px;
+  font-weight: 520;
+  color: var(--ink-2);
+  background: transparent;
+  box-shadow: 0 0 0 1px var(--line-2) inset;
+  transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2), box-shadow var(--dur-2), transform var(--dur-1) var(--ease-out);
+}
+.chip:hover:not(:disabled) { color: var(--ink); box-shadow: 0 0 0 1px var(--ink-4) inset; }
+.chip:active:not(:disabled) { transform: scale(0.97); }
+.chip:disabled { opacity: 0.42; cursor: not-allowed; }
+.chipOn { color: var(--ink); background: var(--star-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--star) 55%, transparent) inset; }
+.chipOn:hover:not(:disabled) { box-shadow: 0 0 0 1px var(--star) inset; }
+.chipDot { width: 7px; height: 7px; border-radius: 50%; background: var(--chip-dot); }
+.chipCount { color: var(--ink-3); font-size: 12px; font-weight: 500; }

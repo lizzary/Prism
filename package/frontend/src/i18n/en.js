@@ -1,0 +1,61 @@
+export default {
+  common: { cancel: 'Cancel', save: 'Save', close: 'Close', clear: 'Clear', remove: 'Remove', notYet: 'This part is still being built' },
+  bar: {
+    search: 'Search', searchHint: 'Search tags, prompts or groups', tags: 'Tags', export: 'Export', tasks: 'Tasks', settings: 'Settings', home: 'Home',
+    running: { one: '{n} task running', other: '{n} tasks running' },
+  },
+  home: {
+    greeting: { morning: 'Good morning', noon: 'Good afternoon', afternoon: 'Good afternoon', evening: 'Good evening', night: 'Up late' },
+    prompt: 'What would you like to look at?',
+    lastViewed: 'Last viewed', position: '{n} of {total}', random: 'A random one', drawing: 'Picking',
+    stats: '{groups} groups · {files} files · {size}', thisWeek: '{n} new this week',
+    groups: 'Groups', newGroup: 'New group', findGroup: 'Find a group', editGroup: 'Edit group',
+    ratio: 'Cover proportions', ratioNatural: 'Original proportions', ratioSquare: 'All square',
+    files: { one: '{n} file', other: '{n} files' }, updated: 'updated {date}', emptyGroup: 'No files yet',
+    emptyTitle: 'No groups yet', emptyBody: 'Create a group, then put pictures and videos in it.', noMatch: 'Nothing called “{q}”',
+  },
+  groupEditor: {
+    newTitle: 'New group', editTitle: 'Edit group', name: 'Name', namePlaceholder: 'e.g. Night skies', nameRequired: 'Give the group a name',
+    cover: 'Cover', coverAuto: 'Automatic', noPictures: 'There are no pictures in this group yet. Add some, then choose the cover here.',
+    create: 'Create group', created: 'Created “{name}”', saved: 'Group saved', summary: '{files} files · {size}',
+    delete: 'Delete group', deleteTitle: 'Delete this group?', deleteBody: '“{name}” and the {n} files in it will be deleted. This can’t be undone.',
+    deleteEmpty: '“{name}” will be deleted. It is empty.', deleteConfirm: 'Delete', deleted: 'Deleted “{name}”',
+  },
+  search: {
+    placeholder: 'Search tags, prompts or groups…', domains: 'Search in',
+    d: { tags: 'Tags', positive: 'Positive prompt', negative: 'Negative prompt', semantic: 'Text to image', similar: 'Image to image' },
+    locked: 'Available once pictures have an image index',
+    allGroups: 'All groups', groupsCount: { one: '{n} group', other: '{n} groups' }, chooseGroups: 'Choose groups', findGroup: 'Find a group',
+    allColors: 'All colour groups', colorsCount: { one: '{n} colour group', other: '{n} colour groups' }, chooseColors: 'Choose colour groups', findColor: 'Find a colour group or group',
+    resultsGroups: 'Groups', resultsColors: 'Colour groups', resultsFiles: 'Files', results: { one: '{n} result', other: '{n} results' }, more: '{n} more',
+    none: 'Nothing found', idle: 'Start typing to search',
+    matched: { tags: 'Tag', positive: 'Positive', negative: 'Negative', semantic: 'Text to image', similar: 'Image to image' },
+    similarity: '{n}% alike', pickImage: 'Choose a picture', dropImage: 'Drop a picture here, or click to choose', removeImage: 'Remove picture',
+    selected: '{n} selected', none2: 'Nothing matches',
+  },
+  tagIndex: {
+    title: 'All tags', summary: '{n} tags · from {files} files', find: 'Find a tag',
+    source: { all: 'All', model: 'Tagger', user: 'Mine' }, sort: { count: 'Most used', name: 'A–Z' },
+    files: { one: '{n} file', other: '{n} files' }, userTag: 'Added by you', search: 'Search this tag', none: 'No matching tags', other: 'Other',
+    emptyTitle: 'No tags yet', emptyBody: 'Once files are tagged, their tags are listed here.',
+  },
+  tasks: {
+    title: 'Tasks', running: 'Running', queued: 'Queued', history: 'Finished', clearHistory: 'Clear history', cleared: 'History cleared', empty: 'Nothing is running',
+    cancel: 'Cancel task', positions: '#{n} in line',
+    types: { import: 'Import', reindex: 'Re-index', export: 'Export', 'model-download': 'Model download', download: 'Download' },
+    stages: {
+      queued: 'Queued', preparing: 'Preparing', importing: 'Importing', tagging: 'Tagging', embedding: 'Building image index', metadata: 'Reading metadata',
+      copying: 'Copying files', connecting: 'Connecting', downloading: 'Downloading', packing: 'Packing', done: 'Done', failed: 'Failed', canceled: 'Canceled',
+    },
+    kinds: { tagging: 'Tags', embedding: 'Image index', metadata: 'Metadata' },
+    result: {
+      import: '{files} files imported', reindex: '{files} files processed', export: '{files} files · {size}', 'model-download': '{size} downloaded', download: '{files} files',
+    },
+    errors: { modelMissing: 'The tagging model isn’t downloaded' },
+  },
+  settings: {
+    title: 'Settings', sections: { general: 'General' }, language: 'Language', theme: 'Theme', light: 'Light', dark: 'Dark', about: 'Prism {version}',
+  },
+  group: { notFound: 'This group doesn’t exist' },
+  time: { justNow: 'just now' },
+};

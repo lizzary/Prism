@@ -1,0 +1,135 @@
+.hero {
+  position: relative;
+  height: clamp(560px, 78vh, 900px);
+  color: #f6f0de;
+  isolation: isolate;
+}
+/* the painting dissolves into the page colour, light or dark */
+.art {
+  position: absolute;
+  inset: 0;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 70%, rgba(0, 0, 0, 0.93) 75%, rgba(0, 0, 0, 0.78) 80%, rgba(0, 0, 0, 0.56) 85%, rgba(0, 0, 0, 0.33) 90%, rgba(0, 0, 0, 0.13) 95%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 70%, rgba(0, 0, 0, 0.93) 75%, rgba(0, 0, 0, 0.78) 80%, rgba(0, 0, 0, 0.56) 85%, rgba(0, 0, 0, 0.33) 90%, rgba(0, 0, 0, 0.13) 95%, transparent 100%);
+}
+.veil {
+  position: absolute;
+  inset: 0 0 30% 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 52% 70% at 12% 42%, rgba(8, 13, 32, 0.5), rgba(8, 13, 32, 0) 72%),
+    linear-gradient(180deg, rgba(8, 13, 32, 0.28), rgba(8, 13, 32, 0) 30%);
+}
+
+.content {
+  position: relative;
+  max-width: calc(var(--maxw) + 2 * var(--gutter));
+  height: 100%;
+  margin: 0 auto;
+  padding: calc(var(--bar-h) + clamp(44px, 10vh, 130px)) var(--gutter) 0;
+  pointer-events: none;
+}
+.greeting { max-width: 640px; opacity: 0; transform: translateY(12px); transition: opacity 1000ms var(--ease-out), transform 1300ms var(--ease-out); }
+.greeting.in { opacity: 1; transform: none; }
+.hello {
+  font-size: clamp(46px, 4.9vw, 78px);
+  font-weight: 400;
+  line-height: 1.08;
+  letter-spacing: 0.03em;
+  text-shadow: 0 2px 30px rgba(6, 10, 30, 0.55), 0 1px 2px rgba(6, 10, 30, 0.4);
+}
+.prompt {
+  margin-top: 14px;
+  font-size: clamp(16px, 1.32vw, 20px);
+  color: rgba(246, 240, 222, 0.86);
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 14px rgba(6, 10, 30, 0.65);
+}
+
+.row { display: flex; flex-wrap: wrap; align-items: stretch; gap: 14px; margin-top: clamp(28px, 4.4vh, 48px); }
+.row > * { pointer-events: auto; }
+
+.glass {
+  border-radius: 10px;
+  background: rgba(11, 17, 40, 0.42);
+  box-shadow: 0 0 0 1px rgba(246, 240, 222, 0.14) inset, 0 20px 44px -24px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(14px) saturate(1.15);
+}
+
+.last {
+  composes: glass;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: min(440px, 100%);
+  padding: 10px 16px 10px 10px;
+  color: #f6f0de;
+  transition: transform 380ms var(--ease-out), background-color 240ms, box-shadow 240ms;
+  animation: rise 900ms var(--ease-out) 300ms both;
+}
+.last:hover { transform: translateY(-2px); background: rgba(11, 17, 40, 0.56); box-shadow: 0 0 0 1px rgba(246, 240, 222, 0.28) inset, 0 26px 50px -24px rgba(0, 0, 0, 0.8); }
+.lastCover { height: 76px; flex-shrink: 0; border-radius: 6px; box-shadow: 0 0 0 1px rgba(246, 240, 222, 0.12); }
+.lastBody { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; }
+.kicker { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(246, 240, 222, 0.66); letter-spacing: 0.04em; }
+.lastTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15.5px; font-weight: 540; }
+/* how far into the group the picture sits: a thin starlit track */
+.lastWhere { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: rgba(246, 240, 222, 0.78); }
+.track { position: relative; flex: 1; max-width: 120px; height: 2px; border-radius: 1px; background: rgba(246, 240, 222, 0.16); overflow: hidden; }
+.track > span { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: #e8c260; box-shadow: 0 0 6px rgba(232, 194, 96, 0.6); transform-origin: left; animation: trackIn 1200ms var(--ease-out) 700ms both; }
+@keyframes trackIn { from { transform: scaleX(0); } }
+.lastGo { flex-shrink: 0; opacity: 0.5; transition: transform 320ms var(--ease-out), opacity 200ms; }
+.last:hover .lastGo { opacity: 1; transform: translateX(3px); }
+
+.deck {
+  composes: glass;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px 10px 12px;
+  color: #f6f0de;
+  transition: transform 380ms var(--ease-out), background-color 240ms, box-shadow 240ms;
+  animation: rise 900ms var(--ease-out) 420ms both;
+}
+.deck:hover { transform: translateY(-2px); background: rgba(11, 17, 40, 0.56); box-shadow: 0 0 0 1px rgba(246, 240, 222, 0.28) inset, 0 26px 50px -24px rgba(0, 0, 0, 0.8); }
+.cards { position: relative; width: 100px; height: 72px; flex-shrink: 0; }
+.card {
+  position: absolute;
+  inset: 6px 12px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #2b3b68;
+  box-shadow: 0 0 0 2px rgba(246, 240, 222, 0.92), 0 8px 16px -6px rgba(0, 0, 0, 0.55);
+  transition: transform 520ms var(--ease-back);
+}
+.card img { width: 100%; height: 100%; object-fit: cover; }
+.card[data-k='2'] { transform: rotate(-10deg) translate(-8px, 3px); }
+.card[data-k='1'] { transform: rotate(7deg) translate(8px, 1px); }
+.card[data-k='0'] { transform: rotate(-1.5deg); }
+.deck:hover .card[data-k='2'] { transform: rotate(-16deg) translate(-15px, 4px); }
+.deck:hover .card[data-k='1'] { transform: rotate(12deg) translate(15px, 2px); }
+.deck:hover .card[data-k='0'] { transform: rotate(0deg) translateY(-4px); }
+.drawing .card[data-k='0'] img { animation: riffle 110ms var(--ease-out); }
+.drawing .card[data-k='0'] { transform: rotate(0deg) translateY(-4px) scale(1.06); }
+@keyframes riffle { from { transform: translateX(14px) rotate(5deg); opacity: 0.4; } }
+.deckLabel { display: inline-flex; align-items: center; gap: 9px; font-size: 14.5px; font-weight: 600; white-space: nowrap; }
+.drawing .deckLabel svg { animation: tumble 600ms var(--ease-out) infinite; }
+@keyframes tumble { to { transform: rotate(360deg); } }
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  margin-top: 22px;
+  font-size: 13px;
+  color: rgba(246, 240, 222, 0.68);
+  text-shadow: 0 1px 10px rgba(6, 10, 30, 0.7);
+  letter-spacing: 0.03em;
+  animation: rise 900ms var(--ease-out) 560ms both;
+}
+.week { display: inline-flex; align-items: center; gap: 6px; color: #f1d78a; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+
+/* the tracking above suits CJK; Latin reads better tight */
+.hello:lang(en) { letter-spacing: 0; }
+.prompt:lang(en), .stats:lang(en) { letter-spacing: 0.005em; }

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Prism</title>
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<link rel="preload" href="./fonts/PlusJakartaSans-Variable.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="preload" href="./fonts/ResourceHanRoundedCN-Regular.ttf" as="font" type="font/ttf" crossorigin>
+<script>
+  // paint the last theme and language before anything loads, so a dark gallery never flashes light
+  try {
+    var t = localStorage.getItem('prism.ui.theme'); if (t) document.documentElement.dataset.theme = t;
+    var l = localStorage.getItem('prism.ui.lang'); if (l) document.documentElement.lang = l;
+  } catch (e) {}
+</script>
+</head>
+<body>
+<div id="root"></div>
+<script type="module" src="/src/main.jsx"></script>
+</body>
+</html>

@@ -25,21 +25,33 @@ async function call(kind, fn) {
  */
 function live(topics, read) {
   const on = new Set([topics].flat());
-  let snapshot = copy(read());
+  const pending = [];                 // optimistic changes whose writes have not settled yet, oldest first
+  const current = () => pending.reduce((v, patch) => ({ ...v, ...patch }), read());
+  let snapshot = copy(current());
   let last = JSON.stringify(snapshot);
   const subs = new Set();
-  backend.onChange((t) => {
-    if (!on.has(t)) return;
-    const next = read();
+  const refresh = () => {
+    const next = current();
     const json = JSON.stringify(next);
     if (json === last) return;
     last = json;
     snapshot = copy(next);
     for (const fn of subs) fn();
-  });
+  };
+  backend.onChange((t) => { if (on.has(t)) refresh(); });
   return {
     subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn); },
     getSnapshot: () => snapshot,
+    /**
+     * Show a change at once while its write is on the way. It stays on top of what the backend reports until the
+     * returned `settle` is called: after a successful write the backend says the same, after a failed one the value
+     * goes back. Quick successive changes never flicker back to an older one.
+     */
+    optimistic(patch) {
+      pending.push(patch);
+      refresh();
+      return () => { pending.splice(pending.indexOf(patch), 1); refresh(); };
+    },
   };
 }
 
@@ -189,9 +201,18 @@ export const folders = {
  * Live: { language, theme, dbPath, defaultDbPath, conflict: 'keep' | 'skip' | 'overwrite', gpu, whiteboard: 'auto' | 'webgl' | 'dom',
  *         downloadName: template } (config.toml)
  */
+const settingsStore = live('settings', backend.getSettings);
+/** Preferences the UI shows changed at once. A new database folder waits for the backend: it reloads the gallery. */
+const INSTANT = new Set(['language', 'theme', 'conflict', 'gpu', 'whiteboard', 'downloadName']);
 export const settings = {
-  ...live('settings', backend.getSettings),
-  update: (patch) => call('write', () => backend.updateSettings(patch)),
+  subscribe: settingsStore.subscribe,
+  getSnapshot: settingsStore.getSnapshot,
+  /** Applied at once (optimistically) and saved in the background; a failed save puts the old value back. */
+  async update(patch) {
+    const instant = Object.fromEntries(Object.entries(patch).filter(([k]) => INSTANT.has(k)));
+    const settle = Object.keys(instant).length ? settingsStore.optimistic(instant) : () => {};
+    try { return await call('write', () => backend.updateSettings(patch)); } finally { settle(); }
+  },
 };
 
 // ------------------------------------------------------------------ tagging models

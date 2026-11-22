@@ -69,6 +69,9 @@ export const useTasks = () => useLive(api.tasks);
 export const taskActions = { clearHistory: api.tasks.clearHistory, cancel: api.tasks.cancel };
 
 export const useSettings = () => useLive(api.settings);
+/** One setting: the component re-renders only when that one changes (the app shell reads theme and language this way). */
+export const useSetting = (key) => useSyncExternalStore(api.settings.subscribe, () => api.settings.getSnapshot()[key]);
+/** Changes show at once and are saved in the background (see data/api: settings.update). */
 export const settingsActions = { update: api.settings.update };
 export const folderActions = { roots: api.folders.roots, list: api.folders.list, create: api.folders.create };
 

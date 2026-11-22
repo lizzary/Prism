@@ -12,7 +12,7 @@ import { CreateDialog, DeleteDialog, ExportDialog, ImportFlow, LoadDialog } from
 import s from './BackupSheet.module.css';
 
 /** Data backup: the snapshot timeline, what changed, and taking, loading, exporting and importing snapshots. */
-export default function BackupSheet({ open, onClose, nonce }) {
+export default function BackupSheet({ open, onClose, onLeave, nonce, handoff }) {
   const t = useT();
   const fmt = useFormat();
   const { data } = useBackup();
@@ -77,7 +77,7 @@ export default function BackupSheet({ open, onClose, nonce }) {
 
   const index = snap ? snaps.indexOf(snap) : -1;
   return (
-    <Sheet open={open} onClose={onClose} label={t('backup.title')}>
+    <Sheet open={open} onClose={onClose} label={t('backup.title')} handoff={handoff}>
       <div className={s.sheet}>
         <header className={s.head}>
           <span className={s.mark}><Icon name="snapshot" size={19} /></span>
@@ -136,7 +136,7 @@ export default function BackupSheet({ open, onClose, nonce }) {
           </aside>
           <Changes data={changes} loading={changesLoading}
             baseName={selected === 'now' ? (head ? snapshotTitle(t, fmt, head) : null) : (index > 0 ? snapshotTitle(t, fmt, snaps[index - 1]) : null)}
-            onNavigate={onClose} />
+            onNavigate={onLeave} />
         </div>
 
         <footer className={s.foot}>

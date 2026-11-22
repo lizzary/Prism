@@ -1,5 +1,5 @@
 import { ViewTransition, useEffect, useRef, useState } from 'react';
-import { libraryActions, mediaUrl, useSettings } from '../../../bridge/index.js';
+import { libraryActions, mediaUrl, useSetting } from '../../../bridge/index.js';
 import { Link, navigate, paths } from '../../../app/router.jsx';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
@@ -36,7 +36,7 @@ export function HomeHero({ home, heroRef }) {
   const greeting = t(`home.greeting.${greetingKey(new Date().getHours())}`);
   const fontReady = useFontReady('Prism WenKai', greeting);
   const { stats, lastViewed } = home;
-  const { dbPath } = useSettings();
+  const dbPath = useSetting('dbPath');
 
   return (
     <section ref={heroRef} className={s.hero}>

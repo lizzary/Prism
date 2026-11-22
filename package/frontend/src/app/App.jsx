@@ -1,5 +1,5 @@
 import { Suspense, ViewTransition, useEffect, useLayoutEffect, useState } from 'react';
-import { useAccess, useSettings } from '../bridge/index.js';
+import { useAccess, useSetting } from '../bridge/index.js';
 import { I18nProvider } from '../i18n/index.jsx';
 import { OverlayProvider, PageMetaProvider, useOverlays } from './shell.jsx';
 import { useRoute } from './router.jsx';
@@ -12,23 +12,31 @@ import { GroupPage } from '../ui/pages/group/GroupPage.jsx';
 import { LoginPage } from '../ui/pages/login/LoginPage.jsx';
 
 export function App() {
-  const settings = useSettings();
-  useLayoutEffect(() => {
-    const root = document.documentElement;
-    root.dataset.theme = settings.theme;
-    root.lang = settings.language;
-    try {
-      localStorage.setItem('prism.ui.theme', settings.theme);
-      localStorage.setItem('prism.ui.lang', settings.language);
-    } catch { /* first paint falls back to the defaults */ }
-  }, [settings.theme, settings.language]);
-
+  // a new language relabels everything; the theme only reaches the document (DocumentSync), so it re-renders nothing else
+  const language = useSetting('language');
   return (
-    <I18nProvider lang={settings.language}>
+    <I18nProvider lang={language}>
+      <DocumentSync />
       <Gate />
       <Toaster />
     </I18nProvider>
   );
+}
+
+/** The document follows the theme and language settings, and remembers them for the first paint of the next visit. */
+function DocumentSync() {
+  const theme = useSetting('theme');
+  const language = useSetting('language');
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = theme;
+    root.lang = language;
+    try {
+      localStorage.setItem('prism.ui.theme', theme);
+      localStorage.setItem('prism.ui.lang', language);
+    } catch { /* first paint falls back to the defaults */ }
+  }, [theme, language]);
+  return null;
 }
 
 /**

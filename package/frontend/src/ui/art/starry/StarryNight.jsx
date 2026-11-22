@@ -2,7 +2,8 @@
 //   • the spirals turn slowly; moving the pointer across the sky stirs them, scrolling spins them
 //   • stars breathe; a star or the moon answers a click with a flare
 //   • the cypress sways gently, and once more when the pointer brushes it; village windows light up in waves
-//   • it rests while off screen, while the tab is hidden and while a dialog covers the page
+//   • it rests while off screen, while the tab is hidden and while a dialog covers the page; resting, it keeps its
+//     own clock still and shows the whole picture at that moment, so it goes on from there without a jump
 // Arrival:
 //   • first time: a primed canvas (night tone, linen weave) holds the place, with a progress thread if it takes a
 //     while; once every layer is painted the whole picture opens out from the great spiral
@@ -62,15 +63,20 @@ export function StarryNight({ className, onReady }) {
     const preview = warm ? null : kept.preview; // or just a small still of them
     kept.layers = null;
     const layers = warm ?? { spin: [], star: [], flare: [], halo: null, moon: null, window: [], cypress: null, main: null };
-    const born = new Map();          // window layer → when it starts to light up; missing = lit
+    const born = new Map();          // window layer → when it starts to light up (painting clock); missing = lit
     const extra = warm ? kept.extra : new Map();   // spin layer id → { angle, vel }
     let baseFade = null;             // { from: ImageBitmap, t: start } while the finished picture fades over a stand-in
     let holdPreview = !!preview;     // keep showing the preview until every layer has arrived
-    const flares = new Map();        // star index → start time
-    let moonPulse = -10;
+    const flares = new Map();        // star index → start time (painting clock)
+    let moonPulse = -1e9;
     let kick = { t: -1e9, dir: 1 }, overTree = false;   // the cypress's hover sway
     let view = { w: 1, h: 1, dpr: 1, k: 1, ox: 0, oy: 0 };
     let t0 = warm ? kept.t0 : performance.now(), last = performance.now(), lastInput = -1e9, visible = true, raf = 0, firstFrame = warm ? -1e9 : 0;
+    // The painting's own clock (ms). It stands still while the picture rests (until the loop first runs, and whenever
+    // it is covered, off screen or in a hidden tab): spirals, stars, the cypress and the windows' waves all go on from
+    // the moment they stopped. Clicks and the pointer's brush are timed on it too.
+    let restedAt = performance.now();
+    const clock = (now) => (restedAt || now) - t0;
 
     // ---------------------------------------------------------- geometry
     const measure = () => {
@@ -109,7 +115,7 @@ export function StarryNight({ className, onReady }) {
       ctx.globalAlpha = 1;
       if (baseFade && a >= 1) { if (baseFade.from !== preview) baseFade.from.close?.(); baseFade = null; }
     }
-    const fadeOf = (layer, now, delay = 0, dur = 900) => (born.has(layer) ? smooth((now - born.get(layer) - delay) / dur) : 1);
+    const fadeOf = (layer, p, delay = 0, dur = 900) => (born.has(layer) ? smooth((p - born.get(layer) - delay) / dur) : 1);
     const disc = (ctx, l, angle, scale = 1, alpha = 1) => {
       if (alpha <= 0.002) return;
       ctx.save();
@@ -124,7 +130,8 @@ export function StarryNight({ className, onReady }) {
     function frame(now) {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      const t = reduce ? 0 : (now - t0) / 1000;
+      const p = clock(now);
+      const t = reduce ? 0 : p / 1000;
       if (baseFade) drawBase(now);
       const ctx = top.getContext('2d');
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -139,12 +146,12 @@ export function StarryNight({ className, onReady }) {
       for (const l of layers.spin) {
         const own = extra.get(l.id)?.angle ?? 0;
         const a = l.id === 'ring' ? great * 0.5 : l.id === 'coil' ? great : BASE_SPIN * l.rate * 1.6 * t + own;
-        disc(ctx, l, a, 1, fadeOf(l, now));
+        disc(ctx, l, a, 1, fadeOf(l, p));
       }
       for (const l of layers.flare) {
         const f0 = flares.get(l.index);
         if (f0 == null) continue;
-        const u = (now - f0) / 1700;
+        const u = (p - f0) / 1700;
         if (u > 1) { flares.delete(l.index); continue; }
         const k = Math.sin(Math.PI * Math.min(1, u * 1.6)) * (1 - u * 0.4);
         disc(ctx, l, -great * 0.4 * l.rate + l.phase + u * 1.4, 0.85 + 0.35 * k, 0.92 * k);
@@ -153,32 +160,32 @@ export function StarryNight({ className, onReady }) {
         const st = STARS[l.index];
         const breathe = 0.5 + 0.5 * Math.sin((t / (3 + (l.index % 5) * 0.55)) * Math.PI * 2 + l.phase * 2.3);
         const f0 = flares.get(l.index);
-        const pop = f0 == null ? 0 : Math.sin(Math.PI * clamp((now - f0) / 900, 0, 1));
-        disc(ctx, l, great * 0.3 * st.dir + l.phase, 1 + 0.035 * breathe + 0.16 * pop, fadeOf(l, now, 260 + l.index * 70, 700));
+        const pop = f0 == null ? 0 : Math.sin(Math.PI * clamp((p - f0) / 900, 0, 1));
+        disc(ctx, l, great * 0.3 * st.dir + l.phase, 1 + 0.035 * breathe + 0.16 * pop, fadeOf(l, p, 260 + l.index * 70, 700));
       }
       if (layers.halo) {
-        const p = Math.max(0, 1 - (now - moonPulse) / 1400);
-        const throb = Math.sin(Math.PI * Math.min(1, (now - moonPulse) / 700)) * p;
-        disc(ctx, layers.halo, great * 0.15, 1 + 0.02 * Math.sin(t * 1.3) + 0.09 * throb, fadeOf(layers.halo, now, 500, 1000));
+        const fall = Math.max(0, 1 - (p - moonPulse) / 1400);
+        const throb = Math.sin(Math.PI * Math.min(1, (p - moonPulse) / 700)) * fall;
+        disc(ctx, layers.halo, great * 0.15, 1 + 0.02 * Math.sin(t * 1.3) + 0.09 * throb, fadeOf(layers.halo, p, 500, 1000));
       }
-      if (layers.moon) disc(ctx, layers.moon, 0, 1, fadeOf(layers.moon, now, 500, 1000));
+      if (layers.moon) disc(ctx, layers.moon, 0, 1, fadeOf(layers.moon, p, 500, 1000));
       for (const l of layers.window) {
-        const a = fadeOf(l, now, 900 + (l.group - 1) * 650, 500);
+        const a = fadeOf(l, p, 900 + (l.group - 1) * 650, 500);
         if (a <= 0) continue;
         ctx.globalAlpha = a;
         ctx.drawImage(l.bitmap, l.x, l.y, l.w, l.h);
         ctx.globalAlpha = 1;
       }
-      if (layers.cypress) drawCypress(ctx, layers.cypress, t, now);
+      if (layers.cypress) drawCypress(ctx, layers.cypress, t, p);
     }
 
     /**
      * The cypress is one upright picture, bent on screen: each band of device rows shifts sideways by an amount that
      * grows towards the tip. Bands sit on whole device pixels, so no seams show between them.
      */
-    function drawCypress(ctx, l, t, now) {
+    function drawCypress(ctx, l, t, p) {
       const idle = 2.2 * Math.sin((t * TAU) / 9) + 0.8 * Math.sin((t * TAU) / 4.3 + 1);
-      const u = (now - kick.t) / 1000;
+      const u = (p - kick.t) / 1000;
       const push = u < 5 ? kick.dir * 12 * Math.exp(-u / 0.95) * Math.sin((u * TAU) / 1.6) : 0;
       const amp = reduce ? 0 : idle + push;                       // sideways bend at the tip, in units
       const sc = view.k * view.dpr, bm = l.bitmap, py = bm.height / l.h;
@@ -201,7 +208,7 @@ export function StarryNight({ className, onReady }) {
 
     // ---------------------------------------------------------- loop (only while visible and uncovered; slower when idle)
     // While it rests, the painting's clock stands still: it goes on from the same moment, with no jump.
-    let skip = false, covered = pageCover.active(), restedAt = 0;
+    let skip = false, covered = pageCover.active();
     const loop = (now) => {
       raf = requestAnimationFrame(loop);
       const idle = now - lastInput > 2500 && now - firstFrame > 4000;
@@ -214,7 +221,13 @@ export function StarryNight({ className, onReady }) {
       last = performance.now();
       raf = requestAnimationFrame(loop);
     };
-    const stop = () => { if (raf) restedAt = performance.now(); cancelAnimationFrame(raf); raf = 0; };
+    const stop = () => { if (!restedAt) restedAt = performance.now(); cancelAnimationFrame(raf); raf = 0; };
+    /**
+     * The picture as it stands, when the loop is not drawing it: resting under a dialog (the first-run welcome covers
+     * the page before the loop ever starts), off screen, or with reduced motion. Nothing is missing from it, and when
+     * the loop takes over it goes on from this very frame.
+     */
+    const still = () => { if (!raf && layers.main) frame(performance.now()); };
     const unCover = pageCover.subscribe((on) => { covered = on; if (on) stop(); else start(); });
 
     // ---------------------------------------------------------- layers from the worker
@@ -233,10 +246,12 @@ export function StarryNight({ className, onReady }) {
       el.style.setProperty('--rx', `${((C0.x * view.k + view.ox) / view.w) * 100}%`);
       el.style.setProperty('--ry', `${((C0.y * view.k + view.oy) / view.h) * 100}%`);
       const now = performance.now();
-      for (const l of layers.window) born.set(l, now + 600);
+      // on the painting's clock: opened under a dialog, the village lights up once the dialog has gone
+      for (const l of layers.window) born.set(l, reduce ? -Infinity : clock(now) + 600);
       firstFrame = now;
       el.dataset.ready = 'true';
       readyRef.current?.();
+      still();
       // the mask is only for the opening: drop it afterwards so the animation composites plainly
       revealTimer = setTimeout(() => { el.dataset.revealed = 'true'; }, reduce ? 0 : 2600);
     };
@@ -247,7 +262,8 @@ export function StarryNight({ className, onReady }) {
       if (data.type === 'done') {
         if (holdPreview) {
           // over the preview the moving parts appeared in place (they line up with it); now the full picture fades in
-          holdPreview = false; baseFade = { from: preview, t: performance.now() }; drawBase();
+          // (at once while nothing is moving: the fade is drawn by the loop)
+          holdPreview = false; baseFade = raf ? { from: preview, t: performance.now() } : null; drawBase();
         } else if (!shown) reveal();
         return;
       }
@@ -268,7 +284,7 @@ export function StarryNight({ className, onReady }) {
         if (old && old !== l) old.bitmap.close?.();
         layers[l.kind] = l;
       }
-      if (reduce) frame(performance.now());
+      still();
     };
     worker?.postMessage({ S });
 
@@ -291,8 +307,8 @@ export function StarryNight({ className, onReady }) {
       }
       // brushing past the cypress sets it swaying once, away from the pointer's direction of travel
       const over = onCypress(x, y);
-      if (over && !overTree && now - kick.t > 1800 && !reduce) {
-        kick = { t: now, dir: prev && x !== prev.x ? Math.sign(x - prev.x) : 1 };
+      if (over && !overTree && clock(now) - kick.t > 1800 && !reduce) {
+        kick = { t: clock(now), dir: prev && x !== prev.x ? Math.sign(x - prev.x) : 1 };
         lastInput = now;
       }
       overTree = over;
@@ -309,8 +325,8 @@ export function StarryNight({ className, onReady }) {
       if (e.target !== top) return;
       const hit = hitTest(...toUnits(e.clientX, e.clientY));
       if (!hit) return;
-      if (hit.moon) moonPulse = performance.now();
-      else flares.set(hit.star, performance.now());
+      if (hit.moon) moonPulse = clock(performance.now());
+      else flares.set(hit.star, clock(performance.now()));
       lastInput = performance.now();
     };
     let lastScroll = window.scrollY;

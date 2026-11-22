@@ -55,7 +55,8 @@ export function Overlays() {
     const Panel = panels[name];
     return Panel && (
       <OverlayBoundary key={name} onError={() => close(name)} resetKey={entry.nonce}>
-        <Panel open={entry.open} onClose={() => close(name)} {...entry.props} nonce={entry.nonce} />
+        <Panel open={entry.open} onClose={() => close(name)} onLeave={() => close(name, { leave: true })} {...entry.props}
+          nonce={entry.nonce} handoff={!!entry.handoff} />
       </OverlayBoundary>
     );
   });

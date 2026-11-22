@@ -32,6 +32,10 @@
 }
 .layer[data-state='enter'] .scrim,
 .layer[data-state='exit'] .scrim { opacity: 0; }
+/* one modal layer handing over to another (settings ↔ a sheet): the arriving scrim is there at once and the leaving
+   one goes at once, so the page behind keeps the same veil while the panels change places */
+.layer[data-handoff] .scrim { transition: none; }
+.layer[data-handoff][data-state='enter'] .scrim { opacity: 1; }
 
 .dialog {
   position: relative;

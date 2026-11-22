@@ -10,6 +10,8 @@ export const Portal = ({ children }) => createPortal(children, document.body);
 /**
  * Keep something mounted while it animates out. state: 'enter' → 'open' → 'exit' → unmounted.
  * Something that mounts already open (an overlay opened for the first time) still comes in from its 'enter' look.
+ * What is shown follows `open` in the very render it changes (the effect only times the steps), so two layers
+ * handing over to each other — one leaving, one arriving — change in the same frame.
  */
 export function usePresence(open, ms = 240) {
   const [state, setState] = useState(open ? 'enter' : 'closed');
@@ -24,7 +26,8 @@ export function usePresence(open, ms = 240) {
     const t = setTimeout(() => setState('closed'), ms);
     return () => clearTimeout(t);
   }, [open, ms]);
-  return { mounted: state !== 'closed', state };
+  const shown = open ? (state === 'open' ? 'open' : 'enter') : (state === 'closed' ? 'closed' : 'exit');
+  return { mounted: shown !== 'closed', state: shown };
 }
 
 // ------------------------------------------------------------------ scroll lock & focus
@@ -148,9 +151,10 @@ export function Popover({ open, onClose, anchor, placement = 'bottom-end', offse
 
 /**
  * A centred dialog over a soft scrim. `bare` hands the whole surface to the children (for dialogs with their own
- * layout); give those a `label`.
+ * layout); give those a `label`. `handoff`: it is taking over from (or giving way to) another modal layer, so its
+ * scrim appears and goes at once — the scrim stays as it is and only the panels move.
  */
-export function Dialog({ open, onClose, title, label, children, footer, size = 'md', className, scrimClassName, initialFocus, dismissible = true, bare }) {
+export function Dialog({ open, onClose, title, label, children, footer, size = 'md', className, scrimClassName, initialFocus, dismissible = true, bare, handoff }) {
   const t = useT();
   const ref = useRef(null);
   const titleId = useId();
@@ -161,7 +165,7 @@ export function Dialog({ open, onClose, title, label, children, footer, size = '
   if (!mounted) return null;
   return (
     <Portal>
-      <div className={s.layer} data-state={state}>
+      <div className={s.layer} data-state={state} data-handoff={handoff || undefined}>
         <div className={`${s.scrim} ${scrimClassName ?? ''}`} onPointerDown={dismissible ? onClose : undefined} />
         <div ref={ref} className={`${s.dialog} ${s[`size_${size}`]} ${className ?? ''}`} role="dialog" aria-modal="true"
           aria-labelledby={title ? titleId : undefined} aria-label={title ? undefined : label} tabIndex={-1}>
@@ -183,8 +187,8 @@ export function Dialog({ open, onClose, title, label, children, footer, size = '
   );
 }
 
-/** A full-height working surface that rises over the page (export, sync). */
-export function Sheet({ open, onClose, children, label, className }) {
+/** A full-height working surface that rises over the page (export, backup, MCP keys). `handoff`: as for Dialog. */
+export function Sheet({ open, onClose, children, label, className, handoff }) {
   const ref = useRef(null);
   const { mounted, state } = usePresence(open, 420);
   useScrollLock(mounted);
@@ -193,7 +197,7 @@ export function Sheet({ open, onClose, children, label, className }) {
   if (!mounted) return null;
   return (
     <Portal>
-      <div className={s.layer} data-state={state}>
+      <div className={s.layer} data-state={state} data-handoff={handoff || undefined}>
         <div className={`${s.scrim} ${s.sheetScrim}`} onPointerDown={onClose} />
         <div ref={ref} className={`${s.sheet} ${className ?? ''}`} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>
           {children}

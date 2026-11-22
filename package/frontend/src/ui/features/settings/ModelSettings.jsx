@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { modelActions, settingsActions, useModels, useSettings } from '../../../bridge/index.js';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
-import { useOptimisticToggle } from '../../lib/useOptimisticToggle.js';
 import { Icon } from '../../icons/Icon.jsx';
 import { Button, IconButton, Switch } from '../../components/controls.jsx';
 import { Dialog } from '../../components/overlay.jsx';
@@ -14,8 +13,7 @@ import s from './SettingsDialog.module.css';
 export function ModelSettings() {
   const t = useT();
   const models = useModels();
-  const settings = useSettings();
-  const [gpu, setGpu] = useOptimisticToggle(settings.gpu, (on) => settingsActions.update({ gpu: on }));
+  const { gpu } = useSettings();
   const [confirm, setConfirm] = useState(null);
   return (
     <>
@@ -25,7 +23,7 @@ export function ModelSettings() {
           {models.list.map((m) => <ModelRow key={m.id} m={m} onRedownload={() => setConfirm(m)} />)}
         </ul>
       </section>
-      <Block icon="gpu" title={t('settings.gpu')} desc={t('settings.gpuDesc')} control={<Switch checked={gpu} label={t('settings.gpu')} onChange={setGpu} />}>
+      <Block icon="gpu" title={t('settings.gpu')} desc={t('settings.gpuDesc')} control={<Switch checked={gpu} label={t('settings.gpu')} onChange={(on) => settingsActions.update({ gpu: on })} />}>
         <span className={s.device} data-on={gpu} data-none={!models.gpu || undefined}>
           <i />{models.gpu?.name ?? t('settings.gpuNone')}
         </span>

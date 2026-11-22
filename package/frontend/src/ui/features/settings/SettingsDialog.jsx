@@ -19,9 +19,13 @@ import { FileSettings } from './FileSettings.jsx';
 import { ModelSettings } from './ModelSettings.jsx';
 import s from './SettingsDialog.module.css';
 
-/** Swap the theme with a circle that grows from where it was asked for. */
-function switchTheme(theme, from) {
-  const apply = () => { document.documentElement.dataset.theme = theme; };
+/**
+ * Swap the theme with a circle that grows from where it was asked for. `commit` records the choice; it runs inside
+ * the transition's update, so the page (and the switch itself) changes in the new picture, never before the old one
+ * has been taken.
+ */
+function switchTheme(theme, from, commit) {
+  const apply = () => { document.documentElement.dataset.theme = theme; commit(); };
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (!document.startViewTransition || reduce) { apply(); return; }
   const r = from?.getBoundingClientRect();
@@ -49,17 +53,17 @@ const SECTIONS = [
 ];
 
 /** `section` opens a group directly; `focus` brings one setting in it forward. */
-export default function SettingsDialog({ open, onClose, section = 'general', focus, nonce }) {
+export default function SettingsDialog({ open, onClose, section = 'general', focus, nonce, handoff }) {
   const t = useT();
   const access = useAccess();
   const models = useModels();
-  const { open: openOverlay } = useOverlays();
+  const { handOff: handOverlay } = useOverlays();
   const [current, setCurrent] = useState(section);
   const [spot, setSpot] = useState(null);          // { id, n }: a setting to bring forward
   useEffect(() => { if (open) { setCurrent(section); setSpot(focus ? { id: focus, n: Date.now() } : null); } }, [open, nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   const go = (id, f = null) => { setCurrent(id); setSpot(f ? { id: f, n: Date.now() } : null); };
-  // the big work surfaces open on their own; settings steps aside for them
-  const handOff = (name) => { onClose(); openOverlay(name); };
+  // the big work surfaces open on their own: settings steps aside for them, and comes back (to this section) when they close
+  const handOff = (name) => handOverlay('settings', name, {}, { section: current });
 
   const downloading = models.list.some((m) => m.state === 'downloading');
   const status = {
@@ -69,7 +73,7 @@ export default function SettingsDialog({ open, onClose, section = 'general', foc
   };
 
   return (
-    <Dialog open={open} onClose={onClose} bare label={t('settings.title')} className={s.dialog}>
+    <Dialog open={open} onClose={onClose} bare label={t('settings.title')} className={s.dialog} handoff={handoff}>
       <div className={s.layout}>
         <nav className={s.nav} aria-label={t('settings.title')}>
           <h2 className={s.title}>{t('settings.title')}</h2>
@@ -120,8 +124,7 @@ function General() {
   const settings = useSettings();
   const themeRef = useRef(null);
   const setTheme = (theme) => {
-    switchTheme(theme, themeRef.current?.querySelector('[data-selected="false"]'));
-    settingsActions.update({ theme });
+    switchTheme(theme, themeRef.current?.querySelector('[data-selected="false"]'), () => settingsActions.update({ theme }));
   };
   const gl = webglAvailable();
   const renderer = settings.whiteboard === 'auto' ? (gl ? 'WebGL' : 'DOM') : null;

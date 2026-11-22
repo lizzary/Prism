@@ -22,7 +22,7 @@ const draftOf = (k) => ({ name: k.name, scope: { groupIds: [...k.scope.groupIds]
 const sameDraft = (a, b) => JSON.stringify({ ...a, scope: { ...a.scope, groupIds: [...a.scope.groupIds].sort() } })
   === JSON.stringify({ ...b, scope: { ...b.scope, groupIds: [...b.scope.groupIds].sort() } });
 
-export default function McpSheet({ open, onClose, nonce }) {
+export default function McpSheet({ open, onClose, nonce, handoff }) {
   const t = useT();
   const { mcp } = useAccess();
   const [serviceOn, setServiceOn] = useOptimisticToggle(mcp.enabled, accessActions.setMcp);
@@ -67,7 +67,7 @@ export default function McpSheet({ open, onClose, nonce }) {
   };
 
   return (
-    <Sheet open={open} onClose={onClose} label={t('mcp.sheet')} className={s.sheetFrame}>
+    <Sheet open={open} onClose={onClose} label={t('mcp.sheet')} className={s.sheetFrame} handoff={handoff}>
       <div className={s.sheet}>
         <header className={s.head}>
           <span className={s.mark}><Icon name="mcp" size={19} /></span>

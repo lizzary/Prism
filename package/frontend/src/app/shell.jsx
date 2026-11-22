@@ -10,13 +10,36 @@ const StackCtx = createContext(null);
 export function OverlayProvider({ children }) {
   const [stack, setStack] = useState({});
   const open = useCallback((name, props = {}) => setStack((s) => ({ ...s, [name]: { open: true, props, nonce: Date.now() } })), []);
-  const close = useCallback((name) => setStack((s) => (s[name] ? { ...s, [name]: { ...s[name], open: false } } : s)), []);
-  const actions = useMemo(() => ({ open, close }), [open, close]);
+  /**
+   * Close an overlay. One that was handed over from another (see handOff) goes back to it — unless `leave`: the
+   * user is going somewhere else, e.g. following a link out of it to a page.
+   */
+  const close = useCallback((name, { leave = false } = {}) => setStack((s) => {
+    const cur = s[name];
+    if (!cur?.open) return s;
+    const back = !leave && cur.props.returnTo;
+    if (!back) return { ...s, [name]: { ...cur, open: false, handoff: false } };
+    return {
+      ...s,
+      [name]: { ...cur, open: false, handoff: true },
+      [back.name]: { open: true, props: back.props, nonce: Date.now(), handoff: true },
+    };
+  }), []);
+  /**
+   * Replace one overlay with another that comes back to it when closed (settings → data backup, and back). Both
+   * change in the same moment and are marked as a handoff, so the scrim stays put and only the panels move.
+   */
+  const handOff = useCallback((from, to, props = {}, backProps = {}) => setStack((s) => ({
+    ...s,
+    ...(s[from] && { [from]: { ...s[from], open: false, handoff: true } }),
+    [to]: { open: true, props: { ...props, returnTo: { name: from, props: backProps } }, nonce: Date.now(), handoff: true },
+  })), []);
+  const actions = useMemo(() => ({ open, close, handOff }), [open, close, handOff]);
   return <ActionsCtx value={actions}><StackCtx value={stack}>{children}</StackCtx></ActionsCtx>;
 }
-/** { open(name, props), close(name) } */
+/** { open(name, props), close(name, { leave }), handOff(from, to, props, backProps) } */
 export const useOverlays = () => use(ActionsCtx);
-/** name → { open, props, nonce } for every overlay opened so far */
+/** name → { open, props, nonce, handoff } for every overlay opened so far */
 export const useOverlayStack = () => use(StackCtx);
 
 // ------------------------------------------------------------------ page meta (what the top bar shows)

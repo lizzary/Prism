@@ -1,10 +1,15 @@
 // The data layer's public API. The UI never talks to the backend directly: it goes through the bridge hooks,
-// which call these functions. Today they are served by the in-memory mock backend (mock/backend.js); replacing it
-// with an HTTP/SSE client against the Go service keeps this surface unchanged.
+// which call these functions. Today they are served by the in-memory mock backend (backend · access · snapshots);
+// replacing those modules with an HTTP/SSE client against the Go service keeps this surface unchanged.
 import * as backend from '../mock/backend.js';
-import { QUALITIES } from '../domain/files.js';
+import * as accessBackend from '../mock/access.js';
+import * as snapshotBackend from '../mock/snapshots.js';
+import { QUALITIES, FILE_KINDS } from '../domain/files.js';
+import { stripIllegal, validateTemplate } from '../domain/filename.js';
 
-const LATENCY = { read: [80, 200], write: [160, 320] };
+export { FILE_KINDS };
+
+const LATENCY = { read: [80, 200], write: [160, 320], auth: [420, 680], heavy: [1400, 2000] };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const jitter = ([a, b]) => a + Math.random() * (b - a);
 const copy = (v) => (v == null ? v : structuredClone(v));
@@ -14,13 +19,22 @@ async function call(kind, fn) {
   return copy(fn());
 }
 
-/** A pushed value (tasks, settings): subscribe + current snapshot, for useSyncExternalStore. */
-function live(topic, read) {
+/**
+ * A pushed value (tasks, settings, access, models): subscribe + current snapshot, for useSyncExternalStore.
+ * Subscribers hear only of real changes: a topic that fires without changing the value keeps the same snapshot.
+ */
+function live(topics, read) {
+  const on = new Set([topics].flat());
   let snapshot = copy(read());
+  let last = JSON.stringify(snapshot);
   const subs = new Set();
   backend.onChange((t) => {
-    if (t !== topic) return;
-    snapshot = copy(read());
+    if (!on.has(t)) return;
+    const next = read();
+    const json = JSON.stringify(next);
+    if (json === last) return;
+    last = json;
+    snapshot = copy(next);
     for (const fn of subs) fn();
   });
   return {
@@ -30,7 +44,7 @@ function live(topic, read) {
 }
 
 // ------------------------------------------------------------------ change notifications
-/** Topics: library · tasks · settings */
+/** Topics: library · tasks · settings · language · access · mcp · snapshots · models · exports */
 export const events = { subscribe: (fn) => backend.onChange(fn) };
 
 // ------------------------------------------------------------------ gallery
@@ -44,7 +58,7 @@ export const library = {
   /** → { groups: [card] (in the user's order), view: { naturalRatio }, stats: { groups, files, bytes, thisWeek },
    *      lastViewed: { file: ref, group: { id, name }, index, total, viewedAt } | null } */
   home: () => call('read', backend.getHome),
-  /** → [{ id, name, fileCount, cover }] */
+  /** → [{ id, name, fileCount, cover }] in the user's order */
   groups: () => call('read', backend.listGroups),
   /** → [{ id, name, color, config, group: { id, name }, fileCount }] */
   colorGroups: () => call('read', backend.listColorGroups),
@@ -122,9 +136,9 @@ export const tags = {
 
 // ------------------------------------------------------------------ tasks
 /**
- * Live: [{ id, type: 'import' | 'reindex' | 'export' | 'model-download' | 'download', state: 'queued' | 'running' | 'done' |
- *          'failed' | 'canceled', stage, processed, total, unit: 'files' | 'bytes', kinds, label, group, result, error,
- *          createdAt, startedAt, finishedAt }]
+ * Live: [{ id, type: 'import' | 'reindex' | 'export' | 'model-download' | 'download' | 'snapshot' | 'snapshot-export' | 'snapshot-import',
+ *          state: 'queued' | 'running' | 'done' | 'failed' | 'canceled', stage, processed, total, unit: 'files' | 'bytes', kinds, label,
+ *          group: { id, name } | null, groups: [{ id, name }], result, error, createdAt, startedAt, finishedAt }]
  */
 export const tasks = {
   ...live('tasks', backend.getTasks),
@@ -132,9 +146,127 @@ export const tasks = {
   cancel: (id) => call('write', () => backend.cancelTask(id)),
 };
 
+// ------------------------------------------------------------------ export
+/**
+ * A template: [{ type: 'text', text } | { type: 'key', kind: 'agg' | 'data', id }] — see domain/filename.js.
+ * An export configuration: { groupIds, outputDir, dates: { mode: 'all' } | { mode: 'range', from, to }, fileTypes, template }
+ *   (dates are the files' import dates).
+ */
+export const exporter = {
+  /**
+   * scope: 'home' | 'group' → { groups: [{ id, name, fileCount, cover }], fileTypes: [{ ext, count, kind }],
+   *   keys: { agg: [{ id, label, keys: [{ id, label }] }], data: [...] }, calendar: { 'YYYY-MM-DD': files imported that day } }
+   */
+  options: (query) => call('read', () => backend.getExportOptions(query)),
+  /** The key catalog alone (for templates outside the export sheet). */
+  catalog: () => call('read', backend.getKeyCatalog),
+  /** → { root: { name, path, count, bytes, dirs, files: [{ name, size, kind }], hidden }, files, bytes, dirs } */
+  preview: (config, opts) => call('read', () => backend.previewExport(config, opts)),
+  /** → { taskId, files } */
+  start: (config) => call('write', () => backend.startExport(config)),
+  /** The last configuration of a page ('home' or 'group:<id>'), or null. */
+  lastConfig: (scope) => call('read', () => backend.getLastExportConfig(scope)),
+  saveConfig: (scope, config) => { call('write', () => backend.saveLastExportConfig(scope, config)).catch(() => {}); },
+  /** How a download template names a few real files. → [{ file: ref, original, name }] */
+  namePreview: (template) => call('read', () => backend.namePreview(template)),
+  /** Free text typed into a template, without the characters a file name cannot hold (and, for `pathless`, no folders). */
+  filterText: (text, opts) => stripIllegal(text, opts),
+  /** → [{ code }] — see domain/filename.js */
+  validate: (template) => validateTemplate(template),
+};
+
+// ------------------------------------------------------------------ folders (for the folder picker)
+export const folders = {
+  /** → { drives: [{ name, path }], places: [{ id, path }] } */
+  roots: () => call('read', backend.fsRoots),
+  /** → { ok, path, parent, entries: [{ name, path, library }], files: [{ name, path, size, modifiedAt }] } — files only with opts.accept */
+  list: (path, opts) => call('read', () => backend.fsList(path, opts)),
+  create: (dir, name) => call('write', () => backend.fsCreateFolder(dir, name)),
+};
+
 // ------------------------------------------------------------------ settings
-/** Live: { language, theme, dbPath, defaultDbPath } (config.toml) */
+/**
+ * Live: { language, theme, dbPath, defaultDbPath, conflict: 'keep' | 'skip' | 'overwrite', gpu, whiteboard: 'auto' | 'webgl' | 'dom',
+ *         downloadName: template } (config.toml)
+ */
 export const settings = {
   ...live('settings', backend.getSettings),
   update: (patch) => call('write', () => backend.updateSettings(patch)),
+};
+
+// ------------------------------------------------------------------ tagging models
+/**
+ * Live: { gpu: { name } | null, list: [{ id, name, size, state: 'missing' | 'downloading' | 'ready', inUse,
+ *         progress: { stage, processed, total, queued } | null, taskId }] }
+ */
+export const models = {
+  ...live(['models', 'tasks'], backend.getModels),
+  download: (id) => call('write', () => backend.downloadModel(id)),
+  /** Delete the model's files, then download it again. */
+  redownload: (id) => call('write', () => backend.redownloadModel(id)),
+  use: (id) => call('write', () => backend.useModel(id)),
+  cancel: (taskId) => call('write', () => backend.cancelTask(taskId)),
+};
+
+// ------------------------------------------------------------------ access: sign-in, server mode, MCP service, first run
+/**
+ * Live: { locked, firstRun, password: { enabled, changedAt, minLength },
+ *         server: { enabled, running, port, addresses: [{ id, kind, name, ip, url }] },
+ *         mcp: { enabled, endpoint, keys, lastUsedAt } }
+ * Server mode is read when the service starts: `enabled` is the saved choice, `running` what is in effect now.
+ */
+export const access = {
+  ...live('access', accessBackend.getAccess),
+  /** → { ok } | { ok: false, retryIn? } */
+  login: (password) => call('auth', () => accessBackend.login(password)),
+  lock: () => call('write', accessBackend.lock),
+  /** Turn password login on (current omitted) or change it. → { ok } | { ok: false, error: 'wrong' | 'tooShort' } */
+  setPassword: (input) => call('auth', () => accessBackend.setPassword(input)),
+  disablePassword: (current) => call('auth', () => accessBackend.disablePassword(current)),
+  setServer: (enabled) => call('write', () => accessBackend.setServer(enabled)),
+  setMcp: (enabled) => call('write', () => accessBackend.setMcp(enabled)),
+  /** First launch: { password?: string, server: bool, mcp: bool } */
+  completeSetup: (choices) => call('write', () => accessBackend.completeSetup(choices)),
+};
+
+// ------------------------------------------------------------------ MCP keys
+/**
+ * key: { id, name, last4, createdAt, lastUsedAt, scope: { groupIds, future },
+ *        permissions: { group: { query, edit, delete }, colorGroup: { query, create, edit, delete }, file: { query, create, edit, delete } } }
+ * The full secret is only returned by create and regenerate.
+ */
+export const mcp = {
+  PERMISSIONS: accessBackend.PERMISSIONS,
+  keys: () => call('read', accessBackend.listKeys),
+  /** → { ok, key, secret } */
+  create: (input) => call('write', () => accessBackend.createKey(input)),
+  update: (id, input) => call('write', () => accessBackend.updateKey(id, input)),
+  remove: (id) => call('write', () => accessBackend.deleteKey(id)),
+  /** → { ok, key, secret } */
+  regenerate: (id) => call('write', () => accessBackend.regenerateKey(id)),
+  /** The settings an MCP client needs to connect with a key (MCP over HTTP, bearer token), ready to paste. */
+  clientConfig: (endpoint, secret) => JSON.stringify({
+    mcpServers: { prism: { type: 'http', url: endpoint, headers: { Authorization: `Bearer ${secret}` } } },
+  }, null, 2),
+};
+
+// ------------------------------------------------------------------ snapshots (data backup)
+/**
+ * overview → { dbPath, storage (bytes, the whole history), head, busy, current: { groups, files },
+ *              pending: { total, added, modified, deleted, files, groups: [{ id, name, cover, changes, removed }], shared },
+ *              snapshots: [{ id, name, createdAt, source: 'created' | 'imported', totals: { groups, files }, changes, previews: [ref] }] (oldest first) }
+ * changes(id | 'working') → { base, summary, groups: [{ kind: 'group' | 'file' | 'settings', change, count, items }],
+ *                             files: { total, items: [{ path, change }] } }
+ */
+export const backup = {
+  overview: () => call('read', snapshotBackend.getBackup),
+  changes: (id) => call('read', () => snapshotBackend.getChanges(id)),
+  /** groupIds: whose changes the snapshot saves (required). */
+  create: (name, groupIds) => call('write', () => snapshotBackend.createSnapshot(name, groupIds)),
+  load: (id, opts) => call('heavy', () => snapshotBackend.loadSnapshot(id, opts)),
+  remove: (id) => call('write', () => snapshotBackend.hideSnapshot(id)),
+  restore: (id) => call('write', () => snapshotBackend.unhideSnapshot(id)),
+  exportTo: (input) => call('write', () => snapshotBackend.exportSnapshots(input)),
+  inspect: (path) => call('read', () => snapshotBackend.inspectArchive(path)),
+  importFrom: (path) => call('write', () => snapshotBackend.importArchive(path)),
 };

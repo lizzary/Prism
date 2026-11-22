@@ -1,11 +1,16 @@
 // The mock backend: everything the Go service will provide, simulated in memory.
 // Methods return plain data (the API layer copies it and adds latency); changes are announced through onChange().
+// access.js (sign-in, server mode, MCP keys, first run) and snapshots.js (data backup) build on the pieces exported here.
 import { artwork, paletteTone } from './art.js';
 import { seedLibrary, buildFile, groupRecord, ago, isoOf } from './seed.js';
 import { loadConfig, saveConfig, loadDbPrefs, saveDbPrefs, imageIndexReady, DEFAULT_DB_PATH } from './persist.js';
 import { mergeTags, tagLabel, tagKey, norm } from '../domain/tags.js';
 import { searchFiles, searchNames, splitTerms } from '../domain/search.js';
 import { hashString } from '../domain/random.js';
+import { kindOfExt } from '../domain/files.js';
+import { keyCatalog } from '../domain/keys.js';
+import { expandName, planTree, selectFiles } from '../domain/exportPlan.js';
+import { uniqueName } from '../domain/filename.js';
 
 // ------------------------------------------------------------------ change feed
 const listeners = new Set();
@@ -14,8 +19,12 @@ export const onChange = (fn) => { listeners.add(fn); return () => listeners.dele
 let libTimer = null;
 const emitLibrarySoon = () => { if (!libTimer) libTimer = setTimeout(() => { libTimer = null; emit('library'); }, 600); };
 
-// ------------------------------------------------------------------ galleries (one per database directory)
+// ------------------------------------------------------------------ config.toml
 let config = loadConfig();
+export const getConfig = () => config;
+export function patchConfig(patch) { config = { ...config, ...patch }; saveConfig(config); }
+
+// ------------------------------------------------------------------ galleries (one per database directory)
 const libraries = new Map();
 const nowIso = () => isoOf(new Date());
 
@@ -23,6 +32,12 @@ function emptyLibrary() {
   let f = 90000;
   return { groups: [], files: [], nextFileId: () => `f_${++f}`, specs: {} };
 }
+
+/**
+ * What changed since the last snapshot and is not in one yet: the files and groups edited (with their values from
+ * before), and whether page settings changed. New and removed things show up by comparing what exists.
+ */
+export const newEdits = () => ({ files: new Map(), groups: new Map(), prefs: false });
 
 function indexLibrary(L) {
   L.groupsById = new Map(L.groups.map((g) => [g.id, g]));
@@ -37,7 +52,12 @@ function openLibrary(path) {
   let L = libraries.get(path);
   if (!L) {
     const seededLib = path === DEFAULT_DB_PATH;
-    L = { path, seeded: seededLib, ...(seededLib ? seedLibrary() : emptyLibrary()), prefs: loadDbPrefs(path) };
+    L = {
+      path, seeded: seededLib, ...(seededLib ? seedLibrary() : emptyLibrary()), prefs: loadDbPrefs(path),
+      edits: newEdits(),
+      // groups and files that left the gallery but are still held by a snapshot
+      vault: { groups: new Map(), files: new Map() },
+    };
     indexLibrary(L);
     // the sample gallery remembers a picture you were looking at earlier today
     if (seededLib && !L.prefs.lastViewed) L.prefs.lastViewed = { fileId: L.filesByGroup.get('g_starry')?.[41]?.id, at: ago(0.09) };
@@ -54,15 +74,19 @@ function warmIndexes(L) {
   idle(() => { searchDocs(L); tagIndexOf(L); }, { timeout: 2500 });
 }
 const lib = () => openLibrary(config.dbPath);
-const savePrefs = (L) => saveDbPrefs(L.path, L.prefs);
+const savePrefs = (L) => { L.edits.prefs = true; saveDbPrefs(L.path, L.prefs); };
+export { lib as currentLibrary, indexLibrary as reindex };
+const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k]]));
+const GROUP_FIELDS = ['name', 'coverFileId'];
+const noteEdit = (map, item, fields) => { if (!map.has(item.id)) map.set(item.id, pick(item, fields)); };
 
 // ------------------------------------------------------------------ views of the data
 /** What the pages need to show a file (the picture itself comes from mediaUrl). */
-const fileRef = (f) => ({ id: f.id, kind: f.kind, name: f.name, ext: f.ext, width: f.width, height: f.height, duration: f.duration });
+export const fileRef = (f) => ({ id: f.id, kind: f.kind, name: f.name, ext: f.ext, width: f.width, height: f.height, duration: f.duration });
 const groupChip = (L, id) => { const g = L.groupsById.get(id); return g ? { id: g.id, name: g.name } : null; };
 
 /** Groups in the user's order (set by dragging on the home page); ones never placed come first, newest first. */
-function orderedGroups(L) {
+export function orderedGroups(L) {
   const order = L.prefs.groupOrder;
   if (!order?.length) return L.groups;
   const at = new Map(order.map((id, i) => [id, i]));
@@ -78,9 +102,11 @@ function previewsOf(files, cover, n = 6) {
   return Array.from({ length: n }, (_, k) => pool[Math.floor(((k + 0.5) * pool.length) / n)]);
 }
 
-function coverOf(L, g) {
-  const files = L.filesByGroup.get(g.id) ?? [];
-  return L.filesById.get(g.coverFileId) ?? files.find((f) => f.kind === 'image') ?? files[0] ?? null;
+/** The cover: the one chosen, or the first picture (also for a group kept only by a snapshot). */
+export function coverOf(L, g) {
+  const files = L.filesByGroup.get(g.id) ?? [...L.vault.files.values()].filter((f) => f.groupId === g.id);
+  const chosen = L.filesById.get(g.coverFileId) ?? L.vault.files.get(g.coverFileId);
+  return chosen ?? files.find((f) => f.kind === 'image') ?? files[0] ?? null;
 }
 
 function groupCard(L, g) {
@@ -103,10 +129,12 @@ function groupCard(L, g) {
 // ------------------------------------------------------------------ media
 /**
  * The address of a file's picture at a quality ('original' | 'high' | 'medium' | 'low'). For a video it is the
- * poster frame. The Go service serves these from the database directory; the mock paints them.
+ * poster frame. The Go service serves these from the database directory; the mock paints them. Files kept only by a
+ * snapshot still have their pictures.
  */
 export function mediaUrl(ref, quality = 'original') {
-  const f = lib().filesById.get(ref?.id);
+  const L = lib();
+  const f = L.filesById.get(ref?.id) ?? L.vault.files.get(ref?.id);
   if (!f) return null;
   if (f.upload) return f.kind === 'video' ? f.upload.poster : f.upload.url;
   return artwork(f.art.seed, f.art.style, f.art.palette, f.width, f.height);
@@ -148,7 +176,7 @@ export function setGroupOrder(ids) {
   return { ok: true };
 }
 
-/** Every group, for pickers (search scopes and the like). */
+/** Every group, for pickers (search scopes, export, MCP keys, snapshots). */
 export function listGroups() {
   const L = lib();
   return orderedGroups(L).map((g) => {
@@ -194,6 +222,7 @@ export function updateGroup(id, patch) {
   const L = lib();
   const g = L.groupsById.get(id);
   if (!g) return null;
+  noteEdit(L.edits.groups, g, GROUP_FIELDS);
   if ('name' in patch) { const n = String(patch.name ?? '').trim(); if (!n) return null; g.name = n; }
   if ('coverFileId' in patch) {
     if (patch.coverFileId == null) g.coverFileId = null;                // automatic: the newest picture
@@ -204,19 +233,25 @@ export function updateGroup(id, patch) {
   return groupCard(L, g);
 }
 
-/** Deleting a group deletes the files in it (the Go service moves them to the system's recycle bin). */
+/**
+ * Deleting a group deletes the files in it (the Go service moves them to the system's recycle bin). Snapshots may
+ * still hold them, so they move into the vault rather than vanishing.
+ */
 export function deleteGroup(id) {
   const L = lib();
-  if (!L.groupsById.has(id)) return { ok: false };
-  const removed = L.filesByGroup.get(id)?.length ?? 0;
-  L.groups = L.groups.filter((g) => g.id !== id);
+  const g = L.groupsById.get(id);
+  if (!g) return { ok: false };
+  const gone = L.filesByGroup.get(id) ?? [];
+  L.vault.groups.set(id, g);
+  for (const f of gone) L.vault.files.set(f.id, f);
+  L.groups = L.groups.filter((x) => x.id !== id);
   L.files = L.files.filter((f) => f.groupId !== id);
   if (L.prefs.groupOrder) L.prefs.groupOrder = L.prefs.groupOrder.filter((x) => x !== id);
   if (L.filesById.get(L.prefs.lastViewed?.fileId)?.groupId === id) L.prefs.lastViewed = null;
   savePrefs(L);
   indexLibrary(L);
   emit('library');
-  return { ok: true, files: removed };
+  return { ok: true, files: gone.length };
 }
 
 export function randomFile(excludeId) {
@@ -370,44 +405,53 @@ export function tagSamples(key, n = 6) {
 }
 
 // ------------------------------------------------------------------ tasks
+// Background work runs one task at a time per lane. The gallery's own work (imports, re-indexing), copying files out
+// (exports, downloads), the tagging model and snapshots each have their own lane, so a long re-index never holds up
+// a snapshot or a download.
 const tasks = [];
 let taskSeq = 100;
 let ticker = null;
+const RUNNERS = {};
 
-function newTask(L, t) {
+/** A kind of task: { lane, firstStage, step(task) — runs whenever task.nextAt has passed —, end?(task) — once it stops }. */
+export function registerTaskType(type, runner) { RUNNERS[type] = runner; }
+
+export function newTask(L, t) {
   const task = { id: `t_${++taskSeq}`, lib: L, state: 'queued', stage: 'queued', processed: 0, total: 0, createdAt: nowIso(), ...t };
   tasks.push(task);
   emit('tasks');
   if (!ticker) ticker = setInterval(tick, 120);
   return task;
 }
-function finish(t, state, extra = {}) {
+export function finish(t, state, extra = {}) {
   Object.assign(t, { state, stage: state, finishedAt: nowIso() }, extra);
+  RUNNERS[t.type]?.end?.(t);
   emit('tasks'); emit('library');
 }
+/** Tasks still to do (or doing), for parts of the mock that show their own progress. */
+export const activeTasks = () => tasks.filter((x) => x.state === 'running' || x.state === 'queued');
 
-const FIRST_STAGE = { import: 'preparing', reindex: 'preparing', export: 'preparing', 'model-download': 'connecting', download: 'packing' };
-const PACE = { import: 420, reindex: 180, export: 90, 'model-download': 140, download: 110 };
-
-// One task at a time: the gallery's work runs in the background, one job after another.
 function tick() {
-  let t = tasks.find((x) => x.state === 'running');
-  if (!t) {
-    t = tasks.find((x) => x.state === 'queued');
-    if (t) { Object.assign(t, { state: 'running', stage: FIRST_STAGE[t.type], startedAt: nowIso(), nextAt: Date.now() + 900 }); emit('tasks'); }
-  } else if (Date.now() >= t.nextAt) advance(t);
-  if (!tasks.some((x) => x.state === 'running' || x.state === 'queued')) { clearInterval(ticker); ticker = null; }
-}
-
-function advance(t) {
-  const L = t.lib;
-  if (t.stage === 'preparing' || t.stage === 'connecting') {
-    t.stage = { import: 'importing', reindex: t.kinds[0], export: 'copying', 'model-download': 'downloading' }[t.type];
-    t.nextAt = Date.now() + 300; emit('tasks'); return;
+  for (const lane of new Set(Object.values(RUNNERS).map((r) => r.lane))) {
+    const inLane = (x) => RUNNERS[x.type]?.lane === lane;
+    const t = tasks.find((x) => x.state === 'running' && inLane(x));
+    if (t) { if (Date.now() >= t.nextAt) RUNNERS[t.type].step(t); continue; }
+    const next = tasks.find((x) => x.state === 'queued' && inLane(x));
+    if (next) {
+      Object.assign(next, { state: 'running', stage: RUNNERS[next.type].firstStage, startedAt: nowIso(), nextAt: Date.now() + 900 });
+      emit('tasks');
+    }
   }
-  if (t.type === 'import') {
+  if (!activeTasks().length) { clearInterval(ticker); ticker = null; }
+}
+const later = (t, ms) => { t.nextAt = Date.now() + ms; emit('tasks'); };
+
+registerTaskType('import', {
+  lane: 'library', firstStage: 'preparing',
+  step(t) {
+    if (t.stage === 'preparing') { t.stage = 'importing'; later(t, 300); return; }
     // each imported file joins its group as it arrives
-    const g = L.groupsById.get(t.groupId), spec = L.specs[t.groupId];
+    const L = t.lib, g = L.groupsById.get(t.groupId), spec = L.specs[t.groupId];
     if (g && spec) {
       const f = buildFile(spec, g, spec.count + t.processed + 1, L.nextFileId(), false);
       Object.assign(f, { createdAt: ago(0.02), importedAt: nowIso() });
@@ -416,29 +460,45 @@ function advance(t) {
       emitLibrarySoon();
     }
     t.processed++;
-    if (t.processed >= t.total) return finish(t, 'done', { result: { files: t.total } });
-  } else if (t.type === 'reindex') {
+    if (t.processed >= t.total) finish(t, 'done', { result: { files: t.total } });
+    else later(t, 420);
+  },
+});
+registerTaskType('reindex', {
+  lane: 'library', firstStage: 'preparing',
+  step(t) {
+    if (t.stage === 'preparing') { t.stage = t.kinds[0]; later(t, 300); return; }
     t.processed = Math.min(t.total, t.processed + 1);
     if (t.processed >= t.total) {
       const next = t.kinds[t.kinds.indexOf(t.stage) + 1];
-      if (!next) return finish(t, 'done', { result: { files: t.total, kinds: t.kinds } });
+      if (!next) { finish(t, 'done', { result: { files: t.total, kinds: t.kinds } }); return; }
       Object.assign(t, { stage: next, processed: 0 });
     }
-  } else {
+    later(t, 180);
+  },
+});
+/** Copying files out: a share of the work per step. */
+const copying = (first, working, pace) => ({
+  lane: 'files', firstStage: first,
+  step(t) {
+    if (t.stage === first && first !== working) { t.stage = working; later(t, 300); return; }
     t.processed = Math.min(t.total, t.processed + Math.max(1, Math.ceil(t.total / 60)));
-    if (t.processed >= t.total) return finish(t, 'done', { result: t.result });
-  }
-  t.nextAt = Date.now() + PACE[t.type];
-  emit('tasks');
-}
+    if (t.processed >= t.total) finish(t, 'done', { result: t.result });
+    else later(t, pace);
+  },
+});
+registerTaskType('export', copying('preparing', 'copying', 90));
+registerTaskType('download', copying('packing', 'packing', 110));
 
 function taskView(t) {
   const L = t.lib;
+  const ids = t.groupIds ?? (t.groupId ? [t.groupId] : []);
   return {
     id: t.id, type: t.type, state: t.state, stage: t.stage, processed: t.processed, total: t.total, unit: t.unit ?? 'files',
     createdAt: t.createdAt, startedAt: t.startedAt ?? null, finishedAt: t.finishedAt ?? null,
     kinds: t.kinds ?? null, label: t.label ?? null,
     group: t.groupId ? groupChip(L, t.groupId) ?? { id: t.groupId, name: t.groupName } : null,
+    groups: ids.map((id) => groupChip(L, id)).filter(Boolean),
     result: t.result ?? null, error: t.error ?? null,
   };
 }
@@ -457,7 +517,7 @@ function seedTasks(L) {
     id: `t_${++taskSeq}`, lib: L, type, createdAt: ago(d + 0.02), startedAt: ago(d + 0.018), finishedAt: ago(d), processed: extra.total, ...extra,
   });
   const size = (gid) => (L.filesByGroup.get(gid) ?? []).reduce((s, f) => s + f.size, 0);
-  past('model-download', 5.2, { state: 'done', stage: 'done', total: 1_265_000_000, unit: 'bytes', label: 'EVA02-Large v3', result: { bytes: 1_265_000_000 } });
+  past('model-download', 5.2, { state: 'done', stage: 'done', total: MODELS[0].size, unit: 'bytes', label: MODELS[0].name, result: { bytes: MODELS[0].size } });
   past('reindex', 5.4, { state: 'failed', stage: 'failed', groupId: 'g_land', kinds: ['tagging'], total: 486, processed: 0, error: { code: 'modelMissing' } });
   past('export', 3.1, { state: 'done', stage: 'done', groupId: 'g_kotori', total: 128, result: { files: 128, bytes: size('g_kotori'), dir: 'D:\\Exports\\Prism' } });
   past('download', 1.8, { state: 'canceled', stage: 'canceled', groupId: 'g_wall', total: 94, processed: 41 });
@@ -468,16 +528,233 @@ function seedTasks(L) {
   newTask(L, { type: 'import', groupId: 'g_inbox', total: 24 });
 }
 
-// ------------------------------------------------------------------ settings
-// Only the general settings travel through here for now.
-const GENERAL = ['language', 'theme', 'dbPath'];
-const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k]]));
-export const getSettings = () => ({ ...pick(config, GENERAL), defaultDbPath: DEFAULT_DB_PATH });
+// ------------------------------------------------------------------ export
+/** A file's colour group: the one it belongs to in its group's active configuration. */
+function colorOf(g, f) {
+  const cfg = g.configs.find((c) => c.id === g.activeConfigId);
+  return cfg?.groups.find((x) => x.id === f.colors[cfg.id]) ?? null;
+}
+const entryOf = (L, f) => { const g = L.groupsById.get(f.groupId); return { file: f, group: g, color: colorOf(g, f) }; };
+const exportEntries = (L) => orderedGroups(L).flatMap((g) => (L.filesByGroup.get(g.id) ?? []).map((f) => ({ file: f, group: g, color: colorOf(g, f) })));
+
+/**
+ * What the export sheet offers. File types come from the chosen groups (from a group's page) or from the whole
+ * gallery (from the home page); the calendar marks how many files of the chosen groups were imported each day.
+ */
+export function getExportOptions({ scope, groupIds }) {
+  const L = lib();
+  const chosen = (groupIds ?? []).filter((id) => L.groupsById.has(id));
+  const typeScope = scope === 'home' ? L.groups.map((g) => g.id) : chosen;
+  const counts = new Map();
+  for (const id of typeScope) for (const f of L.filesByGroup.get(id) ?? []) counts.set(f.ext, (counts.get(f.ext) ?? 0) + 1);
+  const calendar = {};
+  for (const id of chosen.length ? chosen : L.groups.map((g) => g.id)) {
+    for (const f of L.filesByGroup.get(id) ?? []) { const d = f.importedAt.slice(0, 10); calendar[d] = (calendar[d] ?? 0) + 1; }
+  }
+  return {
+    groups: listGroups(),
+    fileTypes: [...counts].sort((a, b) => b[1] - a[1]).map(([ext, count]) => ({ ext, count, kind: kindOfExt(ext) })),
+    keys: keyCatalog(config.language),
+    calendar,
+  };
+}
+export const getKeyCatalog = () => keyCatalog(config.language);
+
+function planFor(L, cfg, maxPerDir) {
+  const entries = selectFiles(exportEntries(L), cfg);
+  return planTree(entries, { template: cfg.template, lang: config.language, now: new Date(), maxPerDir, rootName: cfg.outputDir || '…' });
+}
+export function previewExport(cfg, { maxPerDir = 5 } = {}) { return planFor(lib(), cfg, maxPerDir); }
+export function startExport(cfg) {
+  const L = lib();
+  const plan = planFor(L, cfg, 0);
+  const t = newTask(L, { type: 'export', groupIds: cfg.groupIds, total: plan.files, result: { files: plan.files, bytes: plan.bytes, dir: cfg.outputDir } });
+  return { taskId: t.id, files: plan.files };
+}
+export function getLastExportConfig(scope) { return lib().prefs.exports?.[scope] ?? null; }
+export function saveLastExportConfig(scope, cfg) { const L = lib(); L.prefs.exports = { ...L.prefs.exports, [scope]: cfg }; savePrefs(L); emit('exports'); }
+
+/**
+ * How downloaded files would be named with a template: a few real files of different kinds, named in one batch
+ * (so names that come out the same are numbered, as they would be on disk).
+ */
+export function namePreview(template) {
+  const L = lib();
+  const picks = [
+    L.files.find((f) => f.comfy), L.files.find((f) => !f.comfy && f.kind === 'image' && f.groupId !== 'g_inbox'), L.files.find((f) => f.kind === 'video'),
+  ].filter(Boolean);
+  const now = new Date(), taken = new Set();
+  return (picks.length ? picks : L.files.slice(0, 3)).map((f, i) => {
+    const { base } = expandName(template, { ...entryOf(L, f), lang: config.language, now, seq: i + 1, width: 3 });
+    return { file: fileRef(f), original: `${f.name}.${f.ext}`, name: uniqueName(base, f.ext, taken) };
+  });
+}
+
+// ------------------------------------------------------------------ file system (folder browsing for pickers)
+// The Go service lists real directories; the mock keeps a small believable tree in memory.
+const FS = {
+  'C:\\': ['Program Files', 'Users'],
+  'C:\\Program Files': ['Prism'], 'C:\\Program Files\\Prism': ['data'], 'C:\\Program Files\\Prism\\data': [],
+  'C:\\Users': ['Mio'],
+  'C:\\Users\\Mio': ['Desktop', 'Documents', 'Downloads', 'Pictures'],
+  'C:\\Users\\Mio\\Desktop': [], 'C:\\Users\\Mio\\Documents': ['Prism'], 'C:\\Users\\Mio\\Documents\\Prism': [],
+  'C:\\Users\\Mio\\Downloads': [], 'C:\\Users\\Mio\\Pictures': ['Screenshots', 'Wallpapers'],
+  'C:\\Users\\Mio\\Pictures\\Screenshots': [], 'C:\\Users\\Mio\\Pictures\\Wallpapers': [],
+  'D:\\': ['ComfyUI', 'Exports', 'Prism'],
+  'D:\\ComfyUI': ['input', 'output'], 'D:\\ComfyUI\\input': [], 'D:\\ComfyUI\\output': [],
+  'D:\\Exports': ['Prism', 'Old'], 'D:\\Exports\\Prism': [], 'D:\\Exports\\Old': [],
+  'D:\\Prism': ['backup', 'data', 'models'], 'D:\\Prism\\data': [], 'D:\\Prism\\backup': [], 'D:\\Prism\\models': [],
+  'E:\\': ['Archive', 'Illustrations'],
+  'E:\\Archive': ['Prism', '2025'], 'E:\\Archive\\Prism': [], 'E:\\Archive\\2025': [],
+  'E:\\Illustrations': ['References'], 'E:\\Illustrations\\References': [],
+};
+/** Files the pickers can choose (snapshot archives); folder → [{ name, size, modifiedAt, ...payload }]. */
+const FILES = {};
+const parentOf = (path) => { const i = path.replace(/\\$/, '').lastIndexOf('\\'); return i < 0 ? null : i === 2 ? path.slice(0, 3) : path.slice(0, i); };
+const joinPath = (dir, name) => (dir.endsWith('\\') ? dir + name : `${dir}\\${name}`);
+
+/** Place a file in the mock disk; a taken name gets " (2)", " (3)"… like Explorer does. Returns its full path. */
+export function fsAddFile(dir, file) {
+  const list = FILES[dir] ?? (FILES[dir] = []);
+  const dot = file.name.lastIndexOf('.');
+  let name = file.name;
+  for (let n = 2; list.some((f) => f.name === name); n++) name = `${file.name.slice(0, dot)} (${n})${file.name.slice(dot)}`;
+  list.push({ ...file, name });
+  return joinPath(dir, name);
+}
+export function fsFile(path) {
+  const name = path.slice(path.lastIndexOf('\\') + 1);
+  return FILES[parentOf(path)]?.find((f) => f.name === name) ?? null;
+}
+
+/** Drives and the current user's common folders. */
+export function fsRoots() {
+  return {
+    drives: Object.keys(FS).filter((p) => p.length === 3).map((p) => ({ name: p.slice(0, 2), path: p })),
+    places: [
+      { id: 'desktop', path: 'C:\\Users\\Mio\\Desktop' }, { id: 'documents', path: 'C:\\Users\\Mio\\Documents' },
+      { id: 'downloads', path: 'C:\\Users\\Mio\\Downloads' }, { id: 'pictures', path: 'C:\\Users\\Mio\\Pictures' },
+    ],
+  };
+}
+/**
+ * Sub-folders of a folder; `library` marks folders that already hold a Prism database.
+ * With `accept` (extensions), the files of those types are listed too.
+ */
+export function fsList(path, { accept } = {}) {
+  let dir = String(path ?? '').trim().replace(/\//g, '\\');
+  if (/^[a-z]:\\?$/i.test(dir)) dir = `${dir.slice(0, 2).toUpperCase()}\\`;
+  else dir = dir.replace(/\\+$/, '');
+  if (dir) dir = dir[0].toUpperCase() + dir.slice(1);
+  const children = FS[dir];
+  if (!children) return { ok: false, path: dir };
+  const ext = (n) => n.slice(n.lastIndexOf('.') + 1).toLowerCase();
+  return {
+    ok: true, path: dir, parent: parentOf(dir),
+    entries: [...children].sort((a, b) => a.localeCompare(b)).map((name) => {
+      const full = joinPath(dir, name);
+      return { name, path: full, library: libraries.has(full) || full === DEFAULT_DB_PATH };
+    }),
+    files: accept ? (FILES[dir] ?? []).filter((f) => accept.includes(ext(f.name)))
+      .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt))
+      .map((f) => ({ name: f.name, path: joinPath(dir, f.name), size: f.size, modifiedAt: f.modifiedAt })) : [],
+  };
+}
+export function fsCreateFolder(dir, name) {
+  const clean = name.replace(/[<>:"/\\|?*]/g, '').trim();
+  if (!clean || !FS[dir] || FS[dir].includes(clean)) return { ok: false };
+  FS[dir].push(clean);
+  FS[joinPath(dir, clean)] = [];
+  return { ok: true, path: joinPath(dir, clean) };
+}
+
+// ------------------------------------------------------------------ tagging models (kept next to the .exe, not in a database)
+const MODELS = [{ id: 'eva02-large-v3', name: 'EVA02-Large v3', size: 1_265_000_000 }];
+const GPU = { name: 'NVIDIA GeForce RTX 4070' };
+
+/** Which models are on disk and which one tags. The sample gallery was tagged with EVA02, so it starts downloaded and in use. */
+function modelState() {
+  if (!config.models) patchConfig({ models: { downloaded: [MODELS[0].id], active: MODELS[0].id } });
+  return config.models;
+}
+const setModels = (patch) => { patchConfig({ models: { ...modelState(), ...patch } }); emit('models'); };
+
+/**
+ * → { gpu: { name } | null, list: [{ id, name, size, state: 'missing' | 'downloading' | 'ready', inUse,
+ *       progress: { stage, processed, total, queued } | null, taskId }] }
+ */
+export function getModels() {
+  const st = modelState();
+  return {
+    gpu: GPU,
+    list: MODELS.map((m) => {
+      const task = activeTasks().find((t) => t.type === 'model-download' && t.modelId === m.id);
+      const ready = !task && st.downloaded.includes(m.id);
+      return {
+        id: m.id, name: m.name, size: m.size,
+        state: task ? 'downloading' : ready ? 'ready' : 'missing',
+        inUse: ready && st.active === m.id,
+        progress: task ? { stage: task.stage, processed: task.processed, total: task.total, queued: task.state === 'queued' } : null,
+        taskId: task?.id ?? null,
+      };
+    }),
+  };
+}
+export function downloadModel(id) {
+  const m = MODELS.find((x) => x.id === id);
+  if (!m || activeTasks().some((t) => t.modelId === id)) return { ok: false };
+  const t = newTask(lib(), { type: 'model-download', modelId: id, label: m.name, total: m.size, unit: 'bytes' });
+  emit('models');
+  return { ok: true, taskId: t.id };
+}
+/** Delete the model's files, then download it again. */
+export function redownloadModel(id) {
+  const st = modelState();
+  setModels({ downloaded: st.downloaded.filter((x) => x !== id) });
+  return downloadModel(id);
+}
+export function useModel(id) {
+  if (!modelState().downloaded.includes(id)) return { ok: false };
+  setModels({ active: id });
+  return { ok: true };
+}
+registerTaskType('model-download', {
+  lane: 'model', firstStage: 'connecting',
+  step(t) {
+    if (t.stage === 'connecting') { t.stage = 'downloading'; later(t, 300); return; }
+    t.processed = Math.min(t.total, t.processed + Math.round(t.total / (52 + Math.random() * 20)));
+    if (t.processed >= t.total) finish(t, 'done', { result: { bytes: t.total } });
+    else later(t, 140);
+  },
+  end(t) {
+    if (t.state === 'done') {
+      const st = modelState();
+      const downloaded = [...new Set([...st.downloaded, t.modelId])];
+      setModels({ downloaded, active: downloaded.includes(st.active) ? st.active : t.modelId });
+    } else emit('models');
+  },
+});
+
+// ------------------------------------------------------------------ settings (config.toml)
+// Password, server mode and MCP have their own endpoints (access.js).
+const SETTINGS = ['language', 'theme', 'dbPath', 'conflict', 'gpu', 'whiteboard', 'downloadName'];
+const CHOICES = { language: ['en', 'zh-CN'], theme: ['light', 'dark'], conflict: ['keep', 'skip', 'overwrite'], whiteboard: ['auto', 'webgl', 'dom'] };
+/** Downloads keep each file's own name unless the user sets a pattern. */
+const DEFAULT_DOWNLOAD_NAME = [{ type: 'key', kind: 'data', id: 'file.name' }];
+
+export const getSettings = () => ({ ...pick(config, SETTINGS), downloadName: config.downloadName ?? DEFAULT_DOWNLOAD_NAME, defaultDbPath: DEFAULT_DB_PATH });
 export function updateSettings(patch) {
-  const prevPath = config.dbPath;
-  config = { ...config, ...pick({ ...config, ...patch }, GENERAL) };
+  const prev = config;
+  const next = { ...config };
+  for (const k of SETTINGS) {
+    if (!(k in patch) || (CHOICES[k] && !CHOICES[k].includes(patch[k]))) continue;
+    next[k] = k === 'gpu' ? !!patch[k] : k === 'downloadName' ? (patch[k]?.length ? patch[k] : null) : patch[k];
+  }
+  config = next;
   saveConfig(config);
   emit('settings');
-  if (config.dbPath !== prevPath) { openLibrary(config.dbPath); emit('library'); emit('tasks'); }
+  // a new language relabels what the data layer returns; a new database folder is a different gallery
+  if (config.language !== prev.language) emit('language');
+  if (config.dbPath !== prev.dbPath) { openLibrary(config.dbPath); emit('library'); emit('tasks'); emit('snapshots'); emit('mcp'); }
   return getSettings();
 }

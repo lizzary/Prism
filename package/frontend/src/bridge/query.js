@@ -9,8 +9,8 @@ const active = new Map();       // key → Set(refetch)
 events.subscribe((topic) => {
   for (const [key, set] of active) {
     const topics = key.split('|')[0].split(',');
-    // a language change relabels data, so settings refreshes every live query
-    if (topic === 'settings' || topics.includes(topic)) for (const fn of set) fn();
+    // a new language relabels what the data layer returns, so it refreshes every live query
+    if (topic === 'language' || topics.includes(topic)) for (const fn of set) fn();
   }
 });
 
@@ -60,7 +60,7 @@ const suspended = new Map();      // key → { status, data, error, promise, fet
 events.subscribe((topic) => {
   for (const [key, e] of suspended) {
     const topics = key.split('|')[0].split(',');
-    if (topic !== 'settings' && !topics.includes(topic)) continue;
+    if (topic !== 'language' && !topics.includes(topic)) continue;
     if (!e.listeners.size) { suspended.delete(key); continue; }
     e.fetcher().then((data) => { e.data = data; e.status = 'done'; for (const fn of e.listeners) fn(); }, () => {});
   }
@@ -79,6 +79,11 @@ function suspenseEntry(full, fetcher) {
   }
   e.fetcher = fetcher;
   return e;
+}
+
+/** Start loading a page's data before the page is shown (after signing in), so it opens without a placeholder. */
+export function preloadSuspense(key, fetcher, topics = []) {
+  return suspenseEntry(`${topics.join(',')}|${key}`, fetcher).promise.then(() => undefined, () => undefined);
 }
 
 /** useSuspenseQuery(key, fetcher, topics) → data. Suspends until the first load; later refreshes are silent. */

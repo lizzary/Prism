@@ -1,0 +1,38 @@
+.tree { display: flex; flex-direction: column; min-height: 0; flex: 1; border-radius: var(--r-3); background: var(--bg-raised); box-shadow: 0 0 0 1px var(--line); transition: opacity 200ms; }
+.loading .body { opacity: 0.6; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 8px 6px 14px; border-bottom: 1px solid var(--line); }
+.title { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; }
+.title svg { color: var(--star); }
+.per { display: inline-flex; align-items: center; gap: 2px; font-size: 12.5px; color: var(--ink-3); }
+.per > :first-child { margin-left: 8px; }
+.perValue { min-width: 22px; text-align: center; font-size: 13px; font-weight: 600; color: var(--ink); }
+.body { flex: 1; min-height: 0; overflow: auto; padding: 6px 6px 12px; transition: opacity 200ms; }
+.none { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 0; color: var(--ink-3); font-size: 14px; }
+
+.rootList, .children { list-style: none; }
+.row, .file {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  height: 27px;
+  padding: 0 10px 0 calc(8px + var(--d) * 18px);
+  border-radius: var(--r-2);
+  font-size: 13px;
+  text-align: left;
+}
+.row { transition: background-color var(--dur-1); }
+.row:hover { background: var(--hover); }
+.chev { flex-shrink: 0; color: var(--ink-3); transition: transform 220ms var(--ease-out); }
+.chevOpen { transform: rotate(90deg); }
+.folder { flex-shrink: 0; color: var(--star); }
+.name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dir > .row .name { font-weight: 560; }
+.meta { flex-shrink: 0; font-size: 12px; color: var(--ink-3); }
+.file { padding-left: calc(29px + var(--d) * 18px); color: var(--ink-2); animation: rowIn 320ms var(--ease-out) both; animation-delay: calc(var(--k, 0) * 22ms); }
+.fileIcon { flex-shrink: 0; color: var(--ink-3); }
+.more { color: var(--ink-3); font-style: normal; }
+.children { position: relative; animation: rowIn 260ms var(--ease-out) both; }
+.children::before { content: ''; position: absolute; top: 2px; bottom: 6px; left: calc(14px + var(--d, 0) * 18px); border-left: 1px dashed var(--line-2); }
+.dir { --d: 0; }
+@keyframes rowIn { from { opacity: 0; transform: translateY(-3px); } }

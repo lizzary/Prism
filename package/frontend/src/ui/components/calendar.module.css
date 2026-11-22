@@ -1,0 +1,50 @@
+.cal { width: 280px; user-select: none; }
+.head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.month { font-weight: 600; font-size: 14px; }
+.nav { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-2); color: var(--ink-3); transition: background-color var(--dur-1), color var(--dur-1); }
+.nav:hover { background: var(--hover); color: var(--ink); }
+.grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; isolation: isolate; }
+.wd { display: grid; place-items: center; height: 28px; font-size: 11.5px; color: var(--ink-3); }
+.day {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 36px;
+  font-size: 13px;
+  color: var(--ink);
+  transition: color var(--dur-1);
+}
+.day::before {
+  content: '';
+  position: absolute;
+  inset: 3px 0;
+  z-index: -1;
+  transition: background-color var(--dur-1);
+}
+.day:hover:not(:disabled) .num { background: var(--hover); }
+.day[data-out='true'] { color: var(--ink-4); }
+.day:disabled { color: var(--ink-4); opacity: 0.5; cursor: default; }
+.num { position: relative; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; transition: background-color var(--dur-1), color var(--dur-1); }
+.day[data-today='true'] .num { box-shadow: 0 0 0 1px var(--ink-4) inset; }
+.day[data-range='mid']::before { background: var(--star-soft); }
+.day[data-range='start']::before { background: linear-gradient(90deg, transparent 50%, var(--star-soft) 50%); }
+.day[data-range='end']::before { background: linear-gradient(90deg, var(--star-soft) 50%, transparent 50%); }
+.day[data-range='start'] .num, .day[data-range='end'] .num, .day[data-range='single'] .num { background: var(--primary); color: var(--on-primary); }
+.mark { position: absolute; bottom: 3px; width: 4px; height: 4px; border-radius: 50%; background: var(--star); }
+.day[data-range='start'] .mark, .day[data-range='end'] .mark, .day[data-range='single'] .mark { background: var(--star); }
+
+.field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--r-2);
+  background: var(--field);
+  box-shadow: 0 0 0 1px var(--line) inset;
+  color: var(--ink);
+  font-size: 14px;
+  transition: background-color var(--dur-1), box-shadow var(--dur-1);
+}
+.field:hover { background: var(--field-hover); }
+.field svg { color: var(--ink-3); }

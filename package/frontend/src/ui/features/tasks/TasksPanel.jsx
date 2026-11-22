@@ -6,15 +6,23 @@ import { Button, IconButton } from '../../components/controls.jsx';
 import { ProgressBar, toast } from '../../components/feedback.jsx';
 import s from './TasksPanel.module.css';
 
-export const TYPE_ICON = { import: 'import', reindex: 'reindex', export: 'export', 'model-download': 'chip', download: 'download' };
-const WAITING = new Set(['preparing', 'connecting', 'packing']);
+export const TYPE_ICON = {
+  import: 'import', reindex: 'reindex', export: 'export', 'model-download': 'chip', download: 'download',
+  snapshot: 'snapshot', 'snapshot-export': 'export', 'snapshot-import': 'import',
+};
+const WAITING = new Set(['preparing', 'connecting', 'scanning', 'reading']);
 
 export function useTaskText() {
   const t = useT();
   const fmt = useFormat();
   const amount = (task, n) => (task.unit === 'bytes' ? fmt.bytes(n) : fmt.number(n));
   return {
-    scope: (task) => task.group?.name ?? task.label ?? '',
+    scope: (task) => {
+      if (task.group) return task.group.name;
+      const [first, ...rest] = task.groups ?? [];
+      if (first) return rest.length ? t('tasks.scopeMany', { name: first.name, n: rest.length + 1, more: rest.length }) : first.name;
+      return task.label ?? '';
+    },
     progress: (task) => `${amount(task, task.processed)} / ${amount(task, task.total)}`,
     /** A re-index runs its kinds one after another: which one, of how many. */
     step: (task) => (task.kinds?.length > 1 ? `${task.kinds.indexOf(task.stage) + 1}/${task.kinds.length}` : null),
@@ -24,6 +32,9 @@ export function useTaskText() {
       if (!r) return '';
       if (task.type === 'export') return t('tasks.result.export', { files: fmt.number(r.files), size: fmt.bytes(r.bytes) });
       if (task.type === 'model-download') return t('tasks.result.model-download', { size: fmt.bytes(r.bytes) });
+      if (task.type === 'snapshot') return t('tasks.result.snapshot', { changes: fmt.number(r.changes) });
+      if (task.type === 'snapshot-export') return t('tasks.result.snapshot-export', { count: fmt.number(r.count), file: r.file.slice(r.file.lastIndexOf('\\') + 1) });
+      if (task.type === 'snapshot-import') return t('tasks.result.snapshot-import', { added: fmt.number(r.added) }) + (r.skipped ? t('tasks.result.importSkipped', { skipped: fmt.number(r.skipped) }) : '');
       return t(`tasks.result.${task.type}`, { files: fmt.number(r.files) });
     },
     error: (task) => t(`tasks.errors.${task.error?.code}`),

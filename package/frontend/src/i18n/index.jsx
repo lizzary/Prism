@@ -31,3 +31,4 @@ export function I18nProvider({ lang, children }) {
 
 export const useI18n = () => useContext(Ctx);
 export const useT = () => useContext(Ctx).t;
+export const useLang = () => useContext(Ctx).lang;

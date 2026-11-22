@@ -60,7 +60,10 @@ export function Tick({ state = 'off', size = 17 }) {
   );
 }
 
-/** Segmented choice with a sliding indicator. options: [{ value, label, icon }] */
+/**
+ * Segmented choice with a sliding indicator. options: [{ value, label, icon, disabled, tip }]
+ * `tip` explains an option on hover (a disabled one too, which is why it is then wrapped).
+ */
 export function Segmented({ value, onChange, options, size = 'md', className, label, iconOnly }) {
   const wrap = useRef(null);
   const [ind, setInd] = useState(null);
@@ -74,12 +77,14 @@ export function Segmented({ value, onChange, options, size = 'md', className, la
       {options.map((o) => {
         const btn = (
           <button key={o.value} type="button" role="radio" aria-checked={o.value === value} aria-label={iconOnly ? o.label : undefined}
-            data-selected={o.value === value} className={s.segOpt} onClick={() => onChange(o.value)}>
+            data-selected={o.value === value} disabled={o.disabled} className={s.segOpt} onClick={() => onChange(o.value)}>
             {o.icon && <Icon name={o.icon} size={16} />}
             {!iconOnly && <span>{o.label}</span>}
           </button>
         );
-        return iconOnly ? <Tooltip key={o.value} label={o.label}>{btn}</Tooltip> : btn;
+        const tip = iconOnly ? o.label : o.tip;
+        if (!tip) return btn;
+        return <Tooltip key={o.value} label={tip}>{o.disabled ? <span className={s.segTip}>{btn}</span> : btn}</Tooltip>;
       })}
     </div>
   );

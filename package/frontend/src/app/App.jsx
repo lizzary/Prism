@@ -1,5 +1,5 @@
-import { Suspense, ViewTransition, useEffect, useLayoutEffect } from 'react';
-import { useSettings } from '../bridge/index.js';
+import { Suspense, ViewTransition, useEffect, useLayoutEffect, useState } from 'react';
+import { useAccess, useSettings } from '../bridge/index.js';
 import { I18nProvider } from '../i18n/index.jsx';
 import { OverlayProvider, PageMetaProvider, useOverlays } from './shell.jsx';
 import { useRoute } from './router.jsx';
@@ -9,6 +9,7 @@ import { Toaster } from '../ui/components/feedback.jsx';
 import { Overlays } from '../ui/features/Overlays.jsx';
 import { HomePage } from '../ui/pages/home/HomePage.jsx';
 import { GroupPage } from '../ui/pages/group/GroupPage.jsx';
+import { LoginPage } from '../ui/pages/login/LoginPage.jsx';
 
 export function App() {
   const settings = useSettings();
@@ -24,10 +25,22 @@ export function App() {
 
   return (
     <I18nProvider lang={settings.language}>
-      <Gallery />
+      <Gate />
       <Toaster />
     </I18nProvider>
   );
+}
+
+/**
+ * With password login on, the gallery opens only for a signed-in session. After a successful sign-in the login page
+ * stays a moment longer to settle into the home page (`opening`), then hands over.
+ */
+function Gate() {
+  const { locked } = useAccess();
+  const [phase, setPhase] = useState(locked ? 'login' : 'gallery');
+  if (locked && phase !== 'login') setPhase('login');
+  if (phase === 'login') return <LoginPage opening={!locked} onOpened={() => setPhase('gallery')} />;
+  return <Gallery />;
 }
 
 function Gallery() {
@@ -37,6 +50,7 @@ function Gallery() {
     <OverlayProvider>
       <PageMetaProvider>
         <Shortcuts />
+        <FirstRun />
         <TopBar route={route} />
         <Pages route={route} />
         <Overlays />
@@ -59,6 +73,14 @@ function Pages({ route }) {
       </Suspense>
     </PageErrorBoundary>
   );
+}
+
+/** The first launch walks through the setup before anything else. */
+function FirstRun() {
+  const { firstRun } = useAccess();
+  const { open } = useOverlays();
+  useEffect(() => { if (firstRun) open('welcome'); }, [firstRun, open]);
+  return null;
 }
 
 /** Ctrl/Cmd K or "/" opens search anywhere. */

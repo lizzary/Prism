@@ -1,0 +1,5 @@
+.done, .done:hover:not(:disabled) { color: var(--ok); }
+.done svg { animation: tick 360ms var(--ease-back); }
+@keyframes tick { from { transform: scale(0.6); opacity: 0; } }
+
+.qr { display: block; flex-shrink: 0; border-radius: var(--r-2); box-shadow: 0 0 0 1px var(--line), var(--shadow-1); }

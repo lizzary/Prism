@@ -175,6 +175,8 @@
 }
 .segOpt:hover { color: var(--ink-2); }
 .segOpt[data-selected='true'] { color: var(--ink); }
+.segOpt:disabled { color: var(--ink-4); cursor: not-allowed; }
+.segTip { display: inline-flex; }
 .seg_md .segOpt { height: 32px; padding: 0 14px; font-size: 13.5px; }
 .seg_sm .segOpt { height: 28px; padding: 0 10px; font-size: 13px; }
 .seg_sm .segOpt:has(svg:only-child) { width: 30px; padding: 0; }

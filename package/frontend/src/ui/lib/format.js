@@ -52,3 +52,6 @@ export function useFormat() {
   const { lang, t } = useI18n();
   return useMemo(() => makeFormat(lang, t), [lang, t]);
 }
+
+/** Local calendar day "YYYY-MM-DD". */
+export const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

@@ -114,6 +114,11 @@
 
 .panel { width: 400px; }
 
+/* server mode on: a dot that says whether it is running or waiting for a restart */
+.serverDot { position: absolute; top: 8px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px var(--bg); }
+.serverDot[data-state='pendingOn'], .serverDot[data-state='pendingOff'] { background: var(--warn); animation: taskBreath 1.8s ease-in-out infinite; }
+.iconArt .serverDot { box-shadow: 0 0 0 2px rgba(20, 28, 56, 0.9); }
+
 .taskPill {
   position: relative;
   display: inline-flex;
@@ -145,6 +150,10 @@
 .taskPillArt .taskFill { background: rgba(232, 194, 96, 0.22); }
 .taskPillArt .taskSpin { color: var(--star); }
 .taskPillArt .taskMore { background: rgba(246, 241, 228, 0.16); }
+
+/* just signed in: the painting settled into the home page, then the bar's tools arrive */
+:global(:root[data-arrive]) .search, :global(:root[data-arrive]) .right { animation: arrive 720ms var(--ease-out) 120ms both; }
+@keyframes arrive { from { opacity: 0; transform: translateY(-4px); } }
 
 @media (max-width: 1180px) {
   .crumbs { display: none; }

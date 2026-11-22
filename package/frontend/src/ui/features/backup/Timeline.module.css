@@ -1,0 +1,126 @@
+.wrap { position: relative; }
+.scroll { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; overscroll-behavior-x: contain; }
+.scroll::-webkit-scrollbar { display: none; }
+.wrap[data-left='true'] .scroll { mask-image: linear-gradient(90deg, transparent 0, #000 64px); }
+.wrap[data-right='true'] .scroll { mask-image: linear-gradient(90deg, #000 calc(100% - 64px), transparent); }
+.wrap[data-left='true'][data-right='true'] .scroll { mask-image: linear-gradient(90deg, transparent 0, #000 64px, #000 calc(100% - 64px), transparent); }
+.edge { position: absolute; top: 76px; z-index: 3; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--bg-raised); box-shadow: 0 0 0 1px var(--line-2), var(--shadow-1); color: var(--ink-2); }
+.edge:hover { color: var(--ink); }
+.edgeL { left: 10px; }
+.edgeR { right: 10px; }
+
+.track {
+  --pad: 30px;
+  --top: 18px;
+  --card: 134px;
+  --stem: 16px;
+  --axis: calc(var(--top) + var(--card) + var(--stem) + 6px);
+  position: relative;
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  padding: 0 var(--pad) 36px;
+}
+/* the axis, and the lit stretch from the snapshot the library is based on to now */
+.axis { position: absolute; top: var(--axis); left: 0; right: 0; height: 1px; background: var(--line-2); }
+.lit {
+  position: absolute;
+  top: calc(var(--axis) - 0.5px);
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--star) 35%, transparent), var(--star));
+  transition: left 600ms var(--ease-out), width 600ms var(--ease-out);
+}
+.lit[data-pending='false'] { background: color-mix(in srgb, var(--ok) 55%, transparent); }
+
+/* ------------------------------------------------------------------ one snapshot */
+.entry {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: var(--slot);
+  padding-top: var(--top);
+  text-align: left;
+  cursor: pointer;
+  animation: rise 560ms var(--ease-out) both;
+  animation-delay: calc(min(var(--i), 10) * 45ms);
+}
+.entry:focus-visible { box-shadow: none; }
+.entry:focus-visible .card { box-shadow: var(--focus-ring); }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: calc(var(--slot) - 24px);
+  height: var(--card);
+  padding: 6px 6px 8px;
+  border-radius: var(--r-3);
+  background: var(--bg-raised);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-1);
+  transition: transform 320ms var(--ease-out), box-shadow 240ms;
+}
+.entry:hover .card { transform: translateY(-3px); box-shadow: 0 0 0 1px var(--line-2), var(--shadow-2); }
+.entry[data-on='true'] .card { box-shadow: 0 0 0 1.5px var(--star), 0 10px 24px -14px color-mix(in srgb, var(--star) 70%, transparent); transform: translateY(-3px); }
+
+.strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; height: 50px; margin-bottom: 6px; overflow: hidden; border-radius: 5px; background: var(--field); }
+.strip[data-n='2'] { grid-template-columns: repeat(2, 1fr); }
+.strip[data-n='1'] { grid-template-columns: 1fr; }
+.strip img { width: 100%; height: 100%; min-height: 0; object-fit: cover; transition: transform 900ms var(--ease-out); }
+.entry:hover .strip img { transform: scale(1.06); }
+.when { display: flex; align-items: baseline; gap: 6px; padding: 0 3px; font-size: 13px; font-weight: 560; color: var(--ink); white-space: nowrap; }
+.when span + span { font-size: 12px; font-weight: 400; color: var(--ink-3); }
+.name { overflow: hidden; padding: 0 3px; font-size: 12.5px; color: var(--ink-2); text-overflow: ellipsis; white-space: nowrap; }
+.meta { display: flex; align-items: center; gap: 6px; margin-top: auto; padding: 0 3px; min-height: 17px; }
+.delta { display: inline-flex; gap: 7px; font-size: 11.5px; font-weight: 600; }
+.delta [data-change='added'] { color: var(--ok); }
+.delta [data-change='modified'] { color: var(--accent); }
+.delta [data-change='deleted'] { color: var(--danger); }
+.tag { margin-left: auto; padding: 0 5px; border-radius: 3px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-style: normal; line-height: 17px; }
+
+.stem { width: 1px; height: var(--stem); background: var(--line-2); transition: background-color var(--dur-2); }
+.entry:hover .stem, .entry[data-on='true'] .stem { background: var(--star); }
+.node {
+  position: relative;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 0 0 1.5px var(--ink-3) inset;
+  transition: transform 300ms var(--ease-back), background-color var(--dur-2), box-shadow var(--dur-2);
+}
+.entry:hover .node { transform: scale(1.2); }
+.entry[data-on='true'] .node { background: var(--star); box-shadow: 0 0 0 3px var(--star-soft); }
+/* the snapshot the library is based on: a filled node with a ring */
+.node[data-head='true'] { background: var(--star); box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--star); }
+.month { position: absolute; top: calc(var(--axis) + 12px); left: 50%; font-size: 11.5px; font-weight: 600; letter-spacing: 0.03em; color: var(--ink-3); white-space: nowrap; transform: translateX(-50%); }
+
+/* a new snapshot comes out of "now"; a deleted one folds away */
+.entry[data-fresh='true'] .card { animation: emerge 900ms var(--ease-out) both; }
+@keyframes emerge { from { opacity: 0; transform: translateX(40px) scale(0.94); } }
+.entry[data-fresh='true'] .node { animation: blink 900ms var(--ease-back) both; }
+@keyframes blink { 0% { transform: scale(0); } 60% { transform: scale(1.5); } }
+.entry[data-leaving='true'] { pointer-events: none; }
+.entry[data-leaving='true'] .card, .entry[data-leaving='true'] .stem { animation: fold 420ms var(--ease-in-out) both; }
+.entry[data-leaving='true'] .node { transform: scale(0); }
+@keyframes fold { to { opacity: 0; transform: translateY(14px) scale(0.9); } }
+
+/* ------------------------------------------------------------------ now */
+.now .card { justify-content: center; background: transparent; box-shadow: none; outline: 1.5px dashed var(--line-2); outline-offset: -1.5px; }
+.now[data-pending='true'] .card { outline-color: color-mix(in srgb, var(--star) 70%, transparent); background: color-mix(in srgb, var(--star-soft) 40%, transparent); }
+.now:hover .card { box-shadow: none; }
+.now[data-on='true'] .card { outline-style: solid; outline-color: var(--star); box-shadow: 0 0 0 4px var(--star-soft); }
+.nowBody { display: flex; flex-direction: column; gap: 4px; padding: 0 10px; }
+.nowLabel { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--ink-3); }
+.nowFigure { display: inline-flex; align-items: center; gap: 5px; font-size: 17px; font-weight: 560; color: var(--star-ink); }
+.nowFigure[data-clean='true'] { font-size: 14px; color: var(--ok); }
+.bar { height: 3px; margin-top: 6px; overflow: hidden; border-radius: 2px; background: var(--line); }
+.bar i { display: block; height: 100%; background: var(--star); transform-origin: left; transform: scaleX(var(--p)); transition: transform 300ms var(--ease-out); }
+.now .node { background: var(--bg); box-shadow: 0 0 0 1.5px var(--ink-3) inset; }
+.now[data-pending='true'] .node { box-shadow: 0 0 0 2px var(--star) inset; }
+.now[data-pending='true'] .node::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; border: 1.5px solid var(--star); animation: ping 1.8s var(--ease-out) infinite; }
+.now[data-developing='true'] .node { background: var(--star); }
+@keyframes ping { from { opacity: 0.7; transform: scale(0.5); } to { opacity: 0; transform: scale(1.4); } }

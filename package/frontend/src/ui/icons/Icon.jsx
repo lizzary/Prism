@@ -140,6 +140,17 @@ const I = {
   /* a model (the tagger): a chip */
   chip: '<rect x="6.5" y="6.5" width="11" height="11" rx="2"/><rect x="9.6" y="9.6" width="4.8" height="4.8" rx="1"/><path d="M9.5 3.6v2.9M14.5 3.6v2.9M9.5 17.5v2.9M14.5 17.5v2.9M3.6 9.5h2.9M3.6 14.5h2.9M17.5 9.5h2.9M17.5 14.5h2.9"/>',
   'drag-drop': '<path d="M9 4.5H6.5a2 2 0 0 0-2 2V9"/><path d="M4.5 13v2"/><path d="M9 19.5H6.5a2 2 0 0 1-2-2"/><path d="M13 4.5h2"/><path d="M19.5 9V6.5a2 2 0 0 0-2-2"/><path d="m12 12 7.6 2.6-3.3 1.4-1.4 3.3Z"/>',
+  /* the graphics card the models can run on: a fan on a board, its connector underneath */
+  gpu: '<path d="M3.5 5v14"/><rect x="3.5" y="7" width="17" height="9.5" rx="1.8"/><circle cx="12.6" cy="11.75" r="2.8"/><path d="M8 16.5v2.5h8.6v-2.5"/>',
+  /* the whiteboard: a board with cards laid on it */
+  whiteboard: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><rect x="6.8" y="7.8" width="5" height="5" rx="1.1"/><rect x="12.2" y="11.2" width="5" height="5" rx="1.1"/>',
+  /* a file name that is already taken: one file in front of another */
+  'file-stack': '<path d="M9.5 3.8h5.3l4.2 4.2v8.2a2 2 0 0 1-2 2H9.5a2 2 0 0 1-2-2V5.8a2 2 0 0 1 2-2Z"/><path d="M14.6 3.8v4.4H19"/><path d="M4.5 7.8v10.4a2 2 0 0 0 2 2h8"/>',
+  /* naming: a text field with its caret */
+  rename: '<rect x="3" y="7" width="18" height="10" rx="2.2"/><path d="M6.8 12h5"/><path d="M16 9.6v4.8"/><path d="M14.7 9.6h2.6"/><path d="M14.7 14.4h2.6"/>',
+  /* places in the folder picker */
+  monitor: '<rect x="3.5" y="4.5" width="17" height="11.5" rx="2"/><path d="M12 16v3.5"/><path d="M8.5 19.5h7"/>',
+  drive: '<rect x="3.5" y="6.5" width="17" height="11" rx="2.4"/><path d="M3.8 13.2h16.4"/><circle cx="16.8" cy="15.4" r=".9" fill="currentColor"/>',
 };
 
 export function Icon({ name, size, stroke = 1.6, className, style, label }) {

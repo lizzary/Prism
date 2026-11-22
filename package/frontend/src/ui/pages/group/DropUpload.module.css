@@ -1,0 +1,67 @@
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(6px) saturate(0.9);
+  pointer-events: none;
+  transition: opacity 240ms var(--ease-out);
+}
+.layer[data-state='enter'], .layer[data-state='exit'] { opacity: 0; }
+
+/* the whole page takes the files: a soft starlit frame just inside the window */
+.frame {
+  position: absolute;
+  inset: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 18px;
+  border: 1.5px dashed color-mix(in srgb, var(--star) 70%, transparent);
+  background: radial-gradient(ellipse at 50% 46%, var(--star-soft), transparent 62%);
+  transition: transform 420ms var(--ease-out);
+  animation: breathe 2.4s var(--ease-in-out) infinite;
+}
+.layer[data-state='enter'] .frame { transform: scale(1.02); }
+@keyframes breathe { 50% { border-color: color-mix(in srgb, var(--star) 40%, transparent); } }
+
+/* the group's cover on a little stack, the new files coming down onto it */
+.tray { position: relative; width: 132px; height: 120px; margin-bottom: 18px; }
+.card, .cover {
+  position: absolute;
+  left: 22px;
+  bottom: 0;
+  width: 88px;
+  height: 88px;
+  border-radius: 8px;
+  background: var(--field);
+  box-shadow: 0 0 0 2px var(--bg-raised), var(--shadow-2);
+  object-fit: cover;
+}
+.card[data-k='0'] { transform: rotate(-9deg) translateX(-12px); background: color-mix(in srgb, var(--accent) 22%, var(--field)); }
+.card[data-k='1'] { transform: rotate(7deg) translateX(12px); background: color-mix(in srgb, var(--star) 26%, var(--field)); }
+.cover { z-index: 1; }
+.arrow {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: -14px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-left: -22px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: 0 0 0 4px var(--bg), var(--shadow-2);
+  animation: bob 1.4s var(--ease-in-out) infinite;
+}
+@keyframes bob { 50% { transform: translateY(6px); } }
+.title { font-size: 20px; font-weight: 560; letter-spacing: -0.01em; color: var(--ink); text-align: center; }
+.body { font-size: 14px; color: var(--ink-3); }

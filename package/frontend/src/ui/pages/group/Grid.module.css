@@ -1,0 +1,294 @@
+.grid { position: relative; transition: height 480ms var(--ease-out); }
+.grid[data-resizing] *, .grid[data-resizing] { transition: none !important; }
+
+/* everything is placed by translate() from the computed layout, and glides when the layout changes */
+.tile, .box, .head, .tab, .moreTile, .capsule { position: absolute; top: 0; left: 0; }
+.tile, .moreTile, .capsule { transition: transform 480ms var(--ease-out), width 480ms var(--ease-out), height 480ms var(--ease-out), opacity 300ms var(--ease-out); }
+.box { transition: transform 480ms var(--ease-out), width 480ms var(--ease-out), height 480ms var(--ease-out), background-color 260ms, box-shadow 260ms, opacity 260ms; }
+.head, .tab { transition: transform 480ms var(--ease-out), width 480ms var(--ease-out), opacity 260ms; }
+
+/* ------------------------------------------------------------------ a file */
+.tile {
+  border-radius: var(--r-2);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  animation: tileIn 460ms var(--ease-out) both;
+  outline: none;
+}
+@keyframes tileIn { from { opacity: 0; } }
+.frame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--bg-sunken) 85%, var(--ink) 4%);
+  box-shadow: 0 0 0 1px var(--line);
+  isolation: isolate;
+  transition: transform 300ms var(--ease-out), border-radius 300ms var(--ease-out), box-shadow 300ms var(--ease-out);
+}
+.img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 420ms var(--ease-out), transform 1100ms var(--ease-out); }
+.img[data-ready] { opacity: 1; }
+.tile:hover .img { transform: scale(1.04); }
+.frame::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 12, 28, 0.32), transparent 34%); opacity: 0; transition: opacity 220ms; pointer-events: none; }
+.tile:hover .frame::after, .tile[data-selecting] .frame::after { opacity: 1; }
+.tile:focus-visible .frame { box-shadow: var(--focus-ring); }
+
+/* chosen: the picture steps back into a starlit well, with a tick in its corner */
+.tile[data-selected] { background: var(--star-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--star) 45%, transparent) inset; }
+.tile[data-selected] .frame { transform: scale(0.88); border-radius: var(--r-3); box-shadow: 0 0 0 1px var(--line), var(--shadow-1); }
+.tile[data-selected] .frame::after { opacity: 0; }
+
+.check {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: transparent;
+  background: rgba(12, 18, 38, 0.22);
+  box-shadow: 0 0 0 1.5px rgba(250, 246, 236, 0.92) inset, 0 1px 4px rgba(6, 10, 26, 0.3);
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 180ms var(--ease-out), transform 260ms var(--ease-back), background-color 160ms, color 160ms, box-shadow 160ms;
+}
+.tile:hover .check, .tile[data-selecting] .check { opacity: 1; transform: none; }
+.tile[data-selecting]:not(:hover):not([data-selected]) .check { opacity: 0.6; }
+.check:hover { background: rgba(12, 18, 38, 0.46); color: rgba(250, 246, 236, 0.7); }
+.tile[data-selected] .check { opacity: 1; transform: none; background: var(--star); color: #1d2030; box-shadow: 0 0 0 2px var(--bg-raised), 0 1px 4px rgba(6, 10, 26, 0.3); }
+
+.more {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-2);
+  color: #fbf7ee;
+  background: rgba(12, 18, 38, 0.42);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 180ms, transform 220ms var(--ease-out), background-color 160ms;
+}
+.tile:hover .more, .more:focus-visible { opacity: 1; transform: none; }
+.more:hover { background: rgba(12, 18, 38, 0.66); }
+.tile[data-selected] .more { top: 12px; right: 12px; }
+
+.video, .coverMark {
+  position: absolute;
+  bottom: 6px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  border-radius: var(--r-1);
+  color: #fbf7ee;
+  background: rgba(12, 18, 38, 0.48);
+  backdrop-filter: blur(6px);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.video { left: 6px; padding: 0 6px 0 5px; }
+.coverMark { right: 6px; width: 20px; justify-content: center; color: #f3d77e; }
+
+/* being carried elsewhere */
+.tile[data-carried] { opacity: 0.26; }
+.tile[data-carried] .frame { filter: saturate(0.4); }
+.grid[data-dragging] .tile:hover .img { transform: none; }
+.grid[data-dragging] .check, .grid[data-dragging] .more { visibility: hidden; }
+
+/* just arrived, or the one the lightbox closed on: it glows once, so the eye finds it */
+.tile[data-glow] .frame { animation: glow 1.8s var(--ease-out); }
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 0 1px var(--line); }
+  30% { box-shadow: 0 0 0 2px var(--star), 0 0 0 8px var(--star-soft); }
+}
+
+/* ------------------------------------------------------------------ colour groups: a band of their colour behind their files */
+.box {
+  --c: var(--ink-3);
+  border-radius: var(--r-3);
+  background: color-mix(in srgb, var(--c) 8%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 22%, transparent) inset;
+}
+:global(:root[data-theme='dark']) .box { background: color-mix(in srgb, var(--c) 10%, transparent); }
+/* flowing: the runs are narrower than boxes, so their colour is a little stronger */
+.grid[data-mode='mixed'] .box { background: color-mix(in srgb, var(--c) 13%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 32%, transparent) inset; }
+.grid[data-mode='mixed'] .box[data-hot] { background: color-mix(in srgb, var(--c) 19%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 52%, transparent) inset; }
+.box[data-none] { background: color-mix(in srgb, var(--ink) 2.4%, transparent); box-shadow: 0 0 0 1px var(--line) inset; }
+.box[data-hot] { background: color-mix(in srgb, var(--c) 12%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 36%, transparent) inset; }
+.box[data-none][data-hot] { background: color-mix(in srgb, var(--ink) 4%, transparent); box-shadow: 0 0 0 1px var(--line-2) inset; }
+.box[data-target] { background: color-mix(in srgb, var(--c) 17%, transparent); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--c) 72%, transparent) inset, 0 0 0 5px color-mix(in srgb, var(--c) 12%, transparent); }
+.box[data-lifted], .head[data-lifted], .tab[data-lifted] { opacity: 0.45; }
+/* a run that goes on in the next row: its band runs out at the edge, and comes back in at the next row's start */
+.box[data-open-right] { border-top-right-radius: 0; border-bottom-right-radius: 0; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); }
+.box[data-open-left] { border-top-left-radius: 0; border-bottom-left-radius: 0; -webkit-mask-image: linear-gradient(270deg, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(270deg, #000 calc(100% - 36px), transparent); }
+.box[data-open-left][data-open-right] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(90deg, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
+
+.emptyDrop {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 46px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--r-2);
+  border: 1.5px dashed color-mix(in srgb, var(--c) 40%, var(--line-2));
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------------ headings (one or two per row) */
+.head { z-index: 1; display: flex; align-items: center; gap: 9px; padding: 0 8px 0 16px; min-width: 0; user-select: none; }
+.head[data-grab], .tab[data-grab] { cursor: grab; }
+.grip { flex-shrink: 0; margin: 0 -4px 0 -10px; color: var(--ink-4); opacity: 0; transition: opacity 160ms; }
+.head:hover .grip { opacity: 1; }
+.dot { flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 20%, transparent); }
+.head[data-none] .dot, .tab[data-none] .dot { background: transparent; box-shadow: 0 0 0 1.5px var(--ink-4) inset; }
+.name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; font-weight: 560; }
+.count { flex-shrink: 0; font-size: 12.5px; color: var(--ink-3); }
+.peek { display: inline-flex; align-items: center; margin-left: 8px; padding-left: 6px; min-width: 0; overflow: hidden; }
+.peek img {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-left: -7px;
+  border-radius: 5px;
+  object-fit: cover;
+  box-shadow: 0 0 0 2px var(--bg);
+  animation: peekIn 420ms var(--ease-back) both;
+  animation-delay: calc(var(--k) * 35ms);
+}
+@keyframes peekIn { from { opacity: 0; transform: translateX(-6px) scale(0.85); } }
+.headTools { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-shrink: 0; }
+.textBtn { height: 26px; padding: 0 9px; border-radius: var(--r-2); font-size: 12.5px; font-weight: 540; color: var(--ink-2); transition: background-color var(--dur-1), color var(--dur-1); }
+.textBtn:hover { background: var(--hover); color: var(--ink); }
+.foldBtn { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-2); color: var(--ink-3); transition: background-color var(--dur-1), color var(--dur-1); }
+.foldBtn:hover { background: var(--hover); color: var(--ink); }
+.foldBtn svg { transition: transform 320ms var(--ease-out); }
+.foldBtn[data-folded] svg { transform: rotate(-90deg); }
+
+/* ------------------------------------------------------------------ tabs (flowing layout): a small label above each run */
+.tab { z-index: 1; display: flex; align-items: center; gap: 4px; padding: 0 2px 0 8px; min-width: 0; font-size: 12.5px; user-select: none; }
+.tabName { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; color: var(--ink-2); font-weight: 540; }
+.tabName .dot { width: 8px; height: 8px; box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--c) 20%, transparent); }
+.tab[data-cont] { padding-left: 6px; }
+.tab[data-cont] .tabName { color: var(--ink-3); font-weight: 500; }
+.wrapIcon { flex-shrink: 0; color: color-mix(in srgb, var(--c) 80%, var(--ink-3)); }
+.tabCount { color: var(--ink-3); font-weight: 450; }
+.tabTools { display: flex; margin-left: auto; opacity: 0; transition: opacity 160ms; }
+.tab:hover .tabTools { opacity: 1; }
+.tabBtn { display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--r-1); color: var(--ink-3); }
+.tabBtn:hover { background: var(--hover); color: var(--ink); }
+
+/* ------------------------------------------------------------------ the "+N" tile, and folded colour groups in the flow */
+.moreTile, .capsule {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  border-radius: var(--r-2);
+  background: color-mix(in srgb, var(--field) 80%, transparent);
+  box-shadow: 0 0 0 1px var(--line) inset;
+  color: var(--ink-2);
+  animation: tileIn 460ms var(--ease-out) both;
+}
+.moreTile:hover, .capsule:hover { background: var(--bg-raised); color: var(--ink); box-shadow: 0 0 0 1px var(--line-2) inset, var(--shadow-1); }
+.capsule { --c: var(--ink-3); background: color-mix(in srgb, var(--c) 10%, var(--bg)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent) inset; }
+.capsule[data-empty] { flex-direction: row; gap: 8px; padding: 0 10px; background: transparent; box-shadow: none; border: 1.5px dashed color-mix(in srgb, var(--c) 45%, var(--line-2)); font-size: 12.5px; color: var(--ink-3); text-align: center; }
+.fan { position: relative; flex-shrink: 0; width: min(46%, 96px); aspect-ratio: 1; margin-bottom: 8px; }
+.fan img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 5px;
+  box-shadow: 0 0 0 1.5px var(--bg-raised), var(--shadow-1);
+  --d: calc(var(--k) - (var(--n) - 1) / 2);
+  transform: translateX(calc(var(--d) * 14%)) rotate(calc(var(--d) * 8deg));
+  transition: transform 420ms var(--ease-back);
+}
+.moreTile:hover .fan img, .capsule:hover .fan img { transform: translateX(calc(var(--d) * 26%)) translateY(-3px) rotate(calc(var(--d) * 12deg)); }
+.moreCount { font-size: 18px; font-weight: 640; letter-spacing: -0.01em; color: var(--ink); }
+.moreLabel { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.moreTile:not(:hover) .moreLabel { opacity: 0.85; }
+
+/* ------------------------------------------------------------------ dragging */
+.marker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 6;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--c);
+  box-shadow: 0 0 0 2px var(--bg), 0 0 14px color-mix(in srgb, var(--c) 70%, transparent);
+  pointer-events: none;
+  transition: transform 110ms var(--ease-out), height 110ms var(--ease-out);
+}
+.ghost { position: fixed; top: 0; left: 0; z-index: 300; pointer-events: none; will-change: transform; }
+.fileGhost { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; transform: translate(16px, 14px); }
+.stack { position: relative; width: 88px; height: 88px; }
+.stack img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 7px;
+  box-shadow: 0 0 0 2px var(--bg-raised), var(--shadow-3);
+  --d: calc(var(--k) - (var(--n) - 1) / 2);
+  transform: rotate(calc(var(--d) * -7deg)) translateX(calc(var(--d) * 6px));
+  animation: lift 300ms var(--ease-back) both;
+}
+@keyframes lift { from { transform: scale(0.7); opacity: 0; } }
+.badge {
+  position: absolute;
+  top: -9px;
+  right: -11px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 12px;
+  background: var(--star);
+  color: #1d2030;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 24px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--bg-raised), var(--shadow-2);
+}
+.whither, .sectionGhost {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 240px;
+  height: 28px;
+  padding: 0 11px 0 9px;
+  border-radius: var(--r-2);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 12.5px;
+  font-weight: 560;
+  white-space: nowrap;
+  overflow: hidden;
+  box-shadow: var(--shadow-2);
+}
+.whither i, .sectionGhost i { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 30%, transparent); }
+.sectionGhost { transform: translate(12px, 10px); height: 32px; font-size: 13.5px; }

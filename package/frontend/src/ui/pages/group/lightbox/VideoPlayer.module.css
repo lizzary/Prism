@@ -1,0 +1,47 @@
+.player { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; background: #05070b; }
+.video { width: 100%; height: 100%; object-fit: contain; cursor: pointer; }
+.big {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  margin: -34px 0 0 -34px;
+  padding-left: 4px;
+  border-radius: 50%;
+  background: rgba(10, 13, 19, 0.56);
+  backdrop-filter: blur(8px);
+  color: #f1ecdf;
+  box-shadow: 0 0 0 1px rgba(241, 236, 223, 0.18) inset;
+  transition: transform 260ms var(--ease-back), background-color var(--dur-1);
+  animation: appear 300ms var(--ease-out);
+}
+.big:hover { transform: scale(1.06); background: rgba(10, 13, 19, 0.7); }
+@keyframes appear { from { opacity: 0; transform: scale(0.9); } }
+
+.controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 10px 10px 0;
+  background: linear-gradient(transparent, rgba(6, 8, 12, 0.72));
+  color: #f1ecdf;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 260ms var(--ease-out), transform 260ms var(--ease-out);
+}
+.player:hover .controls, .player:not([data-playing]) .controls, .controls:focus-within { opacity: 1; transform: none; }
+.btn { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-2); transition: background-color var(--dur-1); }
+.btn:hover { background: rgba(241, 236, 223, 0.12); }
+.time { min-width: 34px; font-size: 12px; color: rgba(241, 236, 223, 0.78); text-align: center; }
+.scrub { position: relative; flex: 1; height: 26px; }
+.scrub::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 3px; margin-top: -1.5px; border-radius: 2px; background: rgba(241, 236, 223, 0.2); }
+.scrub::after { content: ''; position: absolute; left: 0; top: 50%; height: 3px; margin-top: -1.5px; width: calc(var(--p) * 100%); border-radius: 2px; background: #e3c066; }
+.scrub input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }

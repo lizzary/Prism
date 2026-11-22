@@ -7,7 +7,7 @@ import { ProgressBar, toast } from '../../components/feedback.jsx';
 import s from './TasksPanel.module.css';
 
 export const TYPE_ICON = {
-  import: 'import', reindex: 'reindex', export: 'export', 'model-download': 'chip', download: 'download',
+  import: 'import', upload: 'upload', reindex: 'reindex', export: 'export', 'model-download': 'chip', download: 'download',
   snapshot: 'snapshot', 'snapshot-export': 'export', 'snapshot-import': 'import',
 };
 const WAITING = new Set(['preparing', 'connecting', 'scanning', 'reading']);

@@ -13,7 +13,7 @@ const scrollPos = (el) => (el ? [el.scrollLeft, el.scrollTop] : [window.scrollX,
  * @param {object} o
  * @param {React.RefObject<HTMLElement>} o.listRef   container of the items
  * @param {React.RefObject<HTMLElement>} [o.scrollRef] scrolling element (default: the page)
- * @param {'row'|'grid'} [o.mode]   'row': one horizontal line; 'grid': rows that wrap
+ * @param {'row'|'column'|'grid'} [o.mode]   'row': one horizontal line; 'column': one vertical list; 'grid': rows that wrap
  * @param {'x'|'y'} [o.axis]        direction that auto-scrolls
  * @param {{top?:number,bottom?:number}} [o.inset] parts of the scroll area covered by sticky bars
  * @param {(id: string, index: number, from: DOMRect) => void} o.onDrop index = position among the other items;
@@ -39,6 +39,12 @@ export function useReorder({ listRef, scrollRef, mode = 'grid', axis = 'y', inse
       index = rects.filter((r) => r.left + r.width / 2 < x).length;
       after = index === others.length;
       ref = after ? rects[index - 1] : rects[index];
+    } else if (mode === 'column') {
+      index = rects.filter((r) => r.top + r.height / 2 < y).length;
+      after = index === others.length;
+      ref = after ? rects[index - 1] : rects[index];
+      const top = after ? ref.bottom + 2 : ref.top - 2;
+      return { index, marker: { left: ref.left + 4, top: top - 1.5, width: ref.width - 8, height: 3 } };
     } else {
       let best = 0, bestD = Infinity;
       rects.forEach((r, i) => {
@@ -82,7 +88,8 @@ export function useReorder({ listRef, scrollRef, mode = 'grid', axis = 'y', inse
   useEffect(() => () => end(false), [end]);
 
   const begin = (e, id) => {
-    if (disabled || e.button !== 0 || st.current) return;
+    // fields and buttons inside an item keep their own presses
+    if (disabled || e.button !== 0 || st.current || e.target.closest('input, textarea, select, button')) return;
     const el = e.currentTarget;
     const s = { id, el, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, sc0: scrollPos(scrollRef?.current), active: false, drop: null, raf: 0 };
     // A transformed item counts toward its scroller's overflow, so dragging it past the edge would enlarge the
@@ -98,9 +105,9 @@ export function useReorder({ listRef, scrollRef, mode = 'grid', axis = 'y', inse
     const place = () => {
       const [sx, sy] = scrollPos(scrollRef?.current);
       const clamp = (v, [lo, hi]) => Math.max(lo, Math.min(hi, v));
-      const dx = clamp(s.x - s.x0 + sx - s.sc0[0], s.bound.x);
-      const dy = mode === 'row' ? 0 : clamp(s.y - s.y0 + sy - s.sc0[1], s.bound.y);   // a row item only slides along its row
-      el.style.transform = `translate(${dx}px, ${dy}px) scale(1.03)`;
+      const dx = mode === 'column' ? 0 : clamp(s.x - s.x0 + sx - s.sc0[0], s.bound.x);   // a list item only slides along its list
+      const dy = mode === 'row' ? 0 : clamp(s.y - s.y0 + sy - s.sc0[1], s.bound.y);
+      el.style.transform = `translate(${dx}px, ${dy}px) scale(${mode === 'column' ? 1.01 : 1.03})`;
       s.drop = target(s.x, s.y, id);
       setMarker(s.drop?.marker ?? null);
     };

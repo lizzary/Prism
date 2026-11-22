@@ -11,6 +11,7 @@ import { kindOfExt } from '../domain/files.js';
 import { keyCatalog } from '../domain/keys.js';
 import { expandName, planTree, selectFiles } from '../domain/exportPlan.js';
 import { uniqueName } from '../domain/filename.js';
+import { arrange, cleanView } from '../domain/arrange.js';
 
 // ------------------------------------------------------------------ change feed
 const listeners = new Set();
@@ -39,6 +40,14 @@ function emptyLibrary() {
  */
 export const newEdits = () => ({ files: new Map(), groups: new Map(), prefs: false });
 
+/**
+ * Every change to a gallery gives it a new revision. A group's page asks for its files every few seconds with the
+ * revision it already has, and an unchanged gallery answers with just that (the Go service keeps one per database).
+ * One counter for every gallery, so switching database folders never repeats a revision.
+ */
+let REV = 0;
+const touch = (L) => { L.rev = ++REV; };
+
 function indexLibrary(L) {
   L.groupsById = new Map(L.groups.map((g) => [g.id, g]));
   L.filesById = new Map(L.files.map((f) => [f.id, f]));
@@ -46,6 +55,7 @@ function indexLibrary(L) {
   for (const f of L.files) L.filesByGroup.get(f.groupId)?.push(f);
   L.docs = null;
   L.tags = null;
+  touch(L);
 }
 
 function openLibrary(path) {
@@ -77,7 +87,9 @@ const lib = () => openLibrary(config.dbPath);
 const savePrefs = (L) => { L.edits.prefs = true; saveDbPrefs(L.path, L.prefs); };
 export { lib as currentLibrary, indexLibrary as reindex };
 const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k]]));
-const GROUP_FIELDS = ['name', 'coverFileId'];
+/** What an edit can change, kept as it was before the first edit since the last snapshot (edits replace these values, never mutate them). */
+export const GROUP_FIELDS = ['name', 'coverFileId', 'configs', 'activeConfigId', 'fileOrder'];
+export const FILE_FIELDS = ['userTags', 'note', 'colors'];
 const noteEdit = (map, item, fields) => { if (!map.has(item.id)) map.set(item.id, pick(item, fields)); };
 
 // ------------------------------------------------------------------ views of the data
@@ -149,12 +161,13 @@ export function streamUrl(ref) {
 export function getHome() {
   const L = lib();
   const last = L.prefs.lastViewed && L.filesById.get(L.prefs.lastViewed.fileId);
-  const siblings = last ? L.filesByGroup.get(last.groupId) : null;
+  // where it sits in its group, in the order the group's page shows (and its lightbox walks)
+  const siblings = last ? arrange(pageData(L, L.groupsById.get(last.groupId)), getGroupView(last.groupId)).sequence : null;
   const week = ago(7);
   return {
     groups: orderedGroups(L).map((g) => groupCard(L, g)),
     view: getHomeView(),
-    lastViewed: last ? { file: fileRef(last), group: groupChip(L, last.groupId), index: siblings.indexOf(last), total: siblings.length, viewedAt: L.prefs.lastViewed.at } : null,
+    lastViewed: last ? { file: fileRef(last), group: groupChip(L, last.groupId), index: siblings.findIndex((f) => f.id === last.id), total: siblings.length, viewedAt: L.prefs.lastViewed.at } : null,
     stats: {
       groups: L.groups.length, files: L.files.length,
       bytes: L.files.reduce((s, f) => s + f.size, 0),
@@ -193,12 +206,6 @@ export function listColorGroups() {
   return orderedGroups(L).flatMap((g) => g.configs.flatMap((c) => c.groups.map((x) => ({
     id: x.id, name: x.name, color: x.color, config: c.name, group: { id: g.id, name: g.name }, fileCount: count.get(x.id) ?? 0,
   }))));
-}
-
-export function getGroup(id) {
-  const L = lib();
-  const g = L.groupsById.get(id);
-  return g ? groupCard(L, g) : null;
 }
 
 /** The pictures of a group a cover can be chosen from, newest first. */
@@ -269,6 +276,291 @@ export function sampleFiles(n = 8) {
   return Array.from({ length: Math.min(n, pool.length) }, () => fileRef(pool[Math.floor(Math.random() * pool.length)]));
 }
 
+// ------------------------------------------------------------------ a group's page
+/** What the page lists for each file (the rest comes with getFileDetail). colors: configuration → colour group. */
+const fileRow = (f) => ({ ...fileRef(f), size: f.size, createdAt: f.createdAt, importedAt: f.importedAt, colors: f.colors });
+/** The pieces the browsing order is made from (domain/arrange.js). */
+const pageData = (L, g) => ({ files: L.filesByGroup.get(g.id) ?? [], configs: g.configs, activeConfigId: g.activeConfigId, order: g.fileOrder ?? [] });
+
+/**
+ * Everything a group's page shows. `since`: the revision of the copy the page already has — an unchanged gallery
+ * answers { rev, unchanged: true }, so asking every few seconds costs next to nothing.
+ */
+export function getGroupPage(id, since) {
+  const L = lib();
+  if (since != null && since === L.rev) return { rev: L.rev, unchanged: true };
+  const g = L.groupsById.get(id);
+  if (!g) return { rev: L.rev, group: null };
+  const { previews, ...group } = groupCard(L, g); // eslint-disable-line no-unused-vars
+  return {
+    rev: L.rev, group,
+    configs: g.configs, activeConfigId: g.activeConfigId, order: g.fileOrder ?? [],
+    files: (L.filesByGroup.get(id) ?? []).map(fileRow),
+    view: getGroupView(id),
+  };
+}
+
+/** A group's page settings (sort, sizes, layout…), each group its own. */
+export const getGroupView = (id) => cleanView(lib().prefs.views?.[id]);
+export function saveGroupView(id, view) {
+  const L = lib();
+  if (!L.groupsById.has(id)) return;
+  L.prefs.views = { ...L.prefs.views, [id]: cleanView(view) };
+  savePrefs(L);
+  touch(L);                    // the page's next look brings the saved settings along
+}
+
+/** The file being looked at, for the home page's "last viewed" (not a change a snapshot needs to keep). */
+export function markViewed(fileId) {
+  const L = lib();
+  if (!L.filesById.has(fileId)) return;
+  L.prefs.lastViewed = { fileId, at: nowIso() };
+  saveDbPrefs(L.path, L.prefs);
+  emit('viewed');
+}
+
+/** cover: 'chosen' (picked as the group's cover), 'auto' (standing in as the cover) or null. */
+export function getFileDetail(id) {
+  const L = lib();
+  const f = L.filesById.get(id);
+  if (!f) return null;
+  const g = L.groupsById.get(f.groupId);
+  const cfg = g.configs.find((c) => c.id === g.activeConfigId) ?? null;
+  const color = colorOf(g, f);
+  return {
+    file: fileRef(f), group: groupChip(L, f.groupId),
+    config: cfg ? { id: cfg.id, name: cfg.name, colors: cfg.groups } : null,
+    color: color ? { id: color.id, name: color.name, color: color.color } : null,
+    size: f.size, createdAt: f.createdAt, importedAt: f.importedAt,
+    tags: mergeTags(f.tags, f.userTags).map((t) => ({ key: t.key, label: tagLabel(t.name), source: t.source, score: t.score ?? null })),
+    note: f.note, comfy: f.comfy,
+    cover: coverOf(L, g)?.id !== f.id ? null : g.coverFileId === f.id ? 'chosen' : 'auto',
+  };
+}
+
+/** A file's colour group in the configuration its group uses (null: none). */
+function setColor(L, f, colorId) {
+  const g = L.groupsById.get(f.groupId);
+  const cfg = g?.configs.find((c) => c.id === g.activeConfigId);
+  if (!cfg) return;
+  const next = { ...f.colors };
+  if (colorId && cfg.groups.some((x) => x.id === colorId)) next[cfg.id] = colorId;
+  else delete next[cfg.id];
+  if (next[cfg.id] === f.colors[cfg.id]) return;
+  noteEdit(L.edits.files, f, FILE_FIELDS);
+  f.colors = next;
+}
+
+/** patch: any of { userTags: [name], note, color: colour group id | null }. A tag the tagger already gave is not kept twice. */
+export function updateFile(id, patch) {
+  const L = lib();
+  const f = L.filesById.get(id);
+  if (!f) return null;
+  if ('userTags' in patch || 'note' in patch) noteEdit(L.edits.files, f, FILE_FIELDS);
+  if ('userTags' in patch) {
+    const seen = new Set(f.tags.map((t) => tagKey(t.name)));
+    f.userTags = (patch.userTags ?? []).map((x) => String(x).trim().slice(0, 60)).filter((x) => {
+      const k = tagKey(x);
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+  if ('note' in patch) f.note = String(patch.note ?? '').slice(0, 4000);
+  if ('color' in patch) setColor(L, f, patch.color);
+  indexLibrary(L);
+  emit('library');
+  return getFileDetail(id);
+}
+
+/**
+ * Arrange a group's files by hand: `order` is the new custom order (every file of the group, as the page shows them),
+ * `colors` moves files into another colour group of the configuration in use ({ fileId: colour group id | null }).
+ */
+export function placeFiles(groupId, { order, colors }) {
+  const L = lib();
+  const g = L.groupsById.get(groupId);
+  if (!g) return { ok: false };
+  if (order) {
+    noteEdit(L.edits.groups, g, GROUP_FIELDS);
+    g.fileOrder = order.filter((id) => L.filesById.get(id)?.groupId === groupId);
+  }
+  for (const [id, colorId] of Object.entries(colors ?? {})) {
+    const f = L.filesById.get(id);
+    if (f?.groupId === groupId) setColor(L, f, colorId);
+  }
+  indexLibrary(L);
+  emit('library');
+  return { ok: true };
+}
+
+/**
+ * Deleting files (the Go service moves them to the system's recycle bin). Snapshots may still hold them, so they move
+ * into the vault; until then they can come back with restoreFiles (the "undo" right after deleting).
+ */
+export function deleteFiles(ids) {
+  const L = lib();
+  const gone = ids.map((id) => L.filesById.get(id)).filter(Boolean);
+  if (!gone.length) return { ok: false, count: 0 };
+  L.trash ??= new Map();
+  for (const f of gone) {
+    const g = L.groupsById.get(f.groupId);
+    const cover = g?.coverFileId === f.id;
+    if (cover) { noteEdit(L.edits.groups, g, GROUP_FIELDS); g.coverFileId = null; }
+    L.trash.set(f.id, { cover });
+    L.vault.files.set(f.id, f);
+  }
+  const set = new Set(gone.map((f) => f.id));
+  L.files = L.files.filter((f) => !set.has(f.id));
+  indexLibrary(L);
+  emit('library');
+  return { ok: true, count: gone.length };
+}
+export function restoreFiles(ids) {
+  const L = lib();
+  const back = ids.map((id) => L.vault.files.get(id)).filter((f) => f && L.trash?.has(f.id) && L.groupsById.has(f.groupId));
+  for (const f of back) {
+    L.vault.files.delete(f.id);
+    L.files.push(f);
+    const g = L.groupsById.get(f.groupId);
+    if (L.trash.get(f.id).cover && !g.coverFileId) g.coverFileId = f.id;
+    L.trash.delete(f.id);
+  }
+  indexLibrary(L);
+  emit('library');
+  return { ok: true, count: back.length };
+}
+
+// ------------------------------------------------------------------ colour groups
+/** A group's colour-group configurations, and how many of its files each colour group holds. */
+export function getColorConfigs(groupId) {
+  const L = lib();
+  const g = L.groupsById.get(groupId);
+  if (!g) return null;
+  const files = L.filesByGroup.get(groupId) ?? [];
+  const counts = {};
+  for (const f of files) for (const id of Object.values(f.colors)) counts[id] = (counts[id] ?? 0) + 1;
+  return { configs: g.configs, activeConfigId: g.activeConfigId, counts, total: files.length };
+}
+
+let uidSeq = 0;
+const uid = (prefix) => `${prefix}${Date.now().toString(36).slice(-5)}${(++uidSeq).toString(36)}`;
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/**
+ * Save every configuration of a group and put one to use. New configurations and colour groups arrive with ids that
+ * start with 'new:'; whatever is left out is removed, and its files leave it.
+ */
+export function saveColorConfigs(groupId, { configs, activeConfigId }) {
+  const L = lib();
+  const g = L.groupsById.get(groupId);
+  if (!g) return null;
+  noteEdit(L.edits.groups, g, GROUP_FIELDS);
+  const ids = new Map();
+  const next = (configs ?? []).map((c) => {
+    const old = g.configs.find((x) => x.id === c.id);
+    const cid = old ? old.id : uid(`${g.id}_c`);
+    ids.set(c.id, cid);
+    return {
+      id: cid,
+      name: String(c.name ?? '').trim().slice(0, 40) || '—',
+      groups: (c.groups ?? []).map((x) => ({
+        id: old?.groups.some((y) => y.id === x.id) ? x.id : uid(`${cid}_`),
+        name: String(x.name ?? '').trim().slice(0, 40) || '—',
+        color: HEX.test(x.color) ? x.color.toLowerCase() : '#8893a5',
+      })),
+    };
+  });
+  const alive = new Map(next.map((c) => [c.id, new Set(c.groups.map((x) => x.id))]));
+  for (const f of L.filesByGroup.get(groupId) ?? []) {
+    const stale = Object.entries(f.colors).filter(([cfg, id]) => !alive.get(cfg)?.has(id));
+    if (!stale.length) continue;
+    noteEdit(L.edits.files, f, FILE_FIELDS);
+    const colors = { ...f.colors };
+    for (const [cfg] of stale) delete colors[cfg];
+    f.colors = colors;
+  }
+  g.configs = next;
+  g.activeConfigId = ids.get(activeConfigId) ?? null;
+  indexLibrary(L);
+  emit('library');
+  return getColorConfigs(groupId);
+}
+
+/** The order of a configuration's colour groups (dragged on the page or in the colour-group dialog). */
+export function reorderColorGroups(groupId, configId, order) {
+  const L = lib();
+  const g = L.groupsById.get(groupId);
+  if (!g?.configs.some((c) => c.id === configId)) return { ok: false };
+  noteEdit(L.edits.groups, g, GROUP_FIELDS);
+  const at = new Map(order.map((id, i) => [id, i]));
+  g.configs = g.configs.map((c) => (c.id !== configId ? c : { ...c, groups: [...c.groups].sort((a, b) => (at.get(a.id) ?? 1e9) - (at.get(b.id) ?? 1e9)) }));
+  touch(L);
+  emit('library');
+  return { ok: true };
+}
+
+/** Which configuration a group's files are gathered by (null: none). */
+export function setActiveConfig(groupId, configId) {
+  const L = lib();
+  const g = L.groupsById.get(groupId);
+  if (!g) return { ok: false };
+  noteEdit(L.edits.groups, g, GROUP_FIELDS);
+  g.activeConfigId = g.configs.some((c) => c.id === configId) ? configId : null;
+  touch(L);
+  emit('library');
+  return { ok: true };
+}
+
+// ------------------------------------------------------------------ re-indexing, downloading, uploading
+/** kinds: any of 'tagging' (the user's own tags stay), 'embedding' (the image index), 'metadata'. */
+export function reindexFiles({ ids, kinds }) {
+  const L = lib();
+  const files = ids.map((id) => L.filesById.get(id)).filter(Boolean);
+  const valid = ['tagging', 'embedding', 'metadata'].filter((k) => kinds.includes(k));
+  if (!files.length || !valid.length) return { ok: false };
+  const st = modelState();
+  if (valid.includes('tagging') && !st.downloaded.includes(st.active)) return { ok: false, error: 'modelMissing' };
+  const groupIds = [...new Set(files.map((f) => f.groupId))];
+  const t = newTask(L, { type: 'reindex', groupId: groupIds.length === 1 ? groupIds[0] : undefined, groupIds, kinds: valid, total: files.length });
+  return { ok: true, taskId: t.id };
+}
+
+/**
+ * Files named with the download pattern from Settings. One file comes back to be saved at once
+ * ({ file: { url, name, ext, kind, width, height } }); several are packed into one download by a task.
+ */
+export function downloadFiles(ids) {
+  const L = lib();
+  const files = ids.map((id) => L.filesById.get(id)).filter(Boolean);
+  if (!files.length) return { ok: false };
+  const template = config.downloadName ?? DEFAULT_DOWNLOAD_NAME;
+  const now = new Date(), taken = new Set(), width = Math.max(3, String(files.length).length);
+  const names = files.map((f, i) => uniqueName(expandName(template, { ...entryOf(L, f), lang: config.language, now, seq: i + 1, width }).base, f.ext, taken));
+  if (files.length === 1) {
+    const f = files[0];
+    return { ok: true, file: { url: f.kind === 'video' ? streamUrl(f) : mediaUrl(f, 'original'), name: names[0], ext: f.ext, kind: f.kind, width: f.width, height: f.height } };
+  }
+  const groupIds = [...new Set(files.map((f) => f.groupId))];
+  const t = newTask(L, { type: 'download', groupId: groupIds.length === 1 ? groupIds[0] : undefined, groupIds, total: files.length, result: { files: files.length } });
+  return { ok: true, taskId: t.id, count: files.length };
+}
+
+/** Pictures and videos from this computer join the group one by one. entries: what files.js `probe` read from them. */
+export function uploadFiles(groupId, entries) {
+  const L = lib();
+  if (!L.groupsById.has(groupId) || !entries.length) return { ok: false };
+  const t = newTask(L, { type: 'upload', groupId, total: entries.length, uploads: entries });
+  return { ok: true, taskId: t.id };
+}
+function uploadedFile(L, g, u) {
+  return {
+    id: L.nextFileId(), groupId: g.id, name: u.name, ext: u.ext, kind: u.kind, width: u.width, height: u.height, size: u.size, duration: u.duration,
+    createdAt: isoOf(new Date(u.createdAt)), importedAt: nowIso(), art: null, tags: [], userTags: [], note: '', comfy: null, colors: {},
+    upload: { url: u.url, poster: u.poster },
+  };
+}
+
 // ------------------------------------------------------------------ search
 /** Text → pictures and picture → pictures need the image index. */
 export function searchCapabilities() {
@@ -319,6 +611,7 @@ function semanticRank(docs, text) {
   const styles = new Set(hit.flatMap((c) => c.styles ?? [])), palettes = new Set(hit.flatMap((c) => c.palettes ?? []));
   const out = new Map();
   for (const d of docs) {
+    if (!d.art) continue;                                   // uploaded here: the mock's index knows nothing of it
     const s = (styles.size ? (styles.has(d.art.style) ? 0.62 : 0) : 0.3) + (palettes.size ? (palettes.has(d.art.palette) ? 0.3 : 0) : 0.2);
     const sim = s + (hashString(`${d.id}|${q}`) % 80) / 1000;
     if (sim >= 0.6) out.set(d.id, Math.min(0.99, sim));
@@ -337,10 +630,11 @@ function similarRank(docs, L, token) {
   const q = queries.get(token);
   if (!q) return new Map();
   const src = q.fileId ? L.filesById.get(q.fileId) : null;
-  const tone = src ? paletteTone(src.art.palette) : q.tone;
+  const tone = src?.art ? paletteTone(src.art.palette) : q.tone;
+  if (!tone) return new Map();
   const scored = [];
   for (const d of docs) {
-    if (d.id === q.fileId) continue;
+    if (d.id === q.fileId || !d.art) continue;
     const t = paletteTone(d.art.palette);
     const dist = Math.hypot(t[0] - tone[0], t[1] - tone[1], t[2] - tone[2]) / 441;
     scored.push([d.id, Math.min(0.99, (1 - dist) * 0.8 + (src && src.art.style === d.art.style ? 0.18 : 0) + (hashString(`${d.id}|${token}`) % 40) / 1000)]);
@@ -489,6 +783,20 @@ const copying = (first, working, pace) => ({
 });
 registerTaskType('export', copying('preparing', 'copying', 90));
 registerTaskType('download', copying('packing', 'packing', 110));
+/** Files sent from this computer: a lane of their own, so they never wait behind a long re-index. */
+registerTaskType('upload', {
+  lane: 'upload', firstStage: 'uploading',
+  step(t) {
+    const L = t.lib, g = L.groupsById.get(t.groupId);
+    if (!g) { finish(t, 'failed', { error: { code: 'groupMissing' } }); return; }
+    L.files.push(uploadedFile(L, g, t.uploads[t.processed]));
+    indexLibrary(L);
+    emitLibrarySoon();
+    t.processed++;
+    if (t.processed >= t.total) finish(t, 'done', { result: { files: t.total } });
+    else later(t, 240);
+  },
+});
 
 function taskView(t) {
   const L = t.lib;

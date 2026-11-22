@@ -1,0 +1,38 @@
+.pager { display: flex; align-items: center; justify-content: center; gap: 4px; }
+.page, .arrow {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border-radius: var(--r-2);
+  color: var(--ink-3);
+  font-size: 14px;
+  font-weight: 540;
+  transition: background-color var(--dur-1), color var(--dur-1);
+}
+.page:hover, .arrow:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.arrow:disabled { opacity: 0.3; }
+.on { color: var(--ink); }
+.on::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--star);
+  transform: translateX(-50%);
+  animation: underline 360ms var(--ease-out);
+}
+@keyframes underline { from { width: 0; } }
+.gap { width: 24px; text-align: center; color: var(--ink-4); }
+
+.compact { display: inline-flex; align-items: center; gap: 2px; color: var(--ink-3); font-size: 12.5px; }
+.small { display: grid; place-items: center; width: 26px; height: 26px; border-radius: var(--r-2); transition: background-color var(--dur-1), color var(--dur-1); }
+.small:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.small:disabled { opacity: 0.3; }
+.where { min-width: 44px; text-align: center; }
+.where b { font-weight: 620; color: var(--ink-2); }

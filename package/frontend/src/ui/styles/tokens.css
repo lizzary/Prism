@@ -80,7 +80,8 @@
   --bar-h: 64px;
 }
 
-:root[data-theme='dark'] {
+/* night: the dark theme, and anything that is always night whatever the theme (the lightbox) */
+:root[data-theme='dark'], .theme-night {
   color-scheme: dark;
   --bg: #0f131a;
   --bg-raised: #151a23;

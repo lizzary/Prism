@@ -1,23 +1,397 @@
-// The group page: the file browser and the lightbox arrive in stage 3. Until then the route resolves the group,
-// tells the top bar where we are, and says plainly that the page is still being built.
-import { useGroup } from '../../../bridge/index.js';
-import { usePageMeta } from '../../../app/shell.jsx';
-import { navigate, paths } from '../../../app/router.jsx';
+// A group's page: its cover as a banner that dissolves into the page, then its files gathered into colour groups —
+// sorted, sized and laid out as the page's settings say — under a toolbar that sticks below the top bar. The page
+// looks for changes every few seconds. Opening a file shows it in the lightbox, over the page.
+import { ViewTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { browsing, fileActions, groupActions, holdGroupPage, mediaUrl, refreshGroupPage, useGroupPage, useOptimisticView, useTasks } from '../../../bridge/index.js';
+import { useOverlays, usePageMeta } from '../../../app/shell.jsx';
+import { cameBack, closeFile, navigate, paths } from '../../../app/router.jsx';
 import { useT } from '../../../i18n/index.jsx';
+import { useFormat } from '../../lib/format.js';
+import { saveFile } from '../../lib/download.js';
+import { pageCover } from '../../lib/pageCover.js';
+import { moveTo } from '../../lib/useReorder.js';
+import { Icon } from '../../icons/Icon.jsx';
 import { Button } from '../../components/controls.jsx';
-import { Empty } from '../../components/feedback.jsx';
+import { Empty, ProgressBar, toast } from '../../components/feedback.jsx';
+import { Menu } from '../../components/menu.jsx';
+import { CompactPager, Pagination } from '../../components/pager.jsx';
 import { NotFound } from '../../layout/PageStates.jsx';
+import { TYPE_ICON, useTaskText } from '../../features/tasks/TasksPanel.jsx';
+import { Toolbar } from './Toolbar.jsx';
+import { Grid } from './Grid.jsx';
+import { SelectionBar } from './SelectionBar.jsx';
+import { DropUpload } from './DropUpload.jsx';
+import { DeleteFiles, MoveFiles, Reindex } from './dialogs.jsx';
+import { Lightbox } from './lightbox/Lightbox.jsx';
+import s from './GroupPage.module.css';
 
-export function GroupPage({ id }) {
+const { NONE } = browsing;
+/** The page of files each group was left on; back / forward reopens it (a fresh visit starts at page 1). */
+const lastPage = new Map();
+/** Settings that change which files land on which page: the page starts again from the first. */
+const REPAGE = ['sort', 'dir', 'pageSize', 'limited', 'limit'];
+const typing = (el) => /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable;
+
+export function GroupPage({ id, fileId }) {
   const t = useT();
-  const group = useGroup(id);
-  usePageMeta({ scope: 'group', groupId: id, overArt: false, crumbs: group ? [{ label: group.name }] : [] });
+  const { data, clock, arrived } = useGroupPage(id);
+  const banner = useRef(null);
+  const [artHeight, setArtHeight] = useState(360);
+  useLayoutEffect(() => {
+    if (!banner.current) return undefined;
+    const ro = new ResizeObserver(([e]) => setArtHeight(e.contentRect.height));
+    ro.observe(banner.current);
+    return () => ro.disconnect();
+  }, [data.group?.id]);
+  const group = data.group;
+  usePageMeta(group
+    ? { scope: 'group', groupId: id, overArt: !!group.cover, artHeight, crumbs: [{ label: group.name }] }
+    : { scope: 'group', groupId: id, overArt: false, artHeight: 0 });
   if (!group) return <NotFound title={t('group.notFound')} />;
+  return <GroupView key={id} id={id} fileId={fileId} data={data} clock={clock} arrived={arrived} bannerRef={banner} />;
+}
+
+function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
+  const t = useT();
+  const fmt = useFormat();
+  const { open } = useOverlays();
+  const group = data.group;
+  const save = useCallback((v) => groupActions.saveView(id, v), [id]);
+  const [view, setStoredView] = useOptimisticView(data.view, save);
+  const [page, setPageState] = useState(() => {
+    if (!cameBack()) lastPage.delete(id);
+    return lastPage.get(id) ?? 1;
+  });
+  const setPage = (p) => { lastPage.set(id, p); setPageState(p); };
+  const setView = (patch) => {
+    setStoredView(patch);
+    if (REPAGE.some((k) => k in patch && patch[k] !== view[k])) setPage(1);
+  };
+  const arranged = useMemo(() => browsing.arrange(data, view, page), [data, view, page]);
+  const byId = useMemo(() => new Map(data.files.map((f) => [f.id, f])), [data.files]);
+  const keyOf = useMemo(() => {
+    const m = new Map();
+    for (const sec of arranged.sections) for (const f of sec.files) m.set(f.id, sec.key);
+    return (fid) => m.get(fid) ?? NONE;
+  }, [arranged.sections]);
+  const sectionInfo = (key) => {
+    const sec = arranged.sections.find((x) => x.key === key);
+    return key === NONE || !sec?.color ? { name: t('group.colors.noColor'), color: 'var(--ink-3)', none: true } : { name: sec.color.name, color: sec.color.color };
+  };
+
+  // ------------------------------------------------------------------ choosing files
+  const [selection, setSelection] = useState(() => new Set());
+  const anchor = useRef(null);
+  const pageIds = useMemo(() => arranged.page.sections.flatMap((x) => x.files.map((f) => f.id)), [arranged.page.sections]);
+  // files that leave the group leave the selection too
+  useEffect(() => {
+    setSelection((cur) => {
+      const kept = [...cur].filter((x) => byId.has(x));
+      return kept.length === cur.size ? cur : new Set(kept);
+    });
+  }, [byId]);
+  const toggle = (fid) => {
+    anchor.current = fid;
+    setSelection((cur) => { const n = new Set(cur); if (n.has(fid)) n.delete(fid); else n.add(fid); return n; });
+  };
+  const range = (fid) => {
+    const from = anchor.current && pageIds.includes(anchor.current) ? anchor.current : fid;
+    const i = pageIds.indexOf(from), j = pageIds.indexOf(fid);
+    setSelection((cur) => new Set([...cur, ...pageIds.slice(Math.min(i, j), Math.max(i, j) + 1)]));
+    anchor.current = fid;
+  };
+  const clear = () => setSelection(new Set());
+  const selectPage = () => setSelection((cur) => new Set([...cur, ...pageIds]));
+
+  // ------------------------------------------------------------------ doing things to files
+  const [ask, setAsk] = useState(null);               // { kind: 'delete' | 'reindex' | 'move', … }
+  const asked = useRef(null);
+  if (ask) asked.current = ask;                       // what a closing dialog keeps showing
+  const [menu, setMenu] = useState(null);             // { id, anchor | at }
+  const [focus, setFocus] = useState(null);           // a file to bring into view: { id, at }
+  const picker = useRef(null);
+
+  const openFile = (fid) => navigate(paths.file(id, fid));
+  const download = async (ids) => {
+    const r = await fileActions.download(ids);
+    if (!r.ok) return;
+    if (r.file) { saveFile(r.file.url, r.file.name); toast(t('group.saving', { name: r.file.name }), { icon: 'download' }); }
+    else toast(t('group.packing', { n: fmt.number(r.count), count: r.count }), { icon: 'download' });
+  };
+  const remove = async (ids) => {
+    const one = ids.length === 1 ? byId.get(ids[0]) : null;
+    await groupActions.remove(id, ids);
+    setSelection((cur) => new Set([...cur].filter((x) => !ids.includes(x))));
+    toast(one ? t('group.deletedName', { name: `${one.name}.${one.ext}` }) : t('group.deleted', { n: fmt.number(ids.length), count: ids.length }),
+      { icon: 'trash', action: { label: t('common.undo'), onClick: () => groupActions.restore(ids).then(() => toast(t('group.restored'), { tone: 'ok' })) } });
+  };
+  const setCover = async (fid) => { await groupActions.setCover(id, fid); toast(t('group.coverSet'), { tone: 'ok', icon: 'cover' }); };
+  const reindex = async (ids, kinds) => {
+    const r = await fileActions.reindex(ids, kinds);
+    if (r.ok) toast(t('group.reindex.started', { n: fmt.number(ids.length), count: ids.length }), { icon: 'reindex' });
+    else if (r.error) toast(t(`tasks.errors.${r.error}`), { tone: 'warn' });
+    setAsk(null);
+  };
+  const upload = async (list) => {
+    const r = await groupActions.upload(id, list);
+    if (r.accepted) toast(t('group.uploading', { n: fmt.number(r.accepted), count: r.accepted, name: group.name }), { icon: 'upload' });
+    if (r.skipped) toast(t('group.drop.skipped', { n: fmt.number(r.skipped), count: r.skipped }), { tone: 'warn' });
+  };
+
+  const menuItems = (fid) => {
+    const f = byId.get(fid);
+    if (!f) return [];
+    const many = selection.has(fid) && selection.size > 1;
+    const ids = many ? [...selection] : [fid];
+    const n = { n: fmt.number(ids.length), count: ids.length };
+    const isCover = group.cover?.id === fid;
+    const items = many ? [] : [
+      { key: 'open', label: t('group.tile.open'), icon: 'expand', onSelect: () => openFile(fid) },
+      { key: 'select', label: selection.has(fid) ? t('group.tile.deselect') : t('group.tile.select'), icon: 'check-square', onSelect: () => toggle(fid) },
+      ...(f.kind === 'image' ? [{ key: 'cover', label: isCover ? t('group.tile.isCover') : t('group.tile.cover'), icon: 'cover', disabled: isCover, onSelect: () => setCover(fid) }] : []),
+      '-',
+    ];
+    return [
+      ...items,
+      { key: 'download', label: many ? t('group.tile.downloadN', n) : t('group.tile.download'), icon: 'download', onSelect: () => download(ids) },
+      { key: 'reindex', label: many ? t('group.tile.reindexN', n) : t('group.tile.reindex'), icon: 'reindex', onSelect: () => setAsk({ kind: 'reindex', ids }) },
+      '-',
+      { key: 'delete', label: many ? t('group.tile.deleteN', n) : t('group.tile.delete'), icon: 'trash', danger: true, onSelect: () => setAsk({ kind: 'delete', ids }) },
+    ];
+  };
+
+  // ------------------------------------------------------------------ dragging
+  const onDropFiles = (ids, target) => {
+    const order = browsing.placeBatch(arranged, ids, target);
+    const movers = arranged.grouped ? ids.filter((fid) => keyOf(fid) !== target.section) : [];
+    if (!movers.length && order.join() === arranged.sequence.map((f) => f.id).join()) return;
+    const colorOf = (key) => (key === NONE ? null : key);
+    const before = { sort: view.sort, order: data.order, colors: Object.fromEntries(movers.map((fid) => [fid, colorOf(keyOf(fid))])) };
+    const commit = async () => {
+      const switched = view.sort !== 'custom';
+      if (switched) setView({ sort: 'custom' });
+      await groupActions.place(id, { order, colors: movers.length ? Object.fromEntries(movers.map((fid) => [fid, colorOf(target.section)])) : undefined });
+      setAsk(null);
+      const undo = {
+        label: t('common.undo'),
+        onClick: () => { if (before.sort !== 'custom') setView({ sort: before.sort }); groupActions.place(id, { order: before.order, colors: before.colors }); },
+      };
+      if (movers.length) toast(t('group.moved', { n: fmt.number(movers.length), count: movers.length, name: sectionInfo(target.section).name }), { tone: 'ok', icon: 'swatches', action: undo });
+      else if (switched) toast(t('group.sort.switched'), { icon: 'sort', action: undo });
+    };
+    if (movers.length) setAsk({ kind: 'move', moves: movers.map((fid) => ({ file: byId.get(fid), from: keyOf(fid) })), to: target.section, commit });
+    else commit();
+  };
+  const onDropSection = (key, index) => {
+    const keys = arranged.sections.filter((x) => x.key !== NONE).map((x) => x.key);
+    const next = moveTo(keys, key, index);
+    if (next.join() !== keys.join()) groupActions.reorderColorGroups(id, data.activeConfigId, next);
+  };
+  const hold = useCallback(() => holdGroupPage(id), [id]);
+
+  // ------------------------------------------------------------------ keys: Ctrl A chooses the page, Escape lets go, Delete deletes
+  const keys = useRef(null);
+  keys.current = { selection, selectPage, clear, ask: (ids) => setAsk({ kind: 'delete', ids }) };
+  useEffect(() => {
+    const onKey = (e) => {
+      // a menu or popover open over the page has the keys first (Escape closes it, and only it)
+      if (fileId || pageCover.active() || typing(e.target) || document.querySelector('[role="dialog"]')) return;
+      const k = keys.current;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') { e.preventDefault(); k.selectPage(); }
+      else if (e.key === 'Escape' && k.selection.size) k.clear();
+      else if ((e.key === 'Delete' || e.key === 'Backspace') && k.selection.size) { e.preventDefault(); k.ask([...k.selection]); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fileId]);
+
+  // Ctrl + wheel over the files changes their size, like zooming
+  const filesRef = useRef(null);
+  const sizeRef = useRef(view.size);
+  sizeRef.current = view.size;
+  const setViewRef = useRef(setView);
+  setViewRef.current = setView;
+  useEffect(() => {
+    const el = filesRef.current;
+    if (!el) return undefined;
+    let acc = 0, last = 0;
+    const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      acc += e.deltaY;
+      if (Math.abs(acc) < 60 || performance.now() - last < 160) return;
+      const next = Math.max(1, Math.min(5, sizeRef.current + (acc < 0 ? 1 : -1)));
+      acc = 0;
+      last = performance.now();
+      if (next !== sizeRef.current) setViewRef.current({ size: next });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [group.fileCount > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // the toolbar takes a surface once it sticks under the top bar
+  const sentinel = useRef(null);
+  const [stuck, setStuck] = useState(false);
+  useLayoutEffect(() => {
+    if (!sentinel.current) return undefined;
+    const io = new IntersectionObserver(([e]) => setStuck(!e.isIntersecting), { rootMargin: '-65px 0px 0px 0px' });
+    io.observe(sentinel.current);
+    return () => io.disconnect();
+  }, [group.fileCount > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const goPage = (p) => {
+    setPage(p);
+    const top = (filesRef.current?.getBoundingClientRect().top ?? 0) + window.scrollY - 140;
+    if (window.scrollY > top) window.scrollTo({ top, behavior: 'smooth' });
+  };
+  const closeLightbox = (lastId) => {
+    const p = browsing.pageOf(arranged, view, lastId);
+    if (p && p !== arranged.page.index) setPage(p);
+    setFocus({ id: lastId, at: Date.now() });
+    closeFile(id);
+  };
+
+  const selected = useMemo(() => [...selection].map((x) => byId.get(x)).filter(Boolean), [selection, byId]);
+  const shownAsk = ask ?? asked.current;
+  const paged = arranged.page.count > 1;
+  const empty = !data.files.length;
+  const pagerLabels = { nav: t('group.pages.nav'), prev: t('common.prev'), next: t('common.next') };
+
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', paddingTop: 'var(--bar-h)' }}>
-      <Empty title={group.name} action={<Button icon="arrow-left" onClick={() => navigate(paths.home())}>{t('bar.home')}</Button>}>
-        {t('common.notYet')}
-      </Empty>
+    <div className={s.page}>
+      <Banner group={group} bannerRef={bannerRef} />
+      <header className={s.head}>
+        <div className={s.titleRow}>
+          <h1 className={s.title}>{group.name}</h1>
+          <Button variant="ghost" size="sm" icon="edit" className={s.edit} data-overlay="groupEditor"
+            onClick={() => open('groupEditor', { group, onDeleted: () => navigate(paths.home()) })}>{t('group.edit')}</Button>
+        </div>
+        <p className={s.meta}>
+          <span className="num">{t('home.files', { n: fmt.number(group.fileCount), count: group.fileCount })}</span>
+          {group.videoCount > 0 && <span className="num">{t('group.videos', { n: fmt.number(group.videoCount), count: group.videoCount })}</span>}
+          {group.bytes > 0 && <span className="num">{fmt.bytes(group.bytes)}</span>}
+          {group.fileCount > 0 && <span>{t('home.updated', { date: fmt.relative(group.updatedAt) })}</span>}
+        </p>
+      </header>
+      <ActiveTasks groupId={id} />
+      <UploadWatch groupId={id} />
+
+      {empty ? (
+        <section className={s.empty}>
+          <Empty title={t('group.emptyTitle')} action={<Button variant="primary" icon="upload" onClick={() => picker.current?.click()}>{t('group.upload')}</Button>}>
+            {t('group.emptyBody')}
+          </Empty>
+        </section>
+      ) : (
+        <section ref={filesRef} className={s.files}>
+          <div ref={sentinel} aria-hidden="true" />
+          <div className={s.toolbar} data-stuck={stuck || undefined}>
+            <Toolbar data={data} arranged={arranged} view={view} setView={setView} clock={clock} arrived={arrived} stuck={stuck}
+              onRefresh={() => refreshGroupPage(id)} onUpload={() => picker.current?.click()} onWhiteboard={() => toast(t('common.notYet'), { icon: 'whiteboard' })}
+              onEditColors={() => open('colorGroups', { groupId: id })} onUseConfig={(cfg) => groupActions.setActiveConfig(id, cfg)} />
+          </div>
+          {paged && (
+            <div className={s.range}>
+              <span className="num">{t('group.pages.range', { from: fmt.number(arranged.page.from), to: fmt.number(arranged.page.to), total: fmt.number(arranged.page.total) })}</span>
+              <CompactPager page={arranged.page.index} pageCount={arranged.page.count} onChange={goPage} labels={pagerLabels} />
+            </div>
+          )}
+          <Grid data={data} arranged={arranged} view={view} onView={setView} selection={selection} arrived={arrived} focus={focus} hold={hold}
+            tile={{ open: openFile, toggle, range, menu: (fid, where) => setMenu(where instanceof Element ? { id: fid, anchor: where } : { id: fid, at: where }) }}
+            onDropFiles={onDropFiles} onDropSection={onDropSection} />
+          {paged && <Pagination className={s.pager} page={arranged.page.index} pageCount={arranged.page.count} onChange={goPage} labels={pagerLabels} />}
+        </section>
+      )}
+
+      <input ref={picker} type="file" multiple accept="image/*,video/*" hidden onChange={(e) => { const list = [...e.target.files]; e.target.value = ''; if (list.length) upload(list); }} />
+      <DropUpload enabled={!fileId} group={group} onFiles={upload} />
+      <SelectionBar files={selected} allSelected={pageIds.every((x) => selection.has(x))} onSelectAll={selectPage} onClear={clear}
+        onDownload={() => download([...selection])} onReindex={() => setAsk({ kind: 'reindex', ids: [...selection] })} onDelete={() => setAsk({ kind: 'delete', ids: [...selection] })} />
+      <Menu open={!!menu} onClose={() => setMenu(null)} anchor={menu?.anchor} at={menu?.at} items={menu ? menuItems(menu.id) : []} label={t('group.tile.more')} />
+
+      <DeleteFiles open={ask?.kind === 'delete'} files={shownAsk?.kind === 'delete' ? shownAsk.ids.map((x) => byId.get(x)).filter(Boolean) : []}
+        onCancel={() => setAsk(null)} onConfirm={async () => { await remove(shownAsk.ids); setAsk(null); }} />
+      <Reindex open={ask?.kind === 'reindex'} count={shownAsk?.kind === 'reindex' ? shownAsk.ids.length : 0}
+        onCancel={() => setAsk(null)} onConfirm={(kinds) => reindex(shownAsk.ids, kinds)} />
+      <MoveFiles open={ask?.kind === 'move'} moves={shownAsk?.kind === 'move' ? shownAsk.moves : []} to={shownAsk?.to} names={sectionInfo}
+        onCancel={() => setAsk(null)} onConfirm={() => shownAsk.commit()} />
+
+      {fileId && (
+        <Lightbox key={id} groupId={id} fileId={fileId} group={group} sequence={arranged.sequence} quality={view.quality}
+          slide={view.slide} onSlide={(sec) => setView({ slide: sec })} onClose={closeLightbox}
+          onCover={setCover} onDownload={(fid) => download([fid])} onDelete={(fid) => remove([fid])} />
+      )}
+    </div>
+  );
+}
+
+/** The group's cover, wide, dissolving into the page; it drifts a little slower than the page as it scrolls away. */
+function Banner({ group, bannerRef }) {
+  const img = useRef(null);
+  useEffect(() => {
+    let raf = 0;
+    const on = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const y = window.scrollY;
+        if (img.current && y < 900) img.current.style.transform = `translate3d(0, ${(y * 0.32).toFixed(1)}px, 0) scale(${(1 + y * 0.00012).toFixed(4)})`;
+      });
+    };
+    on();
+    window.addEventListener('scroll', on, { passive: true });
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('scroll', on); };
+  }, []);
+  return (
+    <div ref={bannerRef} className={s.banner} data-blank={!group.cover || undefined}>
+      {group.cover && (
+        <div ref={img} className={s.bannerArt}>
+          <ViewTransition name={`group-art-${group.id}`} share="morph">
+            {/* lazy only so a page change never waits on it (React holds a transition for eager images); it is on screen, so it loads at once */}
+            <img className={s.bannerImg} src={mediaUrl(group.cover, 'original')} alt="" draggable={false} loading="lazy" decoding="sync" />
+          </ViewTransition>
+        </div>
+      )}
+      <div className={s.bannerShade} />
+    </div>
+  );
+}
+
+/** Files sent from here show as soon as their upload is done, without waiting for the page's next look. */
+function UploadWatch({ groupId }) {
+  const done = useTasks().filter((x) => x.type === 'upload' && x.state === 'done' && x.group?.id === groupId).length;
+  const seen = useRef(done);
+  useEffect(() => {
+    if (done > seen.current) refreshGroupPage(groupId);
+    seen.current = done;
+  }, [done, groupId]);
+  return null;
+}
+
+/** Work under way for this group (an upload, a re-index…), right under its name. */
+function ActiveTasks({ groupId }) {
+  const t = useT();
+  const fmt = useFormat();
+  const text = useTaskText();
+  const tasks = useTasks().filter((x) => (x.state === 'running' || x.state === 'queued') && (x.group?.id === groupId || x.groups.some((g) => g.id === groupId)));
+  if (!tasks.length) return null;
+  return (
+    <div className={s.tasks}>
+      {tasks.map((task) => {
+        const waiting = task.state === 'queued' || task.stage === 'preparing';
+        return (
+          <div key={task.id} className={s.task} data-state={task.state}>
+            <Icon name={TYPE_ICON[task.type]} size={16} className={s.taskIcon} />
+            <span className={s.taskName}>{t(`tasks.types.${task.type}`)}</span>
+            <span className={s.taskStage}>
+              {task.state === 'queued' ? text.kinds(task) ?? t('tasks.stages.queued') : t(`tasks.stages.${task.stage}`)}
+              {task.state === 'running' && text.step(task) && <span className="num"> · {text.step(task)}</span>}
+            </span>
+            {!waiting && task.total > 0 && <span className={`${s.taskCount} num`}>{fmt.number(task.processed)} / {fmt.number(task.total)}</span>}
+            <ProgressBar value={task.processed} max={task.total || 1} indeterminate={waiting} className={s.taskBar} />
+          </div>
+        );
+      })}
     </div>
   );
 }

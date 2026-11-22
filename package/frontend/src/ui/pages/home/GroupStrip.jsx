@@ -41,7 +41,7 @@ export function GroupStrip({ groups, range, onJump }) {
         {groups.map((g, i) => (
           <Tooltip key={g.id} label={`${g.name} · ${t('home.files', { n: g.fileCount })}`} delay={150}>
             <button type="button" tabIndex={-1} className={s.thumb} data-in={inView(i) || undefined} style={{ '--i': Math.min(i, 30) }} onClick={() => onJump(g.id)}>
-              {g.cover ? <img src={mediaUrl(g.cover, 'low')} alt="" draggable={false} decoding="async" /> : <i className={s.blank} />}
+              {g.cover ? <img src={mediaUrl(g.cover, 'low')} alt="" draggable={false} decoding="async" loading="lazy" /> : <i className={s.blank} />}
             </button>
           </Tooltip>
         ))}

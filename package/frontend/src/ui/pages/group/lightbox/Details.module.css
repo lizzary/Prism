@@ -1,0 +1,107 @@
+.wait { display: grid; place-items: center; height: 200px; color: var(--ink-3); }
+.details { padding: 22px 22px 40px; transition: opacity 200ms; animation: in 420ms var(--ease-out) both; }
+@keyframes in { from { opacity: 0; transform: translateX(10px); } }
+.details[data-stale] { opacity: 0.55; }
+
+.head { padding-bottom: 16px; }
+.title { font-size: 17px; font-weight: 560; line-height: 1.4; letter-spacing: -0.005em; word-break: break-all; }
+.ext { color: var(--ink-3); font-weight: 450; }
+.sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; margin-top: 6px; font-size: 12.5px; color: var(--ink-3); }
+.sub > span { display: inline-flex; align-items: center; gap: 6px; }
+.sub > span + span::before { content: '·'; margin: 0 8px; color: var(--ink-4); }
+.coverTag { color: var(--star-ink); }
+
+/* ------------------------------------------------------------------ the facts, as a quiet two-column list */
+.facts { display: flex; flex-direction: column; margin: 0; padding: 4px 0 18px; border-top: 1px solid var(--line); }
+.facts > div { display: grid; grid-template-columns: 104px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 36px; border-bottom: 1px solid var(--line); }
+.facts dt { font-size: 12.5px; color: var(--ink-3); }
+.facts dd { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; color: var(--ink); }
+.muted { color: var(--ink-3); font-size: 13px; }
+
+.colorBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  height: 28px;
+  margin-left: -8px;
+  padding: 0 8px;
+  border-radius: var(--r-2);
+  font-size: 13.5px;
+  color: var(--ink);
+  transition: background-color var(--dur-1);
+}
+.colorBtn:hover, .colorBtn[aria-expanded='true'] { background: var(--hover); }
+.colorBtn i { flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent); }
+.colorBtn[data-none] i { background: transparent; box-shadow: 0 0 0 1.5px var(--ink-4) inset; }
+.colorBtn[data-none] { color: var(--ink-2); }
+.colorBtn span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.colorBtn svg { flex-shrink: 0; color: var(--ink-3); }
+:global(body) .over { z-index: 150; }
+
+/* ------------------------------------------------------------------ blocks: tags, note, ComfyUI */
+.block { padding: 18px 0; border-bottom: 1px solid var(--line); }
+.block:last-child { border-bottom: 0; }
+.blockHead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.blockTitle { display: inline-flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 600; letter-spacing: 0.03em; color: var(--ink-2); }
+.blockTitle span { font-size: 12px; font-weight: 500; color: var(--ink-3); }
+.editBtn { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; margin-right: -8px; border-radius: var(--r-2); font-size: 12.5px; font-weight: 540; color: var(--ink-3); transition: background-color var(--dur-1), color var(--dur-1); }
+.editBtn:hover { background: var(--hover); color: var(--ink); }
+
+.tags { display: flex; flex-wrap: wrap; gap: 6px 5px; }
+.tag {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 27px;
+  padding: 0 9px;
+  overflow: hidden;
+  border-radius: var(--r-2);
+  background: var(--field);
+  box-shadow: 0 0 0 1px var(--line) inset;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  outline: none;
+}
+/* how sure the tagger was: a thin trace along the foot */
+.tag::after { content: ''; position: absolute; left: 0; bottom: 0; height: 2px; width: calc(var(--f, 0) * 100%); background: color-mix(in srgb, var(--accent) 50%, transparent); }
+.tag[data-source='user'] { background: var(--star-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--star) 42%, transparent) inset; color: var(--ink); animation: pop 320ms var(--ease-back) both; }
+.tag[data-source='user']::after { display: none; }
+@keyframes pop { from { transform: scale(0.8); opacity: 0; } }
+.pen { flex-shrink: 0; color: var(--star-ink); }
+.untag { display: grid; place-items: center; width: 16px; height: 16px; margin-right: -4px; border-radius: 50%; color: var(--ink-3); transition: background-color var(--dur-1), color var(--dur-1); }
+.untag:hover { background: color-mix(in srgb, var(--danger) 22%, transparent); color: var(--ink); }
+
+.adder { position: relative; margin-top: 12px; }
+.field { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border-radius: var(--r-2); background: var(--field); box-shadow: 0 0 0 1px var(--accent) inset, 0 0 0 3px var(--accent-soft); color: var(--ink-3); }
+.field input { flex: 1; min-width: 0; border: 0; background: none; font-size: 13.5px; color: var(--ink); }
+.field input:focus-visible { box-shadow: none; }
+.suggest { position: absolute; z-index: 2; left: 0; right: 0; top: 40px; padding: 4px; border-radius: var(--r-3); background: var(--bg-raised); box-shadow: 0 0 0 1px var(--line), var(--shadow-3); }
+.suggest li { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 32px; padding: 0 10px; border-radius: var(--r-2); font-size: 13px; color: var(--ink-2); cursor: pointer; }
+.suggest li:hover, .suggest li[data-hi] { background: var(--hover); color: var(--ink); }
+.suggest li span:last-child { font-size: 11.5px; color: var(--ink-3); }
+.editFoot { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+.hint { flex: 1; min-width: 0; font-size: 12px; color: var(--ink-3); }
+
+.note { white-space: pre-wrap; font-size: 14px; line-height: 1.75; color: var(--ink); cursor: text; border-radius: var(--r-2); margin: -4px -6px; padding: 4px 6px; transition: background-color var(--dur-1); }
+.note:hover { background: var(--hover); }
+.addNote { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px; margin-left: -10px; border-radius: var(--r-2); font-size: 13px; color: var(--ink-3); transition: background-color var(--dur-1), color var(--dur-1); }
+.addNote:hover { background: var(--hover); color: var(--ink); }
+.noteInput { min-height: 96px; font-size: 14px; }
+
+.model { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; color: var(--ink); word-break: break-all; }
+.model svg { flex-shrink: 0; color: var(--ink-3); }
+.prompt { margin-bottom: 10px; border-radius: var(--r-3); background: var(--field); box-shadow: 0 0 0 1px var(--line) inset; }
+.promptHead { display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 4px 0 11px; font-size: 12px; font-weight: 560; color: var(--ink-2); }
+.promptHead svg { flex-shrink: 0; color: var(--ink-3); }
+.copy { margin-left: auto; }
+.promptText { padding: 0 12px 11px; font-size: 13px; line-height: 1.7; color: var(--ink); word-break: break-word; }
+.promptText[data-clipped] { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; -webkit-mask-image: linear-gradient(180deg, #000 60%, transparent); mask-image: linear-gradient(180deg, #000 60%, transparent); }
+.params { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; margin: 8px 0 0; }
+.params > div { display: flex; flex-direction: column; gap: 1px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.params dt { font-size: 11.5px; color: var(--ink-3); }
+.params dd { display: flex; align-items: center; gap: 4px; margin: 0; min-height: 24px; font-size: 13.5px; color: var(--ink); word-break: break-all; }
+.params > div:first-child { grid-column: 1 / -1; }
+.copySeed { margin: -4px 0; }

@@ -49,6 +49,8 @@ input::placeholder, textarea::placeholder { color: var(--ink-3); opacity: 1; }
 
 /* page transitions (React <ViewTransition>) */
 ::view-transition-group(*) { animation-duration: 460ms; animation-timing-function: var(--ease-out); }
+/* the pages are as tall as their content: their pictures keep their own proportions (no squash) and fill the screen */
+::view-transition-old(*), ::view-transition-new(*) { height: auto; }
 ::view-transition-old(.page-out) { animation: 260ms var(--ease-in-out) both pr-page-out; }
 ::view-transition-new(.page-in) { animation: 520ms var(--ease-out) 60ms both pr-page-in; }
 ::view-transition-group(.morph) { animation-duration: 560ms; animation-timing-function: var(--ease-out); }

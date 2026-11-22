@@ -10,8 +10,8 @@ import s from './GroupDialog.module.css';
 
 const AUTO = 'auto';
 
-/** New group (no `group`), or edit one: its name and its cover, and deleting it. */
-export default function GroupDialog({ open, onClose, group, onCreated, nonce }) {
+/** New group (no `group`), or edit one: its name and its cover, and deleting it (`onDeleted` after it is gone). */
+export default function GroupDialog({ open, onClose, group, onCreated, onDeleted, nonce }) {
   const t = useT();
   const editing = !!group;
   const [name, setName] = useState('');
@@ -88,7 +88,7 @@ export default function GroupDialog({ open, onClose, group, onCreated, nonce }) 
           <button type="submit" hidden />
         </form>
       </Dialog>
-      {editing && <DeleteGroup open={open && confirming} group={group} onCancel={() => setConfirming(false)} onDeleted={() => { setConfirming(false); onClose(); }} />}
+      {editing && <DeleteGroup open={open && confirming} group={group} onCancel={() => setConfirming(false)} onDeleted={() => { setConfirming(false); onClose(); onDeleted?.(); }} />}
     </>
   );
 }

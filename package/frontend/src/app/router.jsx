@@ -22,25 +22,41 @@ let returned = false;
 /** Was the page now showing reached by back / forward? Pages that return should not replay their entrance. */
 export const cameBack = () => returned;
 
-export function navigate(path) {
+/**
+ * Go to an in-app path. `replace`: take the place of the current entry instead of adding one (stepping through the
+ * files of a lightbox), so Back leaves the lightbox rather than walking back through every file seen.
+ */
+export function navigate(path, { replace = false } = {}) {
   const next = `#${path}`;
-  if (next === current) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (next === current) { if (!replace) window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   scrolls.set(current, window.scrollY);
   pushing = true;
-  location.hash = path;
+  if (replace) location.replace(next); else location.hash = path;
 }
+
+/** Leave a file for its group's page: back where the page was when the file was opened from it, else in place. */
+export function closeFile(groupId) {
+  if (openedFrom === `#${paths.group(groupId)}`) history.back();
+  else navigate(paths.group(groupId), { replace: true });
+}
+/** The page a file was opened from (a file opened from its own group's page goes back to it on close). */
+let openedFrom = null;
 
 export function useRoute() {
   const [route, setRoute] = useState(() => ({ ...parse(location.hash), key: keyOf(parse(location.hash)), scroll: 0 }));
   useEffect(() => {
     const onChange = () => {
+      const from = current;
       if (!pushing) scrolls.set(current, window.scrollY);
       const scroll = pushing ? 0 : scrolls.get(location.hash || '#/') ?? 0;
       returned = !pushing;
       pushing = false;
       current = location.hash || '#/';
       const r = parse(location.hash);
-      startTransition(() => setRoute({ ...r, key: keyOf(r), scroll }));
+      if (r.fileId && !parse(from).fileId) openedFrom = from;
+      if (!r.fileId) openedFrom = null;
+      // within one page (its lightbox opening, stepping, closing) the page stays where it is
+      startTransition(() => setRoute((prev) => (keyOf(r) === prev.key ? { ...r, key: prev.key, scroll: prev.scroll } : { ...r, key: keyOf(r), scroll })));
     };
     window.addEventListener('hashchange', onChange);
     return () => window.removeEventListener('hashchange', onChange);

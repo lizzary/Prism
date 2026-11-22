@@ -10,6 +10,7 @@ const load = {
   tags: () => import('./tags/TagIndex.jsx'),
   settings: () => import('./settings/SettingsDialog.jsx'),
   groupEditor: () => import('./editors/GroupDialog.jsx'),
+  colorGroups: () => import('./colors/ColorGroupsDialog.jsx'),
   export: () => import('./export/ExportSheet.jsx'),
   backup: () => import('./backup/BackupSheet.jsx'),
   mcp: () => import('./mcp/McpSheet.jsx'),

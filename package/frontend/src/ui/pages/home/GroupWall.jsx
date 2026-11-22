@@ -2,7 +2,7 @@
 // every card is placed from computed geometry, so a new layout, a new order or a filter lets the cards glide to
 // their places instead of jumping. Moving across a cover glances through the pictures inside the group.
 // The wall's bar carries the wall in miniature (GroupStrip), which follows the page and jumps to any group.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ViewTransition, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { libraryActions, mediaUrl, useOptimisticView } from '../../../bridge/index.js';
 import { useOverlays } from '../../../app/shell.jsx';
 import { Link, cameBack, paths } from '../../../app/router.jsx';
@@ -253,9 +253,12 @@ function Cover({ group, eager }) {
     <div className={s.cover} data-skimming={at > 0 || undefined}
       onPointerEnter={(e) => { if (e.pointerType === 'mouse' && frames.length > 1) setArmed(true); }}
       onPointerMove={armed ? skim : undefined} onPointerLeave={() => setAt(0)}>
-      <CoverImage src={mediaUrl(group.cover, 'original')} eager={eager} />
+      {/* opening the group, the cover grows into its page's banner (and settles back here on the way home) */}
+      <ViewTransition name={`group-art-${group.id}`} share="morph" default="none">
+        <CoverImage src={mediaUrl(group.cover, 'original')} eager={eager} />
+      </ViewTransition>
       {armed && frames.slice(1).map((f, k) => (
-        <img key={f.id} src={mediaUrl(f, 'medium')} alt="" draggable={false} decoding="async" className={s.frame} data-on={at === k + 1} />
+        <img key={f.id} src={mediaUrl(f, 'medium')} alt="" draggable={false} decoding="async" loading="lazy" className={s.frame} data-on={at === k + 1} />
       ))}
       {armed && frames[at]?.kind === 'video' && <span className={s.videoMark}><Icon name="play" size={12} /></span>}
       {armed && (

@@ -2,13 +2,16 @@
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
 import * as api from '../data/api/index.js';
 import { useQuery, useSuspenseQuery, useDebounced, prefetch, preloadSuspense } from './query.js';
+import { feedOf, refreshFeeds, useFeed, REFRESH_MS } from './feed.js';
 
-export { useDebounced };
+export { useDebounced, REFRESH_MS };
 export const FILE_KINDS = api.FILE_KINDS;
+/** What a write elsewhere changed is on the group's page at once (instead of at its next look). */
+const thenRefresh = (fn) => async (...args) => { const r = await fn(...args); refreshFeeds(); return r; };
 
 /** Queries that several views share, and that can be loaded ahead of the view that shows them. */
 const Q = {
-  home: ['home', api.library.home, ['library']],
+  home: ['home', api.library.home, ['library', 'viewed']],
   groups: ['groups', api.library.groups, ['library']],
   colorGroups: ['color-groups', api.library.colorGroups, ['library']],
   capabilities: ['search-capabilities', api.search.capabilities, ['library']],
@@ -23,19 +26,91 @@ const Q = {
 export const useHome = () => useSuspenseQuery(...Q.home);
 /** Start loading the home page before it is shown (after signing in), so it opens without a placeholder. */
 export const preloadHome = () => preloadSuspense(...Q.home);
-export const useGroup = (id) => useSuspenseQuery(`group:${id}`, () => api.library.group(id), ['library']);
 export const useGroupList = () => useQuery(...Q.groups);
 export const useColorGroupList = () => useQuery(...Q.colorGroups);
 export const useGroupPictures = (id) => useQuery(id ? `group-pictures:${id}` : null, () => api.library.groupPictures(id), ['library']);
 
 export const libraryActions = {
   createGroup: api.library.createGroup,
-  updateGroup: api.library.updateGroup,
-  deleteGroup: api.library.deleteGroup,
+  updateGroup: thenRefresh(api.library.updateGroup),
+  deleteGroup: thenRefresh(api.library.deleteGroup),
   setGroupOrder: api.library.setGroupOrder,
   randomFile: api.library.randomFile,
   sampleFiles: api.library.sampleFiles,
   saveHomeView: api.homeView.save,
+};
+
+// ------------------------------------------------------------------ a group's page
+/** The browsing order (sort, colour groups, limits, pages) and its settings — see data/domain/arrange.js. */
+export const browsing = api.browsing;
+/**
+ * A group's page, kept fresh by asking again every few seconds (see feed.js). Suspends until the first answer.
+ * → { data: { rev, group, configs, activeConfigId, order, files, view }, clock, arrived }
+ */
+export const useGroupPage = useFeed;
+/** Rest the page's refresh clock while a drag is under way. → release */
+export const holdGroupPage = (id) => feedOf(id).hold();
+export const refreshGroupPage = (id) => feedOf(id).refresh();
+
+const ref = (f) => ({ id: f.id, kind: f.kind, name: f.name, ext: f.ext, width: f.width, height: f.height, duration: f.duration });
+const withColor = (colors, configId, colorId) => {
+  const next = { ...colors };
+  if (colorId) next[configId] = colorId; else delete next[configId];
+  return next;
+};
+const without = (d, gone) => {
+  const files = d.files.filter((f) => !gone.has(f.id));
+  const left = d.files.filter((f) => gone.has(f.id));
+  return {
+    ...d, files,
+    group: d.group && {
+      ...d.group, fileCount: files.length,
+      bytes: d.group.bytes - left.reduce((n, f) => n + f.size, 0),
+      videoCount: d.group.videoCount - left.filter((f) => f.kind === 'video').length,
+      ...(d.group.cover && gone.has(d.group.cover.id) && { cover: files.find((f) => f.kind === 'image') ?? files[0] ?? null, coverAuto: true }),
+    },
+  };
+};
+
+/** Changes to a group's files and colour groups. Those made on the page show at once (optimistically). */
+export const groupActions = {
+  /** Page settings are saved in the background; the page keeps its own copy meanwhile (useOptimisticView). */
+  saveView: api.groupPage.saveView,
+  /** order: the new custom order; colors: { fileId: colour group id | null } (in the configuration in use). */
+  place: (id, { order, colors }) => feedOf(id).change(
+    (d) => ({
+      ...d, order: order ?? d.order,
+      files: colors ? d.files.map((f) => (f.id in colors ? { ...f, colors: withColor(f.colors, d.activeConfigId, colors[f.id]) } : f)) : d.files,
+    }),
+    () => api.groupPage.place(id, { order, colors }),
+  ),
+  remove: (id, ids) => feedOf(id).change((d) => without(d, new Set(ids)), () => api.files.remove(ids)),
+  restore: thenRefresh(api.files.restore),
+  setCover: (id, fileId) => feedOf(id).change(
+    (d) => { const f = d.files.find((x) => x.id === fileId); return f ? { ...d, group: { ...d.group, cover: ref(f), coverAuto: false } } : d; },
+    () => api.library.updateGroup(id, { coverFileId: fileId }),
+  ),
+  setActiveConfig: (id, configId) => feedOf(id).change((d) => ({ ...d, activeConfigId: configId }), () => api.groupPage.setActiveConfig(id, configId)),
+  reorderColorGroups: (id, configId, order) => feedOf(id).change(
+    (d) => {
+      const at = new Map(order.map((x, i) => [x, i]));
+      return { ...d, configs: d.configs.map((c) => (c.id !== configId ? c : { ...c, groups: [...c.groups].sort((a, b) => (at.get(a.id) ?? 1e9) - (at.get(b.id) ?? 1e9)) })) };
+    },
+    () => api.groupPage.reorderColorGroups(id, configId, order),
+  ),
+  saveColorConfigs: thenRefresh(api.groupPage.saveColorConfigs),
+  upload: api.groupPage.upload,
+};
+export const useColorConfigs = (id) => useQuery(id ? `color-configs:${id}` : null, () => api.groupPage.colorConfigs(id), ['library']);
+
+// ------------------------------------------------------------------ files
+export const useFileDetail = (id) => useQuery(id ? `file:${id}` : null, () => api.files.detail(id), ['library']);
+export const fileActions = {
+  update: thenRefresh(api.files.update),
+  remove: thenRefresh(api.files.remove),
+  reindex: api.files.reindex,
+  download: api.files.download,
+  viewed: api.files.viewed,
 };
 
 // ------------------------------------------------------------------ media
@@ -72,7 +147,7 @@ export const useSettings = () => useLive(api.settings);
 /** One setting: the component re-renders only when that one changes (the app shell reads theme and language this way). */
 export const useSetting = (key) => useSyncExternalStore(api.settings.subscribe, () => api.settings.getSnapshot()[key]);
 /** Changes show at once and are saved in the background (see data/api: settings.update). */
-export const settingsActions = { update: api.settings.update };
+export const settingsActions = { update: async (patch) => { const r = await api.settings.update(patch); if ('dbPath' in patch) refreshFeeds(); return r; } };
 export const folderActions = { roots: api.folders.roots, list: api.folders.list, create: api.folders.create };
 
 export const useModels = () => useLive(api.models);
@@ -120,7 +195,7 @@ export const useBackupChanges = (id) => useQuery(id ? `backup-changes:${id}` : n
 export const prefetchBackup = () => { prefetch(...Q.backup); prefetch('backup-changes:working', () => api.backup.changes('working'), ['snapshots', 'library']); };
 export const backupActions = {
   create: api.backup.create,
-  load: api.backup.load,
+  load: thenRefresh(api.backup.load),
   remove: api.backup.remove,
   restore: api.backup.restore,
   exportTo: api.backup.exportTo,

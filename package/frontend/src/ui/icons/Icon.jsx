@@ -151,6 +151,29 @@ const I = {
   /* places in the folder picker */
   monitor: '<rect x="3.5" y="4.5" width="17" height="11.5" rx="2"/><path d="M12 16v3.5"/><path d="M8.5 19.5h7"/>',
   drive: '<rect x="3.5" y="6.5" width="17" height="11" rx="2.4"/><path d="M3.8 13.2h16.4"/><circle cx="16.8" cy="15.4" r=".9" fill="currentColor"/>',
+
+  /* ---------------------------------------------------------------- a group's page */
+  /* colour groups flowing on: a run that leaves one row at its end and carries on at the start of the next */
+  'layout-mixed': '<rect x="3.5" y="4.5" width="6" height="6.5" rx="1.5"/><path d="M20.5 4.5h-6.3a1.5 1.5 0 0 0-1.5 1.5v3.5a1.5 1.5 0 0 0 1.5 1.5h6.3"/><path d="M3.5 13h4.8a1.5 1.5 0 0 1 1.5 1.5V18a1.5 1.5 0 0 1-1.5 1.5H3.5"/><rect x="12.7" y="13" width="7.8" height="6.5" rx="1.5"/>',
+  /* every colour group folded / unfolded */
+  'fold-all': '<path d="m7 4.5 5 4.5 5-4.5"/><path d="m7 19.5 5-4.5 5 4.5"/>',
+  'unfold-all': '<path d="m7 9 5-4.5L17 9"/><path d="m7 15 5 4.5 5-4.5"/>',
+  /* a few per colour group, then more */
+  limit: '<rect x="3.5" y="6.5" width="4.8" height="11" rx="1.3"/><rect x="10.2" y="6.5" width="4.8" height="11" rx="1.3"/><circle cx="18.1" cy="12" r="1" fill="currentColor"/><circle cx="21" cy="12" r="1" fill="currentColor"/>',
+  /* tile sizes: many small ones · one large picture */
+  'size-small': '<rect x="4" y="4" width="4.3" height="4.3" rx="1"/><rect x="9.85" y="4" width="4.3" height="4.3" rx="1"/><rect x="15.7" y="4" width="4.3" height="4.3" rx="1"/><rect x="4" y="9.85" width="4.3" height="4.3" rx="1"/><rect x="9.85" y="9.85" width="4.3" height="4.3" rx="1"/><rect x="15.7" y="9.85" width="4.3" height="4.3" rx="1"/><rect x="4" y="15.7" width="4.3" height="4.3" rx="1"/><rect x="9.85" y="15.7" width="4.3" height="4.3" rx="1"/><rect x="15.7" y="15.7" width="4.3" height="4.3" rx="1"/>',
+  'size-large': '<rect x="3.5" y="3.5" width="17" height="17" rx="2.6"/><path d="m3.9 16.8 4.6-4.6a1.4 1.4 0 0 1 2 0l6.3 6.3"/><circle cx="15.6" cy="8.6" r="1.6"/>',
+  'sort-desc': '<path d="M4 6.5h9"/><path d="M4 11.5h6.5"/><path d="M4 16.5h4"/><path d="M17.5 5v13.5"/><path d="m14.5 15.5 3 3 3-3"/>',
+  'sort-asc': '<path d="M4 6.5h4"/><path d="M4 11.5h6.5"/><path d="M4 16.5h9"/><path d="M17.5 19V5.5"/><path d="m14.5 8.5 3-3 3 3"/>',
+  /* the group's cover: a picture with a small star on it */
+  cover: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><path d="m3.8 16.6 4.4-4.4a1.4 1.4 0 0 1 2 0l5.4 5.4"/><path d="M15.6 7.2c.2 1.3.95 2.05 2.25 2.25-1.3.2-2.05.95-2.25 2.25-.2-1.3-.95-2.05-2.25-2.25 1.3-.2 2.05-.95 2.25-2.25Z"/>',
+  /* a slideshow: a picture with play on it, the next one waiting behind */
+  slideshow: '<rect x="3.5" y="6" width="13.5" height="12" rx="2"/><path d="M20.5 8.2v7.6"/><path d="M8.8 9.6v4.8a.55.55 0 0 0 .85.46l3.7-2.4a.55.55 0 0 0 0-.92l-3.7-2.4a.55.55 0 0 0-.85.46Z"/>',
+  /* carried on from the row above */
+  wrap: '<path d="M6.5 5v6.6a3 3 0 0 0 3 3h9"/><path d="m15.2 11.2 3.4 3.4-3.4 3.4"/>',
+  /* back to fitting the screen */
+  fit: '<path d="M9 4.5V9H4.5"/><path d="M15 4.5V9h4.5"/><path d="M15 19.5V15h4.5"/><path d="M9 19.5V15H4.5"/>',
+  'check-square': '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.2 12.2 2.6 2.6 5-5.2"/>',
 };
 
 export function Icon({ name, size, stroke = 1.6, className, style, label }) {

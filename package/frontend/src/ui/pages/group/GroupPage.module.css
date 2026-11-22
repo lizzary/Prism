@@ -1,0 +1,58 @@
+.page { padding-bottom: 120px; }
+.wrapW { max-width: calc(var(--maxw) + 2 * var(--gutter)); margin-left: auto; margin-right: auto; padding-left: var(--gutter); padding-right: var(--gutter); }
+
+/* ------------------------------------------------------------------ the cover, dissolving into the page */
+.banner { position: relative; height: clamp(250px, 40vh, 420px); overflow: hidden; }
+.banner[data-blank] { height: calc(var(--bar-h) + 70px); }
+.bannerArt { position: absolute; inset: -2px 0 0; will-change: transform; transform-origin: 50% 0; }
+.bannerImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 46%, rgba(0, 0, 0, 0.84) 62%, rgba(0, 0, 0, 0.5) 78%, rgba(0, 0, 0, 0.16) 91%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 46%, rgba(0, 0, 0, 0.84) 62%, rgba(0, 0, 0, 0.5) 78%, rgba(0, 0, 0, 0.16) 91%, transparent 100%);
+  animation: settle 1.4s var(--ease-out) both;
+}
+@keyframes settle { from { transform: scale(1.04); } }
+.bannerShade { position: absolute; inset: 0 0 auto; height: 160px; background: linear-gradient(180deg, rgba(8, 13, 32, 0.42), transparent); pointer-events: none; }
+.banner[data-blank] .bannerShade { display: none; }
+
+/* ------------------------------------------------------------------ name and size */
+.head { composes: wrapW; position: relative; margin-top: -86px; animation: rise 760ms var(--ease-out) 80ms both; }
+.banner[data-blank] + .head { margin-top: 0; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+.titleRow { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.title { font-size: clamp(30px, 3.1vw, 46px); font-weight: 540; letter-spacing: -0.025em; line-height: 1.12; }
+.edit { margin-top: 4px; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; margin-top: 10px; font-size: 13.5px; color: var(--ink-3); }
+.meta > span + span::before { content: '·'; margin: 0 9px; color: var(--ink-4); }
+
+/* ------------------------------------------------------------------ work under way */
+.tasks { composes: wrapW; display: flex; flex-direction: column; gap: 8px; margin-top: 22px; }
+.task { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--r-3); background: var(--star-soft); font-size: 13.5px; animation: rise 500ms var(--ease-out) both; }
+.task[data-state='queued'] { background: var(--field); }
+.taskIcon { flex-shrink: 0; color: var(--star-ink); }
+.task[data-state='running'] .taskIcon { animation: turn 2.4s linear infinite; }
+@keyframes turn { to { transform: rotate(360deg); } }
+.taskName { font-weight: 600; white-space: nowrap; }
+.taskStage { color: var(--ink-2); white-space: nowrap; }
+.taskCount { color: var(--ink-2); white-space: nowrap; }
+.taskBar { flex: 1; min-width: 80px; }
+
+/* ------------------------------------------------------------------ the files */
+.files { composes: wrapW; margin-top: 26px; }
+.toolbar {
+  position: sticky;
+  top: var(--bar-h);
+  z-index: 20;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+  transition: background-color var(--dur-3), box-shadow var(--dur-3);
+}
+.toolbar[data-stuck] { background: var(--bg-glass); backdrop-filter: blur(14px) saturate(1.2); box-shadow: 0 1px 0 var(--line); }
+.toolbar[data-stuck]::before, .toolbar[data-stuck]::after { content: ''; position: absolute; top: 0; bottom: -1px; width: var(--gutter); background: inherit; backdrop-filter: inherit; box-shadow: inherit; }
+.toolbar[data-stuck]::before { right: 100%; }
+.toolbar[data-stuck]::after { left: 100%; }
+.range { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -8px 0 12px; font-size: 12.5px; color: var(--ink-3); }
+.pager { margin-top: 56px; }
+.empty { composes: wrapW; margin-top: 40px; }

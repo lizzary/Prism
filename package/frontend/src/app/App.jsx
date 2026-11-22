@@ -57,7 +57,7 @@ function Gallery() {
   return (
     <OverlayProvider>
       <PageMetaProvider>
-        <Shortcuts />
+        <Shortcuts route={route} />
         <FirstRun />
         <TopBar route={route} />
         <Pages route={route} />
@@ -91,16 +91,22 @@ function FirstRun() {
   return null;
 }
 
-/** Ctrl/Cmd K or "/" opens search anywhere. */
-function Shortcuts() {
+/**
+ * Ctrl/Cmd K or "/" opens search anywhere — on a group's page it looks inside that group, like the bar's search.
+ * The lightbox keeps its keys to itself.
+ */
+function Shortcuts({ route }) {
   const { open } = useOverlays();
+  const groupId = route.name === 'group' ? route.id : null;
+  const inLightbox = !!route.fileId;
   useEffect(() => {
+    if (inLightbox) return undefined;
     const onKey = (e) => {
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
-      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) { e.preventDefault(); open('search'); }
+      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) { e.preventDefault(); open('search', { groupId }); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+  }, [open, groupId, inLightbox]);
   return null;
 }

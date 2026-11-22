@@ -14,7 +14,7 @@ import s from './TopBar.module.css';
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 /** Pages that open under artwork (the bar sits on it until scrolled past). */
-const OVER_ART = { home: true, group: false };
+const OVER_ART = { home: true, group: true };
 const metaKey = (m) => (m.scope === 'home' ? 'home' : `group:${m.groupId}`);
 
 export function TopBar({ route }) {

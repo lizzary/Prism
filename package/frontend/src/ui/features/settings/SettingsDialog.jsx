@@ -93,7 +93,7 @@ export default function SettingsDialog({ open, onClose, section = 'general', foc
               </li>
             ))}
           </ul>
-          <div className={s.about}>{t('settings.about', { version: '0.2.0' })}</div>
+          <div className={s.about}>{t('settings.about', { version: '0.3.0' })}</div>
         </nav>
         <div className={s.pane}>
           <header className={s.paneHead}>

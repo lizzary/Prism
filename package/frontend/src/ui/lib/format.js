@@ -1,5 +1,4 @@
 // Locale-aware presentation of dates, sizes and numbers.
-import { useMemo } from 'react';
 import { useI18n } from '../../i18n/index.jsx';
 
 const parse = (iso) => (iso ? new Date(iso.length <= 10 ? `${iso}T00:00` : iso) : null);
@@ -48,9 +47,13 @@ export function makeFormat(lang, t) {
   };
 }
 
+/** One set of formatters per language, shared by every component (Intl formatters are costly to create). */
+const formats = new WeakMap();
 export function useFormat() {
   const { lang, t } = useI18n();
-  return useMemo(() => makeFormat(lang, t), [lang, t]);
+  let f = formats.get(t);
+  if (!f) { f = makeFormat(lang, t); formats.set(t, f); }
+  return f;
 }
 
 /** Local calendar day "YYYY-MM-DD". */

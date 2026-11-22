@@ -1,0 +1,81 @@
+/* ------------------------------------------------------------------ a fan of prints */
+.stage { display: grid; place-items: center; padding: 18px 0 8px; }
+.fan { position: relative; display: flex; justify-content: center; height: calc(var(--s) * 1.12); width: calc(var(--s) * 2.6); }
+.print {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: var(--s);
+  height: var(--s);
+  margin-left: calc(var(--s) / -2);
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--field);
+  box-shadow: 0 0 0 2px var(--bg-raised), var(--shadow-2);
+  --d: calc(var(--k) - (var(--n) - 1) / 2);
+  transform-origin: 50% 120%;
+  transform: translateX(calc(var(--d) * 26%)) rotate(calc(var(--d) * 9deg));
+  animation: deal 560ms var(--ease-back) both;
+  animation-delay: calc(80ms + var(--k) * 50ms);
+}
+@keyframes deal { from { opacity: 0; transform: translateY(14px) rotate(0); } }
+.print img { width: 100%; height: 100%; object-fit: cover; }
+.play { position: absolute; left: 5px; bottom: 5px; color: #fbf7ee; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)); }
+.rest {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  z-index: 2;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 640;
+  box-shadow: 0 0 0 2px var(--bg-raised);
+}
+.body { margin-top: 14px; text-align: center; font-size: 14.5px; line-height: 1.7; color: var(--ink-2); }
+
+/* ------------------------------------------------------------------ re-index: what to build again */
+.kinds { display: flex; flex-direction: column; gap: 8px; padding-top: 6px; }
+.kind {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px 12px 12px;
+  border-radius: var(--r-3);
+  text-align: left;
+  box-shadow: 0 0 0 1px var(--line-2) inset;
+  transition: background-color var(--dur-2), box-shadow var(--dur-2), transform var(--dur-1) var(--ease-out);
+  animation: rise 420ms var(--ease-out) both;
+  animation-delay: calc(var(--i) * 50ms);
+}
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+.kind:hover:not(:disabled) { box-shadow: 0 0 0 1px var(--ink-4) inset; }
+.kind:active:not(:disabled) { transform: scale(0.99); }
+.kind[data-on] { background: var(--star-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--star) 55%, transparent) inset; }
+.kind:disabled { opacity: 0.6; cursor: not-allowed; }
+.kindIcon { display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 38px; border-radius: var(--r-3); background: var(--field); color: var(--ink-2); transition: background-color var(--dur-2), color var(--dur-2); }
+.kind[data-on] .kindIcon { background: var(--bg-raised); color: var(--star-ink); }
+.kindText { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.kindTitle { font-size: 14.5px; font-weight: 560; color: var(--ink); }
+.kindBody { font-size: 13px; color: var(--ink-3); }
+.link { display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; padding: 5px 8px; margin-left: -8px; border-radius: var(--r-2); font-size: 13px; font-weight: 560; color: var(--accent); transition: background-color var(--dur-1), gap var(--dur-2) var(--ease-out); }
+.link:hover { background: var(--accent-soft); gap: 9px; }
+
+/* ------------------------------------------------------------------ moving into another colour group */
+.moves { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
+.move { padding: 12px 14px; border-radius: var(--r-3); background: var(--field); box-shadow: 0 0 0 1px var(--line) inset; animation: rise 420ms var(--ease-out) both; animation-delay: calc(var(--i) * 60ms); }
+.route { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.chip { --c: var(--ink-3); display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 40%; height: 28px; padding: 0 10px 0 9px; border-radius: var(--r-2); background: color-mix(in srgb, var(--c) 13%, var(--bg-raised)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 32%, transparent) inset; font-size: 13px; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip i { flex-shrink: 0; width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.chip[data-none] { background: var(--bg-raised); box-shadow: 0 0 0 1px var(--line-2) inset; }
+.chip[data-none] i { background: transparent; box-shadow: 0 0 0 1.5px var(--ink-4) inset; }
+.arrow { position: relative; display: inline-flex; align-items: center; flex-shrink: 0; width: 44px; color: var(--ink-3); }
+.arrow i { flex: 1; height: 1.5px; margin-right: -9px; background: linear-gradient(90deg, transparent, var(--ink-4)); }
+.arrow svg { animation: nudge 1.6s var(--ease-in-out) infinite; }
+@keyframes nudge { 50% { transform: translateX(3px); } }
+.moveCount { margin-left: auto; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.thumbs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.thumbs img { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; box-shadow: 0 0 0 1px var(--line); }
+.thumbMore { display: grid; place-items: center; min-width: 40px; height: 40px; padding: 0 6px; border-radius: 4px; background: var(--bg-raised); font-size: 12px; font-weight: 600; color: var(--ink-2); box-shadow: 0 0 0 1px var(--line) inset; }

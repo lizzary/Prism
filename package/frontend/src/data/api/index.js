@@ -4,8 +4,12 @@
 import * as backend from '../mock/backend.js';
 import * as accessBackend from '../mock/access.js';
 import * as snapshotBackend from '../mock/snapshots.js';
+import { acceptable, probe, renderDownload } from '../mock/files.js';
 import { QUALITIES, FILE_KINDS } from '../domain/files.js';
 import { stripIllegal, validateTemplate } from '../domain/filename.js';
+import {
+  arrange, placeBatch, pageOf, NONE, DEFAULT_VIEW, SORTS, QUALITY_LEVELS, LAYOUTS, PAGE_SIZES, SIZE_LEVELS, SLIDE_SECONDS,
+} from '../domain/arrange.js';
 
 export { FILE_KINDS };
 
@@ -22,18 +26,30 @@ async function call(kind, fn) {
 /**
  * A pushed value (tasks, settings, access, models): subscribe + current snapshot, for useSyncExternalStore.
  * Subscribers hear only of real changes: a topic that fires without changing the value keeps the same snapshot.
+ * `pace` (ms): progress is passed on at most this often — what `urgent(before, after)` calls a real change (a task
+ * starting or ending) still goes at once. Every update of such a store re-renders at once, which would keep
+ * interrupting a page that is still rendering in the background (a page change) if it came every few frames.
  */
-function live(topics, read) {
+function live(topics, read, { pace = 0, urgent } = {}) {
   const on = new Set([topics].flat());
   const pending = [];                 // optimistic changes whose writes have not settled yet, oldest first
   const current = () => pending.reduce((v, patch) => ({ ...v, ...patch }), read());
   let snapshot = copy(current());
   let last = JSON.stringify(snapshot);
+  let sentAt = 0, timer = 0;
   const subs = new Set();
-  const refresh = () => {
+  const refresh = (now = false) => {
     const next = current();
     const json = JSON.stringify(next);
     if (json === last) return;
+    const since = Date.now() - sentAt;
+    if (pace && !now && since < pace && !urgent?.(snapshot, next)) {
+      timer ||= setTimeout(() => { timer = 0; refresh(true); }, pace - since);
+      return;
+    }
+    clearTimeout(timer);
+    timer = 0;
+    sentAt = Date.now();
     last = json;
     snapshot = copy(next);
     for (const fn of subs) fn();
@@ -56,7 +72,7 @@ function live(topics, read) {
 }
 
 // ------------------------------------------------------------------ change notifications
-/** Topics: library · tasks · settings · language · access · mcp · snapshots · models · exports */
+/** Topics: library · viewed (the last viewed file) · tasks · settings · language · access · mcp · snapshots · models · exports */
 export const events = { subscribe: (fn) => backend.onChange(fn) };
 
 // ------------------------------------------------------------------ gallery
@@ -74,7 +90,6 @@ export const library = {
   groups: () => call('read', backend.listGroups),
   /** → [{ id, name, color, config, group: { id, name }, fileCount }] */
   colorGroups: () => call('read', backend.listColorGroups),
-  group: (id) => call('read', () => backend.getGroup(id)),
   /** The pictures a group's cover can be chosen from. → [ref] */
   groupPictures: (id) => call('read', () => backend.groupPictures(id)),
   createGroup: (input) => call('write', () => backend.createGroup(input)),
@@ -92,6 +107,79 @@ export const library = {
 export const homeView = {
   save: (view) => { call('write', () => backend.saveHomeView(view)).catch(() => {}); },
 };
+
+// ------------------------------------------------------------------ a group's page
+/**
+ * A colour-group configuration: { id, name, groups: [{ id, name, color }] } — a group can keep several and gathers
+ * its files by one (activeConfigId). A file's `colors` maps a configuration to the colour group it is in there.
+ * Page settings (view): { sort: 'created' | 'resolution' | 'size' | 'custom', dir: 'asc' | 'desc', size: 1–5,
+ *   natural (own proportions, or square), quality, layout: 'single' | 'double' | 'mixed', limited, limit, pageSize (0: all),
+ *   collapsed: [section key], expanded: [section key], slide (seconds per slide) } — see domain/arrange.js.
+ */
+export const groupPage = {
+  /**
+   * Everything a group's page shows; the page asks again every few seconds. `since`: the revision of the copy
+   * already held — while nothing changed the answer is just { rev, unchanged: true }.
+   * → { rev, group: { id, name, createdAt, updatedAt, fileCount, videoCount, bytes, cover, coverAuto, palette } | null,
+   *     configs, activeConfigId, order: [fileId] (the custom order),
+   *     files: [ref + { size, createdAt, importedAt, colors }], view }
+   */
+  load: (id, since) => call('read', () => backend.getGroupPage(id, since)),
+  /** Saved optimistically: callers never wait for the write. */
+  saveView: (id, view) => { call('write', () => backend.saveGroupView(id, view)).catch(() => {}); },
+  /** order: the new custom order of every file; colors: { fileId: colour group id | null } for files changing colour group. */
+  place: (id, change) => call('write', () => backend.placeFiles(id, change)),
+  /** → { configs, activeConfigId, counts: { colourGroupId: files }, total } */
+  colorConfigs: (id) => call('read', () => backend.getColorConfigs(id)),
+  /** Save every configuration and use one (new ones carry ids starting with 'new:'). → as colorConfigs */
+  saveColorConfigs: (id, input) => call('write', () => backend.saveColorConfigs(id, input)),
+  reorderColorGroups: (id, configId, order) => call('write', () => backend.reorderColorGroups(id, configId, order)),
+  setActiveConfig: (id, configId) => call('write', () => backend.setActiveConfig(id, configId)),
+  /**
+   * Pictures and videos from this computer (a FileList or File[]); anything else is left out.
+   * → { ok, taskId, accepted, skipped }
+   */
+  async upload(id, list) {
+    const files = [...list];
+    const entries = (await Promise.all(files.filter(acceptable).map(probe))).filter(Boolean);
+    const skipped = files.length - entries.length;
+    if (!entries.length) return { ok: false, accepted: 0, skipped };
+    const r = await call('write', () => backend.uploadFiles(id, entries));
+    return { ...r, accepted: entries.length, skipped };
+  },
+};
+
+// ------------------------------------------------------------------ files
+/**
+ * A file's details: { file: ref, group: { id, name }, config: { id, name, colors } | null, color: { id, name, color } | null,
+ *   size, createdAt, importedAt, tags: [{ key, label, source: 'model' | 'user', score }], note,
+ *   comfy: { model, seed, positive, negative, sampler, scheduler, steps, cfg, denoise } | null, cover: 'chosen' | 'auto' | null }
+ */
+export const files = {
+  detail: (id) => call('read', () => backend.getFileDetail(id)),
+  /** patch: any of { userTags: [name], note, color: colour group id | null } → the details */
+  update: (id, patch) => call('write', () => backend.updateFile(id, patch)),
+  /** Moved to the system's recycle bin. → { ok, count } */
+  remove: (ids) => call('write', () => backend.deleteFiles(ids)),
+  /** Undo a deletion moments later. → { ok, count } */
+  restore: (ids) => call('write', () => backend.restoreFiles(ids)),
+  /** kinds: any of 'tagging' (the user's own tags stay), 'embedding', 'metadata'. → { ok, taskId } | { ok: false, error: 'modelMissing' } */
+  reindex: (ids, kinds) => call('write', () => backend.reindexFiles({ ids, kinds })),
+  /**
+   * Named with the download pattern from Settings. One file is handed over at once → { ok, file: { url, name } }
+   * (url: revoke once saved); several are packed by a task → { ok, taskId, count }.
+   */
+  async download(ids) {
+    const r = await call('write', () => backend.downloadFiles(ids));
+    if (!r.ok || !r.file) return r;
+    return { ok: true, file: { name: r.file.name, url: await renderDownload(r.file) } };
+  },
+  /** The file being looked at (the home page's "last viewed"). Fire and forget. */
+  viewed: (id) => { call('write', () => backend.markViewed(id)).catch(() => {}); },
+};
+
+/** The browsing order of a group's page — the rules live in domain/arrange.js. */
+export const browsing = { arrange, placeBatch, pageOf, NONE, DEFAULT_VIEW, SORTS, QUALITY_LEVELS, LAYOUTS, PAGE_SIZES, SIZE_LEVELS, SLIDE_SECONDS };
 
 // ------------------------------------------------------------------ media
 export const media = {
@@ -148,12 +236,16 @@ export const tags = {
 
 // ------------------------------------------------------------------ tasks
 /**
- * Live: [{ id, type: 'import' | 'reindex' | 'export' | 'model-download' | 'download' | 'snapshot' | 'snapshot-export' | 'snapshot-import',
+ * Live: [{ id, type: 'import' | 'upload' | 'reindex' | 'export' | 'model-download' | 'download' | 'snapshot' | 'snapshot-export' | 'snapshot-import',
  *          state: 'queued' | 'running' | 'done' | 'failed' | 'canceled', stage, processed, total, unit: 'files' | 'bytes', kinds, label,
  *          group: { id, name } | null, groups: [{ id, name }], result, error, createdAt, startedAt, finishedAt }]
  */
+const PROGRESS_PACE = 500;
 export const tasks = {
-  ...live('tasks', backend.getTasks),
+  ...live('tasks', backend.getTasks, {
+    pace: PROGRESS_PACE,
+    urgent: (a, b) => a.length !== b.length || a.some((x, i) => x.id !== b[i].id || x.state !== b[i].state),
+  }),
   clearHistory: () => call('write', backend.clearTaskHistory),
   cancel: (id) => call('write', () => backend.cancelTask(id)),
 };
@@ -221,7 +313,10 @@ export const settings = {
  *         progress: { stage, processed, total, queued } | null, taskId }] }
  */
 export const models = {
-  ...live(['models', 'tasks'], backend.getModels),
+  ...live(['models', 'tasks'], backend.getModels, {
+    pace: PROGRESS_PACE,
+    urgent: (a, b) => a.list.some((m, i) => m.state !== b.list[i]?.state || m.inUse !== b.list[i]?.inUse),
+  }),
   download: (id) => call('write', () => backend.downloadModel(id)),
   /** Delete the model's files, then download it again. */
   redownload: (id) => call('write', () => backend.redownloadModel(id)),

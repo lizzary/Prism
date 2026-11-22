@@ -119,7 +119,7 @@ function RandomDeck({ excludeId }) {
       <span className={s.cards} aria-hidden="true">
         {[2, 1, 0].map((k) => (
           <span key={k} className={s.card} data-k={k}>
-            {at(k) && <img src={at(k)} alt="" draggable={false} />}
+            {at(k) && <img src={at(k)} alt="" draggable={false} loading="lazy" />}
           </span>
         ))}
       </span>

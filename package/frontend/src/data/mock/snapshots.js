@@ -5,6 +5,7 @@
 // A snapshot is taken per group: only the chosen groups' changes go in, the others stay as they were saved before.
 import {
   emit, currentLibrary, reindex, registerTaskType, newTask, finish, fsAddFile, fsFile, getConfig, newEdits, fileRef, coverOf,
+  FILE_FIELDS, GROUP_FIELDS,
 } from './backend.js';
 import { daysAgo, isoOf } from './seed.js';
 import { hashString } from '../domain/random.js';
@@ -50,8 +51,6 @@ const ARCHIVED = [
   [205, 22, 18, null],
   HISTORY[0],
 ];
-const FILE_FIELDS = ['userTags', 'note', 'colors'];
-const GROUP_FIELDS = ['name', 'coverFileId'];
 
 function seedHistory(L) {
   const B = L.backup;

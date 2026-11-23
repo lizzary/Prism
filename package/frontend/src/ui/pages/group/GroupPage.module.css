@@ -1,5 +1,6 @@
 .page { padding-bottom: 120px; }
-.wrapW { max-width: calc(var(--maxw) + 2 * var(--gutter)); margin-left: auto; margin-right: auto; padding-left: var(--gutter); padding-right: var(--gutter); }
+/* a group's page uses the whole width: on a wide screen the files get all of it, not a column in the middle */
+.wrapW { padding-left: var(--gutter); padding-right: var(--gutter); }
 
 /* ------------------------------------------------------------------ the cover, dissolving into the page */
 .banner { position: relative; height: clamp(250px, 40vh, 420px); overflow: hidden; }
@@ -45,14 +46,19 @@
   position: sticky;
   top: var(--bar-h);
   z-index: 20;
-  margin-bottom: 18px;
-  border-bottom: 1px solid var(--line);
+  margin: 0 calc(var(--gutter) * -1) 18px;
+  padding: 0 var(--gutter);
+  container-type: inline-size;
   transition: background-color var(--dur-3), box-shadow var(--dur-3);
 }
-.toolbar[data-stuck] { background: var(--bg-glass); backdrop-filter: blur(14px) saturate(1.2); box-shadow: 0 1px 0 var(--line); }
-.toolbar[data-stuck]::before, .toolbar[data-stuck]::after { content: ''; position: absolute; top: 0; bottom: -1px; width: var(--gutter); background: inherit; backdrop-filter: inherit; box-shadow: inherit; }
-.toolbar[data-stuck]::before { right: 100%; }
-.toolbar[data-stuck]::after { left: 100%; }
+/* its rule runs under the files' width; once the bar sticks it takes a surface, and the rule runs edge to edge */
+.toolbar::after { content: ''; position: absolute; left: var(--gutter); right: var(--gutter); bottom: 0; height: 1px; background: var(--line); transition: left var(--dur-3) var(--ease-out), right var(--dur-3) var(--ease-out); }
+.toolbar[data-stuck] { background: var(--bg-glass); backdrop-filter: blur(14px) saturate(1.2); }
+.toolbar[data-stuck]::after { left: 0; right: 0; }
+/* the files, with the colour-group outline beside them when it is open */
+.body { display: flex; align-items: flex-start; gap: 22px; }
+.main { flex: 1; min-width: 0; }
+@media (max-width: 900px) { .body { display: block; } }
 .range { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -8px 0 12px; font-size: 12.5px; color: var(--ink-3); }
 .pager { margin-top: 56px; }
 .empty { composes: wrapW; margin-top: 40px; }

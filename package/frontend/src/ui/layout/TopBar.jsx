@@ -25,7 +25,7 @@ export function TopBar({ route }) {
   const seen = useRef(new Map());
   if (metaKey(live) === route.key) seen.current.set(route.key, live);
   const meta = metaKey(live) === route.key ? live
-    : seen.current.get(route.key) ?? { scope: route.name, groupId: route.id, overArt: OVER_ART[route.name], artHeight: 600 };
+    : seen.current.get(route.key) ?? { scope: route.name, groupId: route.id, overArt: OVER_ART[route.name], artHeight: 600, wide: route.name === 'group' };
   const predicted = metaKey(live) !== route.key;
   const { open } = useOverlays();
   // solid once the bar reaches the foot of the art, where the painting dissolves into the page
@@ -52,8 +52,11 @@ export function TopBar({ route }) {
   const art = !solid;
   const scope = meta.scope === 'group' ? { scope: 'group', groupId: meta.groupId } : { scope: 'home' };
 
+  // A file open in the lightbox covers the bar, so the bar is then simply part of the page: no name of its own that
+  // a page transition would lift above the lightbox (opening a file from the home page, going back from one).
   return (
-    <header className={`${s.bar} ${solid ? s.solid : s.onArt}`} style={{ viewTransitionName: 'topbar' }} data-vt-name="" data-instant={instant || predicted || undefined}>
+    <header className={`${s.bar} ${solid ? s.solid : s.onArt}`} style={{ viewTransitionName: route.fileId ? 'none' : 'topbar' }} data-vt-name=""
+      data-wide={meta.wide || undefined} data-instant={instant || predicted || undefined}>
       <div className={s.inner}>
         <div className={s.left}>
           <Link to={paths.home()} className={s.brand} aria-label="Prism">

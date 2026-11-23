@@ -11,6 +11,8 @@ export const LAYOUTS = ['single', 'double', 'mixed'];
 /** Files per page; 0 shows them all. */
 export const PAGE_SIZES = [50, 100, 200, 500, 1000, 0];
 export const SIZE_LEVELS = [1, 2, 3, 4, 5];
+/** A slideshow shows each picture for any whole number of seconds in this range; SLIDE_SECONDS are quick picks. */
+export const SLIDE_RANGE = [1, 300];
 export const SLIDE_SECONDS = [3, 5, 8, 12, 20];
 
 /** A group's page settings, until the user changes them. */
@@ -21,6 +23,7 @@ export const DEFAULT_VIEW = {
   pageSize: 0,
   collapsed: [], expanded: [],
   slide: 5,
+  outline: false,
 };
 
 /** Keep only known settings with sensible values (what is saved, and what a page starts from). */
@@ -39,7 +42,8 @@ export function cleanView(v = {}) {
     pageSize: pick('pageSize', (x) => PAGE_SIZES.includes(x)),
     collapsed: pick('collapsed', ids),
     expanded: pick('expanded', ids),
-    slide: pick('slide', (x) => SLIDE_SECONDS.includes(x)),
+    slide: pick('slide', (x) => Number.isInteger(x) && x >= SLIDE_RANGE[0] && x <= SLIDE_RANGE[1]),
+    outline: pick('outline', (x) => typeof x === 'boolean'),
   };
 }
 
@@ -159,6 +163,17 @@ export function pageOf(arranged, view, fileId) {
   for (const s of arranged.sections) {
     const i = s.visible.findIndex((f) => f.id === fileId);
     if (i >= 0) return Math.floor((at + i) / size) + 1;
+    at += s.visible.length;
+  }
+  return null;
+}
+
+/** The page a section is on: where its first file shows, or where it sits when none of it shows (folded, empty). */
+export function pageOfSection(arranged, view, key) {
+  const size = view.pageSize > 0 ? view.pageSize : Infinity;
+  let at = 0;
+  for (const s of arranged.sections) {
+    if (s.key === key) return Math.min(arranged.page.count, Math.floor(at / size) + 1);
     at += s.visible.length;
   }
   return null;

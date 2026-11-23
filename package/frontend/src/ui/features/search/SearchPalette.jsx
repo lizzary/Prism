@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { mediaUrl, searchActions, useColorGroupList, useGroupList, useSearch, useSearchCapabilities } from '../../../bridge/index.js';
 import { navigate, paths } from '../../../app/router.jsx';
+import { colorArrival } from '../../lib/arrival.js';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
 import { Icon } from '../../icons/Icon.jsx';
@@ -68,7 +69,11 @@ export default function SearchPalette({ open, onClose, groupId, text: presetText
 
   const items = useMemo(() => [
     ...data.groups.map((g) => ({ kind: 'group', key: `g:${g.id}`, go: () => navigate(paths.group(g.id)) })),
-    ...data.colorGroups.map((c) => ({ kind: 'color', key: `c:${c.id}`, go: () => navigate(paths.group(c.group.id)) })),
+    // a colour group: its group's page, at that colour group (in its configuration)
+    ...data.colorGroups.map((c) => ({
+      kind: 'color', key: `c:${c.id}`,
+      go: () => { colorArrival.set(c.group.id, c.id, c.configId); if (location.hash !== `#${paths.group(c.group.id)}`) navigate(paths.group(c.group.id)); },
+    })),
     ...data.files.map((h) => ({ kind: 'file', key: `f:${h.file.id}`, hit: h, go: () => navigate(paths.file(h.group.id, h.file.id)) })),
   ], [data]);
   const firstFile = items.findIndex((x) => x.kind === 'file');

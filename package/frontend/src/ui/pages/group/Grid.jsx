@@ -1,13 +1,14 @@
 // The files of a group's page, gathered into their colour groups. Every tile is placed from the computed layout
 // (layout.js) and only the ones near the screen exist; a new sort, size or layout lets them glide to their places.
 // Files are dragged to a new place (or into another colour group), colour groups are dragged by their headings.
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { browsing, mediaUrl } from '../../../bridge/index.js';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
 import { Icon } from '../../icons/Icon.jsx';
 import { Tooltip, Portal } from '../../components/overlay.jsx';
-import { layoutPage } from './layout.js';
+import { layoutPage, sectionSpans, typicalRatio } from './layout.js';
 import { useGridDrag } from './useGridDrag.js';
 import s from './Grid.module.css';
 
@@ -19,8 +20,7 @@ const NEUTRAL = 'var(--ink-3)';
 /** The width the grid will have, known before it is measured (so a restored scroll lands right on the first paint). */
 function estimateWidth() {
   const vw = document.documentElement.clientWidth;
-  const gutter = Math.max(20, Math.min(64, vw * 0.042));
-  return Math.min(1520, vw - 2 * gutter);
+  return vw - 2 * Math.max(20, Math.min(64, vw * 0.042));
 }
 function useWidth(ref) {
   const [width, setWidth] = useState(estimateWidth);
@@ -43,25 +43,27 @@ function useWidth(ref) {
   return [width, resizing];
 }
 
-/** The part of the grid on (or near) the screen, in the grid's own coordinates. Updated in steps, not per pixel. */
+/**
+ * The part of the grid on (or near) the screen, in the grid's own coordinates. Updated in steps, not per pixel.
+ * → [viewport, measure] — measure() reads it now (wrapped in flushSync, the tiles there exist at once).
+ */
 function useViewport(ref, height) {
   const [vp, setVp] = useState({ top: -BUFFER, bottom: innerHeight + BUFFER });
+  const measure = useCallback(() => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    const top = -r.top, bottom = -r.top + innerHeight;
+    setVp((cur) => (Math.abs(cur.top + BUFFER - top) < 160 && Math.abs(cur.bottom - BUFFER - bottom) < 160 ? cur : { top: top - BUFFER, bottom: bottom + BUFFER }));
+  }, [ref]);
   useLayoutEffect(() => {
     let raf = 0;
-    const read = () => {
-      raf = 0;
-      const r = ref.current?.getBoundingClientRect();
-      if (!r) return;
-      const top = -r.top, bottom = -r.top + innerHeight;
-      setVp((cur) => (Math.abs(cur.top + BUFFER - top) < 160 && Math.abs(cur.bottom - BUFFER - bottom) < 160 ? cur : { top: top - BUFFER, bottom: bottom + BUFFER }));
-    };
-    const on = () => { if (!raf) raf = requestAnimationFrame(read); };
-    read();
+    const on = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; measure(); }); };
+    measure();
     window.addEventListener('scroll', on, { passive: true });
     window.addEventListener('resize', on);
     return () => { cancelAnimationFrame(raf); window.removeEventListener('scroll', on); window.removeEventListener('resize', on); };
-  }, [ref, height]);
-  return vp;
+  }, [measure, height]);
+  return [vp, measure];
 }
 
 const toggled = (list, key, on) => (on ? [...new Set([...list, key])] : list.filter((k) => k !== key));
@@ -69,8 +71,10 @@ const toggled = (list, key, on) => (on ? [...new Set([...list, key])] : list.fil
 /**
  * arranged: domain/arrange.js; view: page settings; onView(patch).
  * tile: { open(id), toggle(id), range(id), menu(id, anchor | { x, y }) } · selection: Set · focus: { id, at } (bring into view)
+ * reveal: { key, at } (a colour group to bring into view) · onSeen(keys): the colour groups on screen, when they change
+ * ref: { revealFile(id, { now }) } — see below
  */
-export function Grid({ data, arranged, view, onView, selection, arrived, focus, tile, onDropFiles, onDropSection, hold }) {
+export function Grid({ ref, data, arranged, view, onView, selection, arrived, focus, reveal, onSeen, tile, onDropFiles, onDropSection, hold }) {
   const t = useT();
   const grid = useRef(null);
   const ghost = useRef(null);
@@ -78,11 +82,14 @@ export function Grid({ data, arranged, view, onView, selection, arrived, focus, 
   const [hot, setHot] = useState(null);                 // the colour group the pointer is over (all its runs light up)
   const files = useMemo(() => new Map(data.files.map((f) => [f.id, f])), [data.files]);
   const full = useMemo(() => new Map(arranged.sections.map((x) => [x.key, x])), [arranged.sections]);
-  const opts = { width, level: view.size, natural: view.natural, mode: view.layout, grouped: arranged.grouped };
-  const layout = useMemo(() => layoutPage(arranged.page.sections, opts), [arranged.page.sections, width, view.size, view.natural, view.layout, arranged.grouped]); // eslint-disable-line react-hooks/exhaustive-deps
+  // rows are sized for the group's own proportions, so a size level means about as many tiles to a row for any group
+  const ratio = useMemo(() => typicalRatio(data.files), [data.files]);
+  const opts = { width, level: view.size, ratio, natural: view.natural, mode: view.layout, grouped: arranged.grouped };
+  const layout = useMemo(() => layoutPage(arranged.page.sections, opts), [arranged.page.sections, width, ratio, view.size, view.natural, view.layout, arranged.grouped]); // eslint-disable-line react-hooks/exhaustive-deps
+  const spans = useMemo(() => sectionSpans(layout), [layout]);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
-  const vp = useViewport(grid, layout.height);
+  const [vp, measureViewport] = useViewport(grid, layout.height);
   const order = arranged.grouped ? arranged.sections.filter((x) => x.key !== NONE).map((x) => x.key) : [];
 
   const drag = useGridDrag({
@@ -132,6 +139,68 @@ export function Grid({ data, arranged, view, onView, selection, arrived, focus, 
     return () => clearTimeout(timer);
   }, [focus]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // the colour groups on screen (under the bars), told to the page only when they change
+  const told = useRef('');
+  useEffect(() => {
+    if (!onSeen) return undefined;
+    let raf = 0;
+    const read = () => {
+      raf = 0;
+      const r = grid.current?.getBoundingClientRect();
+      if (!r) return;
+      const top = BARS - r.top + 8, bottom = innerHeight - r.top - 8;
+      const keys = [];
+      for (const [k, sp] of spans) if (sp.bottom > top && sp.top < bottom) keys.push(k);
+      const sig = keys.join('|');
+      if (sig !== told.current) { told.current = sig; onSeen(keys); }
+    };
+    const on = () => { if (!raf) raf = requestAnimationFrame(read); };
+    read();
+    window.addEventListener('scroll', on, { passive: true });
+    window.addEventListener('resize', on);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('scroll', on); window.removeEventListener('resize', on); };
+  }, [spans, onSeen]);
+
+  // a colour group chosen in the toolbar: brought up to just under the bars, and lit once
+  const [flash, setFlash] = useState(null);
+  useLayoutEffect(() => {
+    const sp = reveal && spans.get(reveal.key);
+    if (!sp) return undefined;
+    const r = grid.current.getBoundingClientRect();
+    window.scrollTo({ top: Math.max(0, window.scrollY + r.top + sp.top - BARS - 14), behavior: 'smooth' });
+    setFlash(reveal);
+    const timer = setTimeout(() => setFlash(null), 1700);
+    return () => clearTimeout(timer);
+  }, [reveal]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A file's tile brought into full view at once (when it is not already), and where it then is on the screen —
+  // from the layout, so it is known even before the tile is drawn. → { left, top, width, height } | null (not here)
+  // The lightbox asks this under its dark room: as its files are stepped through (the page quietly follows, so the
+  // tiles there are drawn and their pictures loaded by the time it closes), and as it closes, before the picture flies
+  // back. `now`: the tiles there are drawn this very moment, already in place (they do not fade in).
+  const quietTimer = useRef(0);
+  useImperativeHandle(ref, () => ({
+    revealFile(id, { now = false } = {}) {
+      const x = layoutRef.current.tiles.find((it) => it.id === id);
+      const el = grid.current;
+      if (!x || !el) return null;
+      let r = el.getBoundingClientRect();
+      const top = r.top + x.y;
+      if (top < BARS || top + x.h > innerHeight) {
+        window.scrollTo({ top: Math.max(0, window.scrollY + top - BARS - 40), behavior: 'instant' });
+        if (now) {
+          el.setAttribute('data-quiet', '');
+          flushSync(measureViewport);
+          clearTimeout(quietTimer.current);
+          quietTimer.current = setTimeout(() => el.removeAttribute('data-quiet'), 700);
+        }
+        r = el.getBoundingClientRect();
+      }
+      return { left: r.left + x.x, top: r.top + x.y, width: x.w, height: x.h };
+    },
+  }), [measureViewport]);
+  useEffect(() => () => clearTimeout(quietTimer.current), []);
+
   // stable handlers: tiles are memoised, they find their file through data-file-id
   const h = useRef({});
   h.current.tile = tile;
@@ -178,6 +247,7 @@ export function Grid({ data, arranged, view, onView, selection, arrived, focus, 
         <div key={b.key} className={s.box} style={{ '--c': colorOf(b.section), transform: `translate(${b.x}px, ${b.y}px)`, width: b.w, height: b.h }}
           data-none={b.section === NONE || undefined} data-open-left={b.open.left || undefined} data-open-right={b.open.right || undefined}
           data-hot={hot === b.section || undefined} data-target={(target?.section === b.section && dragging?.kind === 'files') || undefined}
+          data-flash={(flash?.key === b.section && flash.at) || undefined}
           data-lifted={(dragging?.kind === 'section' && dragging.key === b.section) || undefined}
           onPointerEnter={() => setHot(b.section)}>
           {b.empty && <span className={s.emptyDrop}><Icon name="drag-drop" size={18} />{t('group.section.dropHere')}</span>}
@@ -194,7 +264,6 @@ export function Grid({ data, arranged, view, onView, selection, arrived, focus, 
       })}
 
       {shown.map((x) => {
-        if (x.kind === 'more') return <MoreTile key={x.key} x={x} sec={full.get(x.section)} limit={view.limit} onShow={() => onView({ expanded: toggled(view.expanded, x.section, true) })} />;
         if (x.kind === 'capsule') return <Capsule key={x.key} x={x} sec={full.get(x.section)} color={colorOf(x.section)} onUnfold={() => onView({ collapsed: toggled(view.collapsed, x.section, false) })} />;
         const f = files.get(x.id);
         return f && (
@@ -263,56 +332,66 @@ const Tile = memo(function Tile({ x, file, quality, selected, selecting, carried
   );
 });
 
-/** A colour group's heading: its colour, name and size; fold it, show all of it, drag it to a new place. */
+/**
+ * A colour group's heading, inside the top of its box (one or two per row) or of its band (flowing, a slimmer one):
+ * its colour, name and size; held to a number, how many more it has — pressing that shows all of it, and once shown
+ * whole it offers to go back to the number; fold it; drag it to a new place. A run carried on from the row above
+ * says so, with the name alone.
+ */
 function Heading({ hd, sec, name, color, view, onView, draggable, onDrag, lifted, onHot }) {
   const t = useT();
   const fmt = useFormat();
-  const fold = () => onView({ collapsed: toggled(view.collapsed, sec.key, !sec.collapsed) });
-  const held = view.limited && sec.expanded && sec.total > view.limit;
+  const slim = hd.kind !== 'head';
   const style = { '--c': color, transform: `translate(${hd.x}px, ${hd.y}px)`, width: hd.w, height: hd.h };
-  if (hd.kind !== 'head') {
+  const common = {
+    style, 'data-slim': slim || undefined, 'data-lifted': lifted || undefined, 'data-none': sec.key === NONE || undefined,
+    'data-grab': draggable || undefined, onPointerDown: draggable ? onDrag : undefined, onPointerEnter: onHot,
+  };
+  if (hd.kind === 'cont') {
     return (
-      <div className={s.tab} data-cont={hd.kind === 'cont' || undefined} data-lifted={lifted || undefined} data-none={sec.key === NONE || undefined} style={style}
-        onPointerDown={draggable ? onDrag : undefined} onPointerEnter={onHot} data-grab={draggable || undefined}>
-        {hd.kind === 'cont'
-          ? <Tooltip label={t('group.section.continued')}><span className={s.tabName}><Icon name="wrap" size={13} className={s.wrapIcon} />{name}</span></Tooltip>
-          : <span className={s.tabName}><i className={s.dot} />{name}<span className={`${s.tabCount} num`}>{fmt.number(sec.total)}</span></span>}
-        {hd.kind === 'tab' && (
-          <span className={s.tabTools}>
-            {held && <IconTip icon="chevron-up" label={t('group.section.showLess', { n: view.limit })} onClick={() => onView({ expanded: toggled(view.expanded, sec.key, false) })} />}
-            <IconTip icon={sec.collapsed ? 'chevron-down' : 'minus'} label={sec.collapsed ? t('group.section.unfold') : t('group.section.fold')} onClick={fold} />
-          </span>
-        )}
+      <div className={s.head} data-cont="" {...common}>
+        <Tooltip label={t('group.section.continued')}>
+          <span className={s.cont}><Icon name="wrap" size={13} className={s.wrapIcon} /><span className={s.name}>{name}</span></span>
+        </Tooltip>
       </div>
     );
   }
-  const peek = sec.collapsed ? sec.files.slice(0, 6) : [];
+  const fold = () => onView({ collapsed: toggled(view.collapsed, sec.key, !sec.collapsed) });
+  const showAll = () => onView({ expanded: toggled(view.expanded, sec.key, true) });
+  const showLess = () => onView({ expanded: toggled(view.expanded, sec.key, false) });
+  const held = view.limited && sec.expanded && sec.total > view.limit;   // shown whole although the page holds groups to a number
+  const peek = sec.collapsed && !slim ? sec.files.slice(0, 6) : [];
   return (
-    <div className={s.head} style={style} data-lifted={lifted || undefined} data-none={sec.key === NONE || undefined} data-grab={draggable || undefined}
-      onPointerDown={draggable ? onDrag : undefined} onPointerEnter={onHot}>
-      {draggable && <Icon name="grip" size={15} className={s.grip} />}
+    <div className={s.head} {...common}>
+      {draggable && !slim && <Icon name="grip" size={15} className={s.grip} />}
       <i className={s.dot} />
       <span className={s.name}>{name}</span>
       <span className={`${s.count} num`}>{fmt.number(sec.total)}</span>
+      {/* held to a number: how many more, right by the size — pressing it shows them; shown whole, it goes back */}
+      {sec.limited && !sec.collapsed && (
+        <Tooltip label={t('group.section.showAll', { n: fmt.number(sec.total) })}>
+          <button type="button" className={s.moreChip} onClick={showAll} aria-label={t('group.section.showAll', { n: fmt.number(sec.total) })}>
+            <span className="num">+{fmt.number(sec.total - view.limit)}</span>
+          </button>
+        </Tooltip>
+      )}
+      {held && !sec.collapsed && (
+        <Tooltip label={t('group.section.showLess', { n: fmt.number(view.limit) })}>
+          <button type="button" className={s.moreChip} data-held="" onClick={showLess} aria-label={t('group.section.showLess', { n: fmt.number(view.limit) })}>
+            <Icon name="chevron-up" size={13} stroke={2} /><span className="num">{fmt.number(view.limit)}</span>
+          </button>
+        </Tooltip>
+      )}
       {peek.length > 0 && (
         <span className={s.peek} aria-hidden="true">
           {peek.map((f, k) => <img key={f.id} src={mediaUrl(f, 'low')} alt="" draggable={false} loading="lazy" style={{ '--k': k }} />)}
         </span>
       )}
       <span className={s.headTools}>
-        {sec.limited && !sec.collapsed && (
-          <button type="button" className={s.textBtn} onClick={() => onView({ expanded: toggled(view.expanded, sec.key, true) })}>
-            {t('group.section.showAll', { n: fmt.number(sec.total) })}
-          </button>
-        )}
-        {held && !sec.collapsed && (
-          <button type="button" className={s.textBtn} onClick={() => onView({ expanded: toggled(view.expanded, sec.key, false) })}>
-            {t('group.section.showLess', { n: view.limit })}
-          </button>
-        )}
         <Tooltip label={sec.collapsed ? t('group.section.unfold') : t('group.section.fold')}>
-          <button type="button" className={s.foldBtn} data-folded={sec.collapsed || undefined} onClick={fold} aria-expanded={!sec.collapsed}>
-            <Icon name="chevron-down" size={16} />
+          <button type="button" className={s.foldBtn} data-folded={sec.collapsed || undefined} onClick={fold} aria-expanded={!sec.collapsed}
+            aria-label={sec.collapsed ? t('group.section.unfold') : t('group.section.fold')}>
+            <Icon name="chevron-down" size={slim ? 14 : 16} />
           </button>
         </Tooltip>
       </span>
@@ -320,44 +399,21 @@ function Heading({ hd, sec, name, color, view, onView, draggable, onDrag, lifted
   );
 }
 
-function IconTip({ icon, label, onClick }) {
-  return (
-    <Tooltip label={label}>
-      <button type="button" className={s.tabBtn} onClick={onClick} aria-label={label}><Icon name={icon} size={13} /></button>
-    </Tooltip>
-  );
-}
-
-/** The files a colour group held to a number keeps back: a small fan of the next ones, and how many. */
-function MoreTile({ x, sec, limit, onShow }) {
-  const t = useT();
-  const fmt = useFormat();
-  const next = sec?.files.slice(limit, limit + 3) ?? [];
-  return (
-    <button type="button" className={s.moreTile} style={{ transform: `translate(${x.x}px, ${x.y}px)`, width: x.w, height: x.h }} onClick={onShow}>
-      <span className={s.fan} aria-hidden="true">
-        {next.map((f, k) => <img key={f.id} src={mediaUrl(f, 'low')} alt="" draggable={false} loading="lazy" style={{ '--k': k, '--n': next.length }} />)}
-      </span>
-      <span className={`${s.moreCount} num`}>+{fmt.number(x.count)}</span>
-      <span className={s.moreLabel}>{t('group.section.showAll', { n: fmt.number(sec?.total ?? 0) })}</span>
-    </button>
-  );
-}
-
-/** A folded (or empty) colour group in the flowing layout: it keeps its place in the flow as one small card. */
+/**
+ * A folded (or empty) colour group in the flowing layout: it keeps its place in the flow as one slim card under its
+ * heading — a few of its pictures fanned, pressing it unfolds it; an empty one takes files dropped on it.
+ */
 function Capsule({ x, sec, color, onUnfold }) {
   const t = useT();
-  const fmt = useFormat();
   const style = { '--c': color, transform: `translate(${x.x}px, ${x.y}px)`, width: x.w, height: x.h };
   if (!sec?.total) return <div className={s.capsule} data-empty="" style={style}><Icon name="drag-drop" size={18} /><span>{t('group.section.dropHere')}</span></div>;
   const peek = sec.files.slice(0, 3);
   return (
-    <button type="button" className={s.capsule} style={style} onClick={onUnfold}>
+    <button type="button" className={s.capsule} style={style} onClick={onUnfold} aria-label={t('group.section.unfold')}>
       <span className={s.fan} aria-hidden="true">
         {peek.map((f, k) => <img key={f.id} src={mediaUrl(f, 'low')} alt="" draggable={false} loading="lazy" style={{ '--k': k, '--n': peek.length }} />)}
       </span>
-      <span className={`${s.moreCount} num`}>{fmt.number(x.count)}</span>
-      <span className={s.moreLabel}>{t('group.section.unfold')}</span>
+      <span className={s.capLabel}><Icon name="chevron-down" size={13} stroke={2} />{t('group.section.unfold')}</span>
     </button>
   );
 }

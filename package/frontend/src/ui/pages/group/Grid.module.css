@@ -2,10 +2,10 @@
 .grid[data-resizing] *, .grid[data-resizing] { transition: none !important; }
 
 /* everything is placed by translate() from the computed layout, and glides when the layout changes */
-.tile, .box, .head, .tab, .moreTile, .capsule { position: absolute; top: 0; left: 0; }
-.tile, .moreTile, .capsule { transition: transform 480ms var(--ease-out), width 480ms var(--ease-out), height 480ms var(--ease-out), opacity 300ms var(--ease-out); }
+.tile, .box, .head, .capsule { position: absolute; top: 0; left: 0; }
+.tile, .capsule { transition: transform 480ms var(--ease-out), width 480ms var(--ease-out), height 480ms var(--ease-out), opacity 300ms var(--ease-out); }
 .box { transition: transform 480ms var(--ease-out), width 480ms var(--ease-out), height 480ms var(--ease-out), background-color 260ms, box-shadow 260ms, opacity 260ms; }
-.head, .tab { transition: transform 480ms var(--ease-out), width 480ms var(--ease-out), opacity 260ms; }
+.head { transition: transform 480ms var(--ease-out), width 480ms var(--ease-out), height 480ms var(--ease-out), opacity 260ms; }
 
 /* ------------------------------------------------------------------ a file */
 .tile {
@@ -17,6 +17,8 @@
   outline: none;
 }
 @keyframes tileIn { from { opacity: 0; } }
+/* tiles drawn the moment the lightbox closes onto them are simply there (see Grid: revealFile) */
+.grid[data-quiet] .tile { animation-duration: 0s; }
 .frame {
   position: absolute;
   inset: 0;
@@ -129,7 +131,13 @@
 .box[data-hot] { background: color-mix(in srgb, var(--c) 12%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 36%, transparent) inset; }
 .box[data-none][data-hot] { background: color-mix(in srgb, var(--ink) 4%, transparent); box-shadow: 0 0 0 1px var(--line-2) inset; }
 .box[data-target] { background: color-mix(in srgb, var(--c) 17%, transparent); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--c) 72%, transparent) inset, 0 0 0 5px color-mix(in srgb, var(--c) 12%, transparent); }
-.box[data-lifted], .head[data-lifted], .tab[data-lifted] { opacity: 0.45; }
+.box[data-lifted], .head[data-lifted] { opacity: 0.45; }
+/* chosen in the toolbar's strip: it lights up once as it comes into view */
+.box[data-flash] { animation: boxFlash 1.6s var(--ease-out); }
+@keyframes boxFlash {
+  0%, 100% { }
+  28% { background: color-mix(in srgb, var(--c) 20%, transparent); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--c) 70%, transparent) inset, 0 0 0 6px color-mix(in srgb, var(--c) 13%, transparent); }
+}
 /* a run that goes on in the next row: its band runs out at the edge, and comes back in at the next row's start */
 .box[data-open-right] { border-top-right-radius: 0; border-bottom-right-radius: 0; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); }
 .box[data-open-left] { border-top-left-radius: 0; border-bottom-left-radius: 0; -webkit-mask-image: linear-gradient(270deg, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(270deg, #000 calc(100% - 36px), transparent); }
@@ -151,13 +159,13 @@
   font-size: 13px;
 }
 
-/* ------------------------------------------------------------------ headings (one or two per row) */
+/* ------------------------------------------------------------------ headings: inside the top of every box and band */
 .head { z-index: 1; display: flex; align-items: center; gap: 9px; padding: 0 8px 0 16px; min-width: 0; user-select: none; }
-.head[data-grab], .tab[data-grab] { cursor: grab; }
+.head[data-grab] { cursor: grab; }
 .grip { flex-shrink: 0; margin: 0 -4px 0 -10px; color: var(--ink-4); opacity: 0; transition: opacity 160ms; }
 .head:hover .grip { opacity: 1; }
 .dot { flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 20%, transparent); }
-.head[data-none] .dot, .tab[data-none] .dot { background: transparent; box-shadow: 0 0 0 1.5px var(--ink-4) inset; }
+.head[data-none] .dot { background: transparent; box-shadow: 0 0 0 1.5px var(--ink-4) inset; }
 .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; font-weight: 560; }
 .count { flex-shrink: 0; font-size: 12.5px; color: var(--ink-3); }
 .peek { display: inline-flex; align-items: center; margin-left: 8px; padding-left: 6px; min-width: 0; overflow: hidden; }
@@ -173,45 +181,71 @@
   animation-delay: calc(var(--k) * 35ms);
 }
 @keyframes peekIn { from { opacity: 0; transform: translateX(-6px) scale(0.85); } }
-.headTools { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-shrink: 0; }
-.textBtn { height: 26px; padding: 0 9px; border-radius: var(--r-2); font-size: 12.5px; font-weight: 540; color: var(--ink-2); transition: background-color var(--dur-1), color var(--dur-1); }
-.textBtn:hover { background: var(--hover); color: var(--ink); }
-.foldBtn { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-2); color: var(--ink-3); transition: background-color var(--dur-1), color var(--dur-1); }
+.headTools { display: flex; align-items: center; gap: 4px; margin-left: auto; flex-shrink: 0; }
+.foldBtn { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-2); color: var(--ink-3); transition: background-color var(--dur-1), color var(--dur-1), opacity 160ms; }
 .foldBtn:hover { background: var(--hover); color: var(--ink); }
 .foldBtn svg { transition: transform 320ms var(--ease-out); }
 .foldBtn[data-folded] svg { transform: rotate(-90deg); }
 
-/* ------------------------------------------------------------------ tabs (flowing layout): a small label above each run */
-.tab { z-index: 1; display: flex; align-items: center; gap: 4px; padding: 0 2px 0 8px; min-width: 0; font-size: 12.5px; user-select: none; }
-.tabName { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; color: var(--ink-2); font-weight: 540; }
-.tabName .dot { width: 8px; height: 8px; box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--c) 20%, transparent); }
-.tab[data-cont] { padding-left: 6px; }
-.tab[data-cont] .tabName { color: var(--ink-3); font-weight: 500; }
-.wrapIcon { flex-shrink: 0; color: color-mix(in srgb, var(--c) 80%, var(--ink-3)); }
-.tabCount { color: var(--ink-3); font-weight: 450; }
-.tabTools { display: flex; margin-left: auto; opacity: 0; transition: opacity 160ms; }
-.tab:hover .tabTools { opacity: 1; }
-.tabBtn { display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--r-1); color: var(--ink-3); }
-.tabBtn:hover { background: var(--hover); color: var(--ink); }
+/* how many more a colour group held to a number has; pressing it shows them all (and, shown whole, goes back) */
+.moreChip {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  margin-left: 2px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--r-2);
+  font-size: 12.5px;
+  font-weight: 620;
+  color: color-mix(in srgb, var(--c) 62%, var(--ink));
+  background: color-mix(in srgb, var(--c) 15%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent) inset;
+  white-space: nowrap;
+  transition: background-color var(--dur-1), box-shadow var(--dur-1), color var(--dur-1), transform var(--dur-1) var(--ease-out);
+}
+.moreChip:hover { color: var(--ink); background: color-mix(in srgb, var(--c) 26%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 52%, transparent) inset; }
+.moreChip:active { transform: scale(0.95); }
+.moreChip[data-held] { padding: 0 8px 0 5px; color: var(--ink-2); background: transparent; box-shadow: 0 0 0 1px var(--line-2) inset; }
+.moreChip[data-held]:hover { color: var(--ink); background: var(--hover); box-shadow: 0 0 0 1px var(--ink-4) inset; }
+.head[data-none] .moreChip:not([data-held]) { color: var(--ink-2); background: var(--hover); box-shadow: 0 0 0 1px var(--line-2) inset; }
 
-/* ------------------------------------------------------------------ the "+N" tile, and folded colour groups in the flow */
-.moreTile, .capsule {
+/* the flowing layout's slimmer heading, inside the top of its band */
+.head[data-slim] { gap: 6px; padding: 0 4px 0 9px; font-size: 12.5px; }
+.head[data-slim] .dot { width: 8px; height: 8px; box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--c) 20%, transparent); }
+.head[data-slim] .name { font-size: 12.5px; font-weight: 560; color: var(--ink-2); }
+.head[data-slim] .count { font-size: 11.5px; }
+.head[data-slim] .headTools { gap: 2px; }
+.head[data-slim] .moreChip { height: 20px; padding: 0 6px; font-size: 11.5px; }
+.head[data-slim] .moreChip[data-held] { padding: 0 6px 0 3px; }
+.head[data-slim] .foldBtn { width: 22px; height: 22px; border-radius: var(--r-1); opacity: 0; }
+.head[data-slim]:hover .foldBtn, .head[data-slim] .foldBtn:focus-visible { opacity: 1; }
+/* carried on from the row above: the name alone, quieter, coming in through the band's open start */
+.head[data-cont] { padding-left: 8px; }
+.cont { display: inline-flex; align-items: center; gap: 5px; min-width: 0; color: var(--ink-3); }
+.cont .name { color: var(--ink-3); font-weight: 500; }
+.wrapIcon { flex-shrink: 0; color: color-mix(in srgb, var(--c) 80%, var(--ink-3)); }
+
+/* ------------------------------------------------------------------ a folded (or empty) colour group in the flow */
+.capsule {
+  --c: var(--ink-3);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 10px;
   overflow: hidden;
   border-radius: var(--r-2);
-  background: color-mix(in srgb, var(--field) 80%, transparent);
-  box-shadow: 0 0 0 1px var(--line) inset;
+  background: color-mix(in srgb, var(--c) 10%, var(--bg));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 28%, transparent) inset;
   color: var(--ink-2);
   animation: tileIn 460ms var(--ease-out) both;
+  transition: transform 480ms var(--ease-out), width 480ms var(--ease-out), height 480ms var(--ease-out), background-color var(--dur-2), box-shadow var(--dur-2);
 }
-.moreTile:hover, .capsule:hover { background: var(--bg-raised); color: var(--ink); box-shadow: 0 0 0 1px var(--line-2) inset, var(--shadow-1); }
-.capsule { --c: var(--ink-3); background: color-mix(in srgb, var(--c) 10%, var(--bg)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent) inset; }
+.capsule:hover { background: color-mix(in srgb, var(--c) 16%, var(--bg-raised)); color: var(--ink); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 46%, transparent) inset, var(--shadow-1); }
 .capsule[data-empty] { flex-direction: row; gap: 8px; padding: 0 10px; background: transparent; box-shadow: none; border: 1.5px dashed color-mix(in srgb, var(--c) 45%, var(--line-2)); font-size: 12.5px; color: var(--ink-3); text-align: center; }
-.fan { position: relative; flex-shrink: 0; width: min(46%, 96px); aspect-ratio: 1; margin-bottom: 8px; }
+.fan { position: relative; flex-shrink: 0; width: min(54%, 72px); aspect-ratio: 1; }
 .fan img {
   position: absolute;
   inset: 0;
@@ -224,10 +258,10 @@
   transform: translateX(calc(var(--d) * 14%)) rotate(calc(var(--d) * 8deg));
   transition: transform 420ms var(--ease-back);
 }
-.moreTile:hover .fan img, .capsule:hover .fan img { transform: translateX(calc(var(--d) * 26%)) translateY(-3px) rotate(calc(var(--d) * 12deg)); }
-.moreCount { font-size: 18px; font-weight: 640; letter-spacing: -0.01em; color: var(--ink); }
-.moreLabel { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
-.moreTile:not(:hover) .moreLabel { opacity: 0.85; }
+.capsule:hover .fan img { transform: translateX(calc(var(--d) * 24%)) translateY(-3px) rotate(calc(var(--d) * 12deg)); }
+.capLabel { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 540; white-space: nowrap; }
+.capLabel svg { transition: transform 320ms var(--ease-out); }
+.capsule:hover .capLabel svg { transform: translateY(2px); }
 
 /* ------------------------------------------------------------------ dragging */
 .marker {

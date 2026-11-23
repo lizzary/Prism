@@ -56,7 +56,12 @@ export function useRoute() {
       if (r.fileId && !parse(from).fileId) openedFrom = from;
       if (!r.fileId) openedFrom = null;
       // within one page (its lightbox opening, stepping, closing) the page stays where it is
-      startTransition(() => setRoute((prev) => (keyOf(r) === prev.key ? { ...r, key: prev.key, scroll: prev.scroll } : { ...r, key: keyOf(r), scroll })));
+      const update = () => setRoute((prev) => (keyOf(r) === prev.key ? { ...r, key: prev.key, scroll: prev.scroll } : { ...r, key: keyOf(r), scroll }));
+      // A new page is a transition: the old one stays until the new one is ready, and the two cross-fade. Within a
+      // page it is not — a transition would snapshot the whole document, lifting the named top bar (and the page's
+      // cover) above the lightbox until it ended; the lightbox animates itself.
+      if (keyOf(r) === keyOf(parse(from))) update();
+      else startTransition(update);
     };
     window.addEventListener('hashchange', onChange);
     return () => window.removeEventListener('hashchange', onChange);

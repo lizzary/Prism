@@ -43,6 +43,8 @@ export const libraryActions = {
 // ------------------------------------------------------------------ a group's page
 /** The browsing order (sort, colour groups, limits, pages) and its settings — see data/domain/arrange.js. */
 export const browsing = api.browsing;
+/** Putting colour groups in order: move several together, a step at a time, sort all at once — data/domain/colorOrder.js. */
+export const colorOrder = api.colorOrder;
 /**
  * A group's page, kept fresh by asking again every few seconds (see feed.js). Suspends until the first answer.
  * → { data: { rev, group, configs, activeConfigId, order, files, view }, clock, arrived }

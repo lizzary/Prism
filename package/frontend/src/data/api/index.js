@@ -8,8 +8,9 @@ import { acceptable, probe, renderDownload } from '../mock/files.js';
 import { QUALITIES, FILE_KINDS } from '../domain/files.js';
 import { stripIllegal, validateTemplate } from '../domain/filename.js';
 import {
-  arrange, placeBatch, pageOf, NONE, DEFAULT_VIEW, SORTS, QUALITY_LEVELS, LAYOUTS, PAGE_SIZES, SIZE_LEVELS, SLIDE_SECONDS,
+  arrange, placeBatch, pageOf, pageOfSection, NONE, DEFAULT_VIEW, SORTS, QUALITY_LEVELS, LAYOUTS, PAGE_SIZES, SIZE_LEVELS, SLIDE_RANGE, SLIDE_SECONDS,
 } from '../domain/arrange.js';
+import { COLOR_SORTS, findInName, moveTogether, sortColorGroups, stepTogether } from '../domain/colorOrder.js';
 
 export { FILE_KINDS };
 
@@ -112,9 +113,10 @@ export const homeView = {
 /**
  * A colour-group configuration: { id, name, groups: [{ id, name, color }] } — a group can keep several and gathers
  * its files by one (activeConfigId). A file's `colors` maps a configuration to the colour group it is in there.
- * Page settings (view): { sort: 'created' | 'resolution' | 'size' | 'custom', dir: 'asc' | 'desc', size: 1–5,
- *   natural (own proportions, or square), quality, layout: 'single' | 'double' | 'mixed', limited, limit, pageSize (0: all),
- *   collapsed: [section key], expanded: [section key], slide (seconds per slide) } — see domain/arrange.js.
+ * Page settings (view): { sort: 'created' | 'resolution' | 'size' | 'custom', dir: 'asc' | 'desc', size: 1–5 (10, 8, 6, 4 or
+ *   2 tiles across the full width of a row), natural (own proportions, or square), quality, layout: 'single' | 'double' |
+ *   'mixed', limited, limit, pageSize (0: all), collapsed: [section key], expanded: [section key], slide (whole seconds
+ *   per slide, 1–300), outline (the colour-group outline beside the files is open) } — see domain/arrange.js.
  */
 export const groupPage = {
   /**
@@ -179,7 +181,9 @@ export const files = {
 };
 
 /** The browsing order of a group's page — the rules live in domain/arrange.js. */
-export const browsing = { arrange, placeBatch, pageOf, NONE, DEFAULT_VIEW, SORTS, QUALITY_LEVELS, LAYOUTS, PAGE_SIZES, SIZE_LEVELS, SLIDE_SECONDS };
+export const browsing = { arrange, placeBatch, pageOf, pageOfSection, NONE, DEFAULT_VIEW, SORTS, QUALITY_LEVELS, LAYOUTS, PAGE_SIZES, SIZE_LEVELS, SLIDE_RANGE, SLIDE_SECONDS };
+/** Putting a configuration's colour groups in order (move several together, a step at a time, sort all) — domain/colorOrder.js. */
+export const colorOrder = { moveTogether, stepTogether, sortColorGroups, findInName, COLOR_SORTS };
 
 // ------------------------------------------------------------------ media
 export const media = {
@@ -209,7 +213,7 @@ export const search = {
   capabilities: () => call('read', backend.searchCapabilities),
   /**
    * input: { text, domains: { tags, positive, negative, semantic, similar, groups: [id], colorGroups: [id] }, image: token }
-   * → { total, terms, groups: [{ id, name, fileCount, cover, ranges }], colorGroups: [{ id, name, color, config, group, fileCount, ranges }],
+   * → { total, terms, groups: [{ id, name, fileCount, cover, ranges }], colorGroups: [{ id, name, color, config (its configuration's name), configId, group, fileCount, ranges }],
    *     files: [{ file: ref, group, matched: ['tags' | 'positive' | 'negative' | 'semantic' | 'similar'], tag, prompt, similarity }] }
    */
   query: (input) => call('read', () => backend.search(input)),

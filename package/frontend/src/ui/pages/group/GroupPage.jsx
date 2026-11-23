@@ -23,6 +23,8 @@ import { SelectionBar } from './SelectionBar.jsx';
 import { DropUpload } from './DropUpload.jsx';
 import { DeleteFiles, MoveFiles, Reindex } from './dialogs.jsx';
 import { Lightbox } from './lightbox/Lightbox.jsx';
+import { Outline } from './Outline.jsx';
+import { colorArrival } from '../../lib/arrival.js';
 import s from './GroupPage.module.css';
 
 const { NONE } = browsing;
@@ -44,9 +46,10 @@ export function GroupPage({ id, fileId }) {
     return () => ro.disconnect();
   }, [data.group?.id]);
   const group = data.group;
+  // the page uses the whole width (the files want all the room they can get); the top bar spans it with them
   usePageMeta(group
-    ? { scope: 'group', groupId: id, overArt: !!group.cover, artHeight, crumbs: [{ label: group.name }] }
-    : { scope: 'group', groupId: id, overArt: false, artHeight: 0 });
+    ? { scope: 'group', groupId: id, overArt: !!group.cover, artHeight, wide: true, crumbs: [{ label: group.name }] }
+    : { scope: 'group', groupId: id, overArt: false, artHeight: 0, wide: true });
   if (!group) return <NotFound title={t('group.notFound')} />;
   return <GroupView key={id} id={id} fileId={fileId} data={data} clock={clock} arrived={arrived} bannerRef={banner} />;
 }
@@ -83,6 +86,27 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
   const [selection, setSelection] = useState(() => new Set());
   const anchor = useRef(null);
   const pageIds = useMemo(() => arranged.page.sections.flatMap((x) => x.files.map((f) => f.id)), [arranged.page.sections]);
+
+  // ------------------------------------------------------------------ the lightbox's order: what the page shows
+  // The lightbox and its slideshow walk exactly the files on show here, in the page's order — nothing from a folded
+  // colour group, past a colour group's limit or on another page — so the page decides what plays, and in what order.
+  const shownFiles = useMemo(() => arranged.page.sections.flatMap((x) => x.files), [arranged.page.sections]);
+  const lightboxFiles = useMemo(() => {
+    if (!fileId || shownFiles.some((f) => f.id === fileId)) return shownFiles;
+    // a file opened from elsewhere (the home page's last viewed, a random one) that the page does not show: it is
+    // looked at in its place in the group's order, among the files on show; stepping away from it leaves it behind
+    const at = arranged.sequence.findIndex((f) => f.id === fileId);
+    if (at < 0) return shownFiles;
+    const before = new Set(arranged.sequence.slice(0, at).map((f) => f.id));
+    const k = shownFiles.filter((f) => before.has(f.id)).length;
+    return [...shownFiles.slice(0, k), arranged.sequence[at], ...shownFiles.slice(k)];
+  }, [shownFiles, fileId, arranged.sequence]);
+  // opened from elsewhere on another page of this one: the page turns to it, so it is among the files on show
+  useLayoutEffect(() => {
+    if (!fileId || shownFiles.some((f) => f.id === fileId)) return;
+    const p = browsing.pageOf(arranged, view, fileId);
+    if (p && p !== arranged.page.index) setPage(p);
+  }, [fileId]); // eslint-disable-line react-hooks/exhaustive-deps
   // files that leave the group leave the selection too
   useEffect(() => {
     setSelection((cur) => {
@@ -109,6 +133,9 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
   if (ask) asked.current = ask;                       // what a closing dialog keeps showing
   const [menu, setMenu] = useState(null);             // { id, anchor | at }
   const [focus, setFocus] = useState(null);           // a file to bring into view: { id, at }
+  const grid = useRef(null);                          // the grid's own ways in (revealFile)
+  const [seen, setSeen] = useState([]);               // the colour groups on screen (the toolbar's strip follows them)
+  const [reveal, setReveal] = useState(null);         // a colour group to bring into view: { key, at }
   const picker = useRef(null);
 
   const openFile = (fid) => navigate(paths.file(id, fid));
@@ -187,11 +214,43 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
     const next = moveTo(keys, key, index);
     if (next.join() !== keys.join()) groupActions.reorderColorGroups(id, data.activeConfigId, next);
   };
+  /** A new order for the colour groups (from the outline). `note`: say so, with a way back (sorting, a batch moved far). */
+  const orderColors = (next, note) => {
+    const before = arranged.sections.filter((x) => x.key !== NONE).map((x) => x.key);
+    if (next.join() === before.join()) return;
+    const config = data.activeConfigId;
+    groupActions.reorderColorGroups(id, config, next);
+    if (note) toast(note, { icon: 'sort', action: { label: t('common.undo'), onClick: () => groupActions.reorderColorGroups(id, config, before) } });
+  };
+
+  // ------------------------------------------------------------------ the colour-group outline beside the files
+  const outlineOpen = arranged.grouped && view.outline;
+  const [outlineFocus, setOutlineFocus] = useState(0);   // a moment to put the cursor in its find field
+  const showOutline = () => { if (!view.outline) setView({ outline: true }); setOutlineFocus(Date.now()); };
+
+  // a colour group chosen in search: its configuration put to use if it is not, then the page goes to it (once the
+  // page has settled in, so arriving from elsewhere does not scroll under the page change)
+  const [arrival, setArrival] = useState(null);
+  useEffect(() => {
+    const check = () => { const p = colorArrival.take(id); if (p) setArrival(p); };
+    check();
+    return colorArrival.subscribe(check);
+  }, [id]);
+  useEffect(() => {
+    if (!arrival) return undefined;
+    if (arrival.configId && arrival.configId !== data.activeConfigId && data.configs.some((c) => c.id === arrival.configId)) {
+      groupActions.setActiveConfig(id, arrival.configId);
+      return undefined;
+    }
+    if (!arranged.sections.some((x) => x.key === arrival.colorId)) return undefined;
+    const timer = setTimeout(() => { jumpTo(arrival.colorId); setArrival(null); }, 380);
+    return () => clearTimeout(timer);
+  }, [arrival, data.activeConfigId, arranged.sections]); // eslint-disable-line react-hooks/exhaustive-deps
   const hold = useCallback(() => holdGroupPage(id), [id]);
 
   // ------------------------------------------------------------------ keys: Ctrl A chooses the page, Escape lets go, Delete deletes
   const keys = useRef(null);
-  keys.current = { selection, selectPage, clear, ask: (ids) => setAsk({ kind: 'delete', ids }) };
+  keys.current = { selection, selectPage, clear, ask: (ids) => setAsk({ kind: 'delete', ids }), outline: arranged.grouped ? showOutline : null };
   useEffect(() => {
     const onKey = (e) => {
       // a menu or popover open over the page has the keys first (Escape closes it, and only it)
@@ -200,6 +259,8 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') { e.preventDefault(); k.selectPage(); }
       else if (e.key === 'Escape' && k.selection.size) k.clear();
       else if ((e.key === 'Delete' || e.key === 'Backspace') && k.selection.size) { e.preventDefault(); k.ask([...k.selection]); }
+      // G: find a colour group — the outline opens (if it is not open) with the cursor in its find field
+      else if ((e.key === 'g' || e.key === 'G') && !e.ctrlKey && !e.metaKey && !e.altKey && k.outline) { e.preventDefault(); k.outline(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -244,6 +305,11 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
     const top = (filesRef.current?.getBoundingClientRect().top ?? 0) + window.scrollY - 140;
     if (window.scrollY > top) window.scrollTo({ top, behavior: 'smooth' });
   };
+  const jumpTo = (key) => {
+    const p = browsing.pageOfSection(arranged, view, key);
+    if (p && p !== arranged.page.index) setPage(p);
+    setReveal({ key, at: Date.now() });
+  };
   const closeLightbox = (lastId) => {
     const p = browsing.pageOf(arranged, view, lastId);
     if (p && p !== arranged.page.index) setPage(p);
@@ -286,7 +352,8 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
         <section ref={filesRef} className={s.files}>
           <div ref={sentinel} aria-hidden="true" />
           <div className={s.toolbar} data-stuck={stuck || undefined}>
-            <Toolbar data={data} arranged={arranged} view={view} setView={setView} clock={clock} arrived={arrived} stuck={stuck}
+            <Toolbar data={data} arranged={arranged} view={view} setView={setView} clock={clock} arrived={arrived} stuck={stuck} seen={seen} onJump={jumpTo}
+              outline={outlineOpen} onOutline={() => (outlineOpen ? setView({ outline: false }) : showOutline())}
               onRefresh={() => refreshGroupPage(id)} onUpload={() => picker.current?.click()} onWhiteboard={() => toast(t('common.notYet'), { icon: 'whiteboard' })}
               onEditColors={() => open('colorGroups', { groupId: id })} onUseConfig={(cfg) => groupActions.setActiveConfig(id, cfg)} />
           </div>
@@ -296,10 +363,19 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
               <CompactPager page={arranged.page.index} pageCount={arranged.page.count} onChange={goPage} labels={pagerLabels} />
             </div>
           )}
-          <Grid data={data} arranged={arranged} view={view} onView={setView} selection={selection} arrived={arrived} focus={focus} hold={hold}
-            tile={{ open: openFile, toggle, range, menu: (fid, where) => setMenu(where instanceof Element ? { id: fid, anchor: where } : { id: fid, at: where }) }}
-            onDropFiles={onDropFiles} onDropSection={onDropSection} />
-          {paged && <Pagination className={s.pager} page={arranged.page.index} pageCount={arranged.page.count} onChange={goPage} labels={pagerLabels} />}
+          <div className={s.body}>
+            {outlineOpen && (
+              <Outline sections={arranged.sections} seen={seen} view={view} setView={setView} onJump={jumpTo} onOrder={orderColors}
+                onClose={() => setView({ outline: false })} focusAt={outlineFocus} />
+            )}
+            <div className={s.main}>
+              <Grid ref={grid} data={data} arranged={arranged} view={view} onView={setView} selection={selection} arrived={arrived} focus={focus} hold={hold}
+                reveal={reveal} onSeen={setSeen}
+                tile={{ open: openFile, toggle, range, menu: (fid, where) => setMenu(where instanceof Element ? { id: fid, anchor: where } : { id: fid, at: where }) }}
+                onDropFiles={onDropFiles} onDropSection={onDropSection} />
+              {paged && <Pagination className={s.pager} page={arranged.page.index} pageCount={arranged.page.count} onChange={goPage} labels={pagerLabels} />}
+            </div>
+          </div>
         </section>
       )}
 
@@ -317,8 +393,8 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
         onCancel={() => setAsk(null)} onConfirm={() => shownAsk.commit()} />
 
       {fileId && (
-        <Lightbox key={id} groupId={id} fileId={fileId} group={group} sequence={arranged.sequence} quality={view.quality}
-          slide={view.slide} onSlide={(sec) => setView({ slide: sec })} onClose={closeLightbox}
+        <Lightbox key={id} groupId={id} fileId={fileId} group={group} sequence={lightboxFiles} quality={view.quality}
+          slide={view.slide} onSlide={(sec) => setView({ slide: sec })} onClose={closeLightbox} onReveal={(fid, o) => grid.current?.revealFile(fid, o) ?? null}
           onCover={setCover} onDownload={(fid) => download([fid])} onDelete={(fid) => remove([fid])} />
       )}
     </div>

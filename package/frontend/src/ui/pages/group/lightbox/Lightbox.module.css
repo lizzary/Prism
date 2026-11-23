@@ -1,7 +1,14 @@
 /* The lightbox is always night: cream on a deep blue-black, whatever the theme (theme-night gives it the night tokens). */
 .box { position: fixed; inset: 0; z-index: 130; color: #f1ecdf; --side: 384px; }
 .box[data-idle] { cursor: none; }
-.backdrop { position: absolute; inset: 0; background: #0a0d13; transition: opacity 320ms var(--ease-out); }
+/* the picture has landed on its tile: nothing of the lightbox is left to see or to stand in the way */
+.box[data-gone] { visibility: hidden; pointer-events: none; }
+/* the room — backdrop, the picture's glow, the darker edges — comes and goes as one layer, so nothing is left
+   dimming the page while the picture flies back to it */
+.room { position: absolute; inset: 0; pointer-events: none; transition: opacity 340ms var(--ease-out); }
+.room::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, transparent 40%, rgba(6, 8, 12, 0.55)); }
+.box[data-phase='enter'] .room, .box[data-phase='exit'] .room { opacity: 0; }
+.backdrop { position: absolute; inset: 0; background: #0a0d13; }
 /* the picture's own colours, as a faint light in the room */
 .ambient {
   position: absolute;
@@ -11,13 +18,8 @@
   filter: blur(80px) saturate(1.35);
   opacity: 0.3;
   animation: ambientIn 900ms var(--ease-out) both;
-  transition: opacity 320ms var(--ease-out);
-  pointer-events: none;
 }
 @keyframes ambientIn { from { opacity: 0; } }
-.box::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, transparent 40%, rgba(6, 8, 12, 0.55)); pointer-events: none; }
-.box[data-phase='enter'] .backdrop, .box[data-phase='exit'] .backdrop,
-.box[data-phase='enter'] .ambient, .box[data-phase='exit'] .ambient { opacity: 0; }
 .box[data-phase='exit'] .top, .box[data-phase='exit'] .arrow, .box[data-phase='exit'] .zoom, .box[data-phase='exit'] .side { opacity: 0; transition-duration: 180ms; }
 .box[data-phase='exit'] .media { transition: none; }
 
@@ -38,6 +40,12 @@
   transition: opacity 420ms var(--ease-out), transform 420ms var(--ease-out);
 }
 .box[data-idle] .top { opacity: 0; transform: translateY(-6px); }
+/* arriving: the room darkens first, then its bar comes down into the place the page's bar has just risen out of, and
+   the other controls follow (backwards only: once in, the bar still steps back when the pointer rests) */
+.top { animation: barDown 560ms var(--ease-out) 150ms backwards; }
+@keyframes barDown { from { opacity: 0; transform: translateY(-12px); } }
+.arrow, .zoom { animation: chromeIn 520ms var(--ease-out) 220ms backwards; }
+@keyframes chromeIn { from { opacity: 0; } }
 .where { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .groupName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 540; color: rgba(241, 236, 223, 0.92); }
 .count { flex-shrink: 0; font-size: 12.5px; color: rgba(241, 236, 223, 0.55); letter-spacing: 0.03em; }
@@ -47,6 +55,37 @@
 .dims { font-size: 11.5px; color: rgba(241, 236, 223, 0.45); }
 .tools { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
 .sep { width: 1px; height: 20px; margin: 0 6px; background: rgba(241, 236, 223, 0.16); }
+/* this picture is the group's cover: a quiet gold mark where the button was — a state, not a button held down */
+.coverMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  margin: 0 4px;
+  padding: 0 10px 0 8px;
+  border-radius: var(--r-2);
+  color: #ecd391;
+  background: rgba(227, 192, 102, 0.1);
+  box-shadow: 0 0 0 1px rgba(227, 192, 102, 0.26) inset;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: default;
+}
+.coverMark svg { color: #e3c066; }
+.coverMark:focus-visible { box-shadow: 0 0 0 1px rgba(227, 192, 102, 0.5) inset, var(--focus-ring); }
+/* just made the cover: the mark opens out of the button and its star glints once */
+.coverMark[data-fresh] { animation: markIn 560ms var(--ease-back) both; }
+.coverMark[data-fresh] span { animation: markText 420ms var(--ease-out) 140ms both; }
+.coverMark[data-fresh] svg { animation: glint 900ms var(--ease-out) 80ms both; }
+@keyframes markIn { from { opacity: 0.4; transform: scale(0.82); background: rgba(227, 192, 102, 0.34); } }
+@keyframes markText { from { opacity: 0; transform: translateX(-4px); } }
+@keyframes glint {
+  0% { transform: scale(0.7) rotate(-20deg); filter: drop-shadow(0 0 0 rgba(255, 226, 140, 0)); }
+  45% { transform: scale(1.22) rotate(6deg); filter: drop-shadow(0 0 7px rgba(255, 226, 140, 0.95)); }
+  100% { transform: none; filter: drop-shadow(0 0 0 rgba(255, 226, 140, 0)); }
+}
 .danger:hover:not(:disabled) { color: #f1a596 !important; background: rgba(221, 138, 125, 0.16) !important; }
 
 /* ------------------------------------------------------------------ the picture */
@@ -143,8 +182,18 @@
 .zoomPct { min-width: 44px; text-align: center; font-size: 12px; color: rgba(241, 236, 223, 0.7); }
 
 /* ------------------------------------------------------------------ the slideshow's time, and its pauses */
-.progress { position: absolute; z-index: 4; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(241, 236, 223, 0.08); }
-.progress i { display: block; height: 100%; background: linear-gradient(90deg, rgba(227, 192, 102, 0.4), #e3c066); transform-origin: 0 50%; animation-name: elapse; animation-timing-function: linear; animation-fill-mode: both; }
+.progress { position: absolute; z-index: 4; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(241, 236, 223, 0.13); }
+/* the time this picture has left: a gold line that glows a little, brightest at its leading edge */
+.progress i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(227, 192, 102, 0.55), #ecca72 82%, #fbe3a4);
+  box-shadow: 0 0 12px rgba(227, 192, 102, 0.55), 0 0 2px rgba(251, 227, 164, 0.8);
+  transform-origin: 0 50%;
+  animation-name: elapse;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
 @keyframes elapse { from { transform: scaleX(var(--from)); } to { transform: scaleX(1); } }
 .box[data-show='paused'] .progress i { animation-play-state: paused; }
 .flash {
@@ -188,8 +237,23 @@
 
 /* the slideshow's seconds */
 :global(body) .pop { z-index: 150; }
-.pick { display: flex; flex-direction: column; gap: 12px; width: 300px; padding: 14px; color: var(--ink); }
+.pick { display: flex; flex-direction: column; gap: 12px; width: 280px; padding: 14px; color: var(--ink); }
 .pickLabel { font-size: 12.5px; font-weight: 560; color: var(--ink-2); }
+.pickRow { display: flex; align-items: center; gap: 10px; }
+.pickUnit { font-size: 14px; color: var(--ink-2); }
+.presets { display: flex; gap: 5px; margin-top: -2px; }
+.presets button {
+  flex: 1;
+  height: 26px;
+  border-radius: var(--r-2);
+  font-size: 12px;
+  font-weight: 540;
+  color: var(--ink-3);
+  box-shadow: 0 0 0 1px var(--line) inset;
+  transition: background-color var(--dur-1), color var(--dur-1), box-shadow var(--dur-1);
+}
+.presets button:hover { color: var(--ink); box-shadow: 0 0 0 1px var(--line-2) inset; }
+.presets button[data-on] { color: var(--ink); background: var(--star-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--star) 50%, transparent) inset; }
 
 @media (max-width: 900px) {
   .box { --side: min(360px, 92vw); }

@@ -1,19 +1,21 @@
-// The group page's toolbar, sticking under the top bar. Three clusters, from the quietest to the loudest:
-// how files are gathered (colour groups: which configuration, their layout, a number per colour group, fold all),
-// how they look (sort, size, proportions, quality and files per page), and what to do (refresh, whiteboard, upload).
-import { useRef, useState } from 'react';
+// The group page's toolbar, sticking under the top bar and spanning the page. On the left, everything about colour
+// groups: which configuration gathers the files, their layout, a number per colour group, fold all — then the colour
+// groups themselves as a strip that follows the page (the ones on screen sit in a soft window) and jumps to any of them.
+// On the right, how the files look (sort, size, proportions, quality and files per page) and what to do (refresh,
+// whiteboard, upload).
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { browsing } from '../../../bridge/index.js';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
 import { Icon } from '../../icons/Icon.jsx';
-import { Button, IconButton, Segmented, Select, Switch } from '../../components/controls.jsx';
+import { Button, IconButton, Segmented, Select, Stepper } from '../../components/controls.jsx';
 import { Popover, Tooltip } from '../../components/overlay.jsx';
+import { LEVELS } from './layout.js';
 import s from './Toolbar.module.css';
 
 const { NONE } = browsing;
-const LIMITS = [3, 5, 10, 20, 50];
 
-export function Toolbar({ data, arranged, view, setView, clock, arrived, onRefresh, onUpload, onWhiteboard, onEditColors, onUseConfig, stuck }) {
+export function Toolbar({ data, arranged, view, setView, clock, arrived, onRefresh, onUpload, onWhiteboard, onEditColors, onUseConfig, stuck, seen, onJump, outline, onOutline }) {
   const t = useT();
   const grouped = arranged.grouped;
   const keys = arranged.sections.map((x) => x.key);
@@ -24,20 +26,26 @@ export function Toolbar({ data, arranged, view, setView, clock, arrived, onRefre
         <Palette data={data} onUse={onUseConfig} onEdit={onEditColors} />
         {grouped && (
           <>
+            <IconButton size="sm" icon="sidebar" active={outline} label={outline ? t('group.outline.close') : t('group.outline.open')} onClick={onOutline} />
             <Segmented size="sm" iconOnly label={t('group.layout.label')} value={view.layout} onChange={(v) => setView({ layout: v })}
               options={[
                 { value: 'single', icon: 'cols-1', label: t('group.layout.single') },
                 { value: 'double', icon: 'cols-2', label: t('group.layout.double') },
                 { value: 'mixed', icon: 'layout-mixed', label: t('group.layout.mixed') },
               ]} />
-            <Limit view={view} setView={setView} />
+            <LimitSwitch view={view} setView={setView} />
             <IconButton size="sm" icon={anyOpen ? 'fold-all' : 'unfold-all'} label={anyOpen ? t('group.collapseAll') : t('group.expandAll')}
               onClick={() => setView({ collapsed: anyOpen ? keys : [] })} />
           </>
         )}
       </div>
 
-      <div className={s.cluster}>
+      <div className={s.middle}>
+        {/* with the outline open beside the files, the strip would only repeat it */}
+        {grouped && !outline && arranged.sections.length > 0 && <Strip sections={arranged.sections} seen={seen} onJump={onJump} />}
+      </div>
+
+      <div className={`${s.cluster} ${s.look}`}>
         <Sort view={view} setView={setView} />
         <SizeSlider value={view.size} onChange={(size) => setView({ size })} />
         <Segmented size="sm" iconOnly label={t('group.ratio.label')} value={view.natural ? 'natural' : 'square'} onChange={(v) => setView({ natural: v === 'natural' })}
@@ -46,7 +54,7 @@ export function Toolbar({ data, arranged, view, setView, clock, arrived, onRefre
       </div>
 
       <div className={`${s.cluster} ${s.actions}`}>
-        <RefreshRing clock={clock} arrived={arrived} onRefresh={onRefresh} />
+        <Refresh clock={clock} arrived={arrived} onRefresh={onRefresh} />
         <Button variant="ghost" size="sm" icon="whiteboard" className={s.labelled} onClick={onWhiteboard}>{t('group.whiteboard')}</Button>
         <Button variant="primary" size="sm" icon="upload" className={s.labelled} onClick={onUpload}>{t('group.upload')}</Button>
       </div>
@@ -95,39 +103,119 @@ function Palette({ data, onUse, onEdit }) {
   );
 }
 
-/** All of every colour group, or a number of each (each one can still be shown whole from its heading). */
-function Limit({ view, setView }) {
+/**
+ * All of every colour group, or a number of each — one press either way, and the number is right there to type or
+ * step. (Each colour group held to a number can still be shown whole from its heading.)
+ */
+function LimitSwitch({ view, setView }) {
   const t = useT();
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const set = (n) => setView({ limited: true, limit: Math.max(1, Math.min(999, n)), expanded: [] });
+  const on = view.limited;
+  const set = (patch) => setView({ ...patch, expanded: [] });
   return (
-    <>
-      <Tooltip label={t('group.limit.label')}>
-        <button ref={ref} type="button" className={s.pill} data-on={view.limited || undefined} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-          <Icon name="limit" size={16} />
-          <span className="num">{view.limited ? t('group.limit.some', { n: view.limit }) : t('group.limit.all')}</span>
-        </button>
-      </Tooltip>
-      <Popover open={open} onClose={() => setOpen(false)} anchor={ref} placement="bottom-start" label={t('group.limit.label')} className={s.pop}>
-        <div className={s.limitBody}>
-          <label className={s.switchRow}>
-            <span>{t('group.limit.toggle')}</span>
-            <Switch size="sm" checked={view.limited} onChange={(on) => setView({ limited: on, expanded: [] })} label={t('group.limit.toggle')} />
-          </label>
-          <div className={s.stepper} data-off={!view.limited || undefined}>
-            <button type="button" onClick={() => set(view.limit - 1)} disabled={!view.limited || view.limit <= 1} aria-label="−"><Icon name="minus" size={15} /></button>
-            <input className="num" type="number" min={1} max={999} value={view.limit} disabled={!view.limited}
-              onChange={(e) => { const n = parseInt(e.target.value, 10); if (n > 0) set(n); }} aria-label={t('group.limit.label')} />
-            <button type="button" onClick={() => set(view.limit + 1)} disabled={!view.limited || view.limit >= 999} aria-label="+"><Icon name="plus" size={15} /></button>
-            <span className={s.unit}>{t('group.limit.each')}</span>
-          </div>
-          <div className={s.presets}>
-            {LIMITS.map((n) => <button key={n} type="button" className="num" data-on={(view.limited && view.limit === n) || undefined} onClick={() => set(n)}>{n}</button>)}
-          </div>
+    <Tooltip label={t('group.limit.label')} delay={700}>
+      <div className={s.limit} data-on={on || undefined} role="group" aria-label={t('group.limit.label')}>
+        <button type="button" className={s.limitAll} aria-pressed={!on} onClick={() => on && set({ limited: false })}>{t('group.limit.all')}</button>
+        {/* pressing anywhere on the number's side turns the limit on; − + and typing then change it */}
+        <div className={s.limitSome} onPointerDownCapture={() => { if (!on) set({ limited: true }); }}>
+          <Stepper size="xs" value={view.limit} min={1} max={999} onChange={(n) => set({ limited: true, limit: n })}
+            label={t('group.limit.label')} decLabel={t('group.limit.fewer')} incLabel={t('group.limit.more')} />
+          <span className={s.limitUnit}>{t('group.limit.each')}</span>
         </div>
-      </Popover>
-    </>
+      </div>
+    </Tooltip>
+  );
+}
+
+/**
+ * The colour groups in order, each with its colour, name and size. The ones on screen sit in a soft window that
+ * glides along as the page scrolls; pressing one brings it into view. Short of room the names step back (dots and
+ * sizes, the name on hover); shorter still, the strip scrolls.
+ */
+function Strip({ sections, seen, onJump }) {
+  const t = useT();
+  const fmt = useFormat();
+  const box = useRef(null);
+  const track = useRef(null);
+  const [win, setWin] = useState(null);
+  const [overflow, setOverflow] = useState(false);
+  const [compact, setCompact] = useState(false);
+  const [cramped, setCramped] = useState(false);
+  const lit = new Set(seen);
+  const names = sections.map((x) => `${x.key}:${x.color?.name}:${x.total}`).join('|');
+  const sig = `${seen.join('|')}#${names}:${sections.map((x) => x.collapsed).join()}#${compact}`;
+  // names or not: the strip is measured both ways on the spot (the look put back at once), before anything is painted
+  useLayoutEffect(() => {
+    const el = box.current, tr = track.current;
+    const widthAs = (small) => {
+      const was = el.hasAttribute('data-compact');
+      el.toggleAttribute('data-compact', small);
+      const w = tr.offsetWidth;
+      el.toggleAttribute('data-compact', was);
+      return w;
+    };
+    const fit = () => {
+      const room = el.clientWidth;
+      const named = widthAs(false);
+      const small = named > room - 8;
+      const w = small ? widthAs(true) : named;
+      setCompact(small);
+      setOverflow(w > room + 1);
+      // too little room even for a few dots: the strip steps aside (it keeps its place, so it can come back)
+      setCramped(room < Math.min(w, 132));
+    };
+    fit();
+    // the room changes with the page; the strip itself once its fonts arrive
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    ro.observe(tr);
+    return () => ro.disconnect();
+  }, [names]);
+  useLayoutEffect(() => {
+    const el = box.current, tr = track.current;
+    if (!el || !tr) return;
+    const on = [...tr.querySelectorAll('[data-key]')].filter((c) => lit.has(c.dataset.key));
+    if (!on.length) { setWin(null); return; }
+    const a = on[0], b = on[on.length - 1];
+    const next = { x: a.offsetLeft - 3, w: b.offsetLeft + b.offsetWidth - a.offsetLeft + 6 };
+    setWin(next);
+    // when the strip is longer than its room, keep the window in sight (its start, when it is longer still)
+    if (el.scrollWidth > el.clientWidth && (next.x < el.scrollLeft || next.x + next.w > el.scrollLeft + el.clientWidth)) {
+      const left = next.w > el.clientWidth - 16 ? next.x - 8 : next.x + next.w / 2 - el.clientWidth / 2;
+      el.scrollTo({ left, behavior: 'smooth' });
+    }
+  }, [sig]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a mouse wheel over the strip scrolls it sideways
+  useEffect(() => {
+    const el = box.current;
+    const onWheel = (e) => {
+      if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+  return (
+    <nav ref={box} className={s.strip} data-overflow={overflow || undefined} data-compact={compact || undefined} data-cramped={cramped || undefined}
+      aria-label={t('group.strip.label')} aria-hidden={cramped || undefined}>
+      <div ref={track} className={s.stripTrack}>
+        <span className={s.stripWin} data-on={win ? '' : undefined} style={win ? { transform: `translateX(${win.x}px)`, width: win.w } : undefined} />
+        {sections.map((sec) => {
+          const name = sec.key === NONE ? t('group.colors.noColor') : sec.color?.name ?? '';
+          return (
+            <Tooltip key={sec.key} label={name} delay={200} disabled={!compact}>
+              <button type="button" data-key={sec.key} className={s.chip} data-in={lit.has(sec.key) || undefined} data-none={sec.key === NONE || undefined}
+                data-folded={sec.collapsed || undefined} style={{ '--c': sec.color?.color ?? 'var(--ink-3)' }} onClick={() => onJump(sec.key)}
+                aria-label={t('group.strip.jump', { name })}>
+                <i className={s.chipDot} />
+                <span className={s.chipName}>{name}</span>
+                <span className={`${s.chipCount} num`}>{fmt.number(sec.total)}</span>
+              </button>
+            </Tooltip>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
 
@@ -146,7 +234,7 @@ function Sort({ view, setView }) {
   );
 }
 
-/** Five sizes on a short track: smaller tiles fit more to a row. */
+/** Five sizes on a short track: smaller tiles fit more to a row (ten at the smallest, two at the largest). */
 function SizeSlider({ value, onChange }) {
   const t = useT();
   const levels = browsing.SIZE_LEVELS;
@@ -156,7 +244,8 @@ function SizeSlider({ value, onChange }) {
       <button type="button" className={s.sizeEnd} onClick={() => onChange(Math.max(lo, value - 1))} disabled={value <= lo} aria-label={t('group.size.smaller')}><Icon name="size-small" size={15} /></button>
       <span className={s.track} style={{ '--p': (value - lo) / (hi - lo) }}>
         {levels.map((l) => <i key={l} data-on={l <= value || undefined} />)}
-        <input type="range" min={lo} max={hi} step={1} value={value} onChange={(e) => onChange(Number(e.target.value))} aria-label={t('group.size.label')} />
+        <input type="range" min={lo} max={hi} step={1} value={value} onChange={(e) => onChange(Number(e.target.value))} aria-label={t('group.size.label')}
+          aria-valuetext={t('group.size.perRow', { n: LEVELS[value]?.cols ?? 6 })} />
         <b className={s.knob} />
       </span>
       <button type="button" className={s.sizeEnd} onClick={() => onChange(Math.min(hi, value + 1))} disabled={value >= hi} aria-label={t('group.size.larger')}><Icon name="size-large" size={15} /></button>
@@ -190,28 +279,36 @@ function Display({ view, setView }) {
   );
 }
 
+// the refresh icon's two arcs and their arrowheads (as in Icon.jsx), drawn here so the arcs can fill in
+const ARCS = ['M19.4 9.2A7.6 7.6 0 0 0 5.3 8.1', 'M4.6 14.8a7.6 7.6 0 0 0 14.1 1.1'];
+const HEADS = ['M19.6 4.6v4.8h-4.8', 'M4.4 19.4v-4.8h4.8'];
+
 /**
- * The page looks for changes every few seconds: a ring fills up until the next look, and pressing it looks now.
- * It rests (holds still) while a drag is under way or the window is in the background.
+ * The page looks for changes every few seconds. The refresh icon's own arcs fill in, tail to arrowhead, as the next
+ * look comes near, and fade as it happens; pressing it looks at once (the arrows turn). It holds still while a drag is
+ * under way or the window is in the background. Files that just arrived are counted beside it for a moment.
  */
-function RefreshRing({ clock, arrived, onRefresh }) {
+function Refresh({ clock, arrived, onRefresh }) {
   const t = useT();
   const fmt = useFormat();
-  const R = 8.5, C = 2 * Math.PI * R;
+  const [turn, setTurn] = useState(0);
   const elapsed = clock.interval - clock.left;
   const recent = !!arrived.at && Date.now() - arrived.at < 4000;
+  const state = clock.busy ? 'busy' : clock.counting ? 'counting' : 'resting';
   const tip = clock.busy ? t('group.refresh.checking') : clock.resting ? t('group.refresh.resting') : t('group.refresh.tip', { s: clock.interval / 1000 });
   return (
     <span className={s.refreshWrap}>
       {recent && <span key={arrived.at} className={`${s.arrived} num`}>{t('group.refresh.arrived', { n: fmt.number(arrived.ids.length) })}</span>}
       <Tooltip label={tip}>
-        <button type="button" className={s.refresh} data-busy={clock.busy || undefined} data-resting={(!clock.counting && !clock.busy) || undefined} onClick={onRefresh} aria-label={t('group.refresh.now')}>
-          <svg viewBox="0 0 22 22" width="22" height="22" aria-hidden="true">
-            <circle cx="11" cy="11" r={R} className={s.ringTrack} />
-            <circle key={clock.busy ? 'busy' : clock.cycle} cx="11" cy="11" r={R} className={s.ringArc} transform="rotate(-90 11 11)"
-              style={{ strokeDasharray: C, '--c': C, animationDuration: `${clock.interval}ms`, animationDelay: `-${elapsed}ms` }} />
+        <button type="button" className={s.refresh} data-state={state} aria-label={t('group.refresh.now')} onClick={() => { setTurn((n) => n + 1); onRefresh(); }}>
+          <svg key={turn} viewBox="0 0 24 24" width="18" height="18" className={s.refreshIcon} data-turn={turn ? '' : undefined}
+            fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            {ARCS.map((d) => <path key={d} d={d} className={s.arcTrack} />)}
+            <g key={clock.busy ? 'busy' : clock.cycle} className={s.arcFill} style={{ '--dur': `${clock.interval}ms`, '--delay': `-${elapsed}ms` }}>
+              {ARCS.map((d) => <path key={d} d={d} pathLength="1" />)}
+            </g>
+            {HEADS.map((d) => <path key={d} d={d} className={s.arrowHead} />)}
           </svg>
-          <Icon name="refresh" size={11} className={s.glyph} stroke={2} />
         </button>
       </Tooltip>
     </span>

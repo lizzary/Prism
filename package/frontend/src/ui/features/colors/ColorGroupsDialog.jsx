@@ -2,14 +2,17 @@
 // chosen one's colour groups on the right — named, coloured, put in order, added and removed. A bar across the top
 // splits the group's files by colour group, the way a prism splits light, and follows every change. Saving keeps
 // every configuration and puts the chosen one to use on the page.
-import { useEffect, useRef, useState } from 'react';
-import { groupActions, useColorConfigs } from '../../../bridge/index.js';
+// Made for many colour groups too: a find field narrows the list (dragging still works among what is on show), Alt ↑ ↓
+// moves the colour group being named a step (Alt Shift ↑ ↓: to the very top or bottom), and Sort orders them all.
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { colorOrder, groupActions, useColorConfigs } from '../../../bridge/index.js';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
 import { SWATCHES, nextSwatch } from '../../lib/swatches.js';
-import { moveTo, useReorder } from '../../lib/useReorder.js';
+import { useListDrag } from '../../lib/useListDrag.js';
 import { Icon } from '../../icons/Icon.jsx';
 import { Button, IconButton } from '../../components/controls.jsx';
+import { Menu } from '../../components/menu.jsx';
 import { Dialog, Popover, Portal, Tooltip } from '../../components/overlay.jsx';
 import { Spinner, toast } from '../../components/feedback.jsx';
 import s from './ColorGroupsDialog.module.css';
@@ -25,7 +28,12 @@ export default function ColorGroupsDialog({ open, onClose, groupId, nonce }) {
   const [current, setCurrent] = useState(null);
   const [saving, setSaving] = useState(false);
   const [hot, setHot] = useState(null);
+  const [query, setQuery] = useState('');
+  const [sorting, setSorting] = useState(false);
+  const [focusRow, setFocusRow] = useState(null);     // a row whose name takes the cursor once drawn (one just added)
   const list = useRef(null);
+  const ghost = useRef(null);
+  const sortBtn = useRef(null);
   const inited = useRef(null);
 
   // every opening starts from what is saved
@@ -35,6 +43,7 @@ export default function ColorGroupsDialog({ open, onClose, groupId, nonce }) {
     setConfigs(structuredClone(data.configs));
     setCurrent(data.activeConfigId ?? data.configs[0]?.id ?? null);
     setSaving(false);
+    setQuery('');
   }, [open, data, nonce]);
   useEffect(() => { if (!open) inited.current = null; }, [open]);
 
@@ -51,14 +60,34 @@ export default function ColorGroupsDialog({ open, onClose, groupId, nonce }) {
     setConfigs(rest);
     setCurrent(rest[0]?.id ?? null);
   };
-  const addColor = () => edit((c) => ({ ...c, groups: [...c.groups, { id: fresh(), name: t('colorGroups.newName', { n: c.groups.length + 1 }), color: nextSwatch(c.groups.map((x) => x.color)) }] }));
-  const drag = useReorder({
-    listRef: list, scrollRef: list, mode: 'column', axis: 'y',
-    onDrop: (id, index) => edit((c) => {
-      const order = moveTo(c.groups.map((x) => x.id), id, index);
-      return { ...c, groups: order.map((x) => c.groups.find((g) => g.id === x)) };
-    }),
-  });
+  const addColor = () => {
+    // a new one is named next: whatever the list was narrowed to, it shows, with the cursor in its name
+    const id = fresh();
+    setQuery('');
+    edit((c) => ({ ...c, groups: [...c.groups, { id, name: t('colorGroups.newName', { n: c.groups.length + 1 }), color: nextSwatch(c.groups.map((x) => x.color)) }] }));
+    setFocusRow(id);
+  };
+  useLayoutEffect(() => {
+    if (!focusRow) return;
+    const input = list.current?.querySelector(`[data-row="${CSS.escape(focusRow)}"] input`);
+    if (input) { input.scrollIntoView({ block: 'nearest' }); input.focus(); input.select(); }
+    setFocusRow(null);
+  }, [focusRow]);
+  /** The colour groups in a new order (ids). */
+  const reorder = (ids) => edit((c) => ({ ...c, groups: ids.map((x) => c.groups.find((g) => g.id === x)) }));
+  const order = cfg?.groups.map((x) => x.id) ?? [];
+  const q = query.trim();
+  const shownGroups = cfg ? (q ? cfg.groups.filter((x) => colorOrder.findInName(x.name, q).length > 0) : cfg.groups) : [];
+  const shownIds = shownGroups.map((x) => x.id);
+  const drag = useListDrag({ listRef: list, ghostRef: ghost, onDrop: (ids, to) => reorder(colorOrder.moveTogether(order, ids, to)) });
+  // Alt ↑ ↓ while naming one: a step past the next one on show; with Shift, to the very top or bottom
+  const moveKey = (e, id) => {
+    if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    e.preventDefault();
+    const up = e.key === 'ArrowUp';
+    reorder(e.shiftKey ? colorOrder.moveTogether(order, [id], up ? 'top' : 'bottom') : colorOrder.stepTogether(order, [id], up ? -1 : 1, shownIds));
+    requestAnimationFrame(() => list.current?.querySelector(`[data-row="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest' }));
+  };
 
   const save = async () => {
     setSaving(true);
@@ -113,12 +142,32 @@ export default function ColorGroupsDialog({ open, onClose, groupId, nonce }) {
                 </div>
                 <Spectrum groups={cfg.groups} counts={counts} total={total} hot={hot} />
                 {!cfg.groups.length && <p className={s.empty}>{t('colorGroups.emptyBody')}</p>}
-                <ul ref={list} className={s.rows}>
-                  {cfg.groups.map((x, i) => (
-                    <li key={x.id} className={s.row} style={{ '--c': x.color, '--i': Math.min(i, 10) }} {...drag.handle(x.id)} onPointerEnter={() => setHot(x.id)} onPointerLeave={() => setHot(null)}>
-                      <span className={s.grip}><Icon name="grip" size={15} /></span>
+                {cfg.groups.length > 1 && (
+                  <div className={s.findBar}>
+                    <label className={s.find}>
+                      <Icon name="search" size={15} className={s.findIcon} />
+                      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('group.outline.find')} spellCheck={false} autoComplete="off"
+                        onKeyDown={(e) => { if (e.key === 'Escape' && query) { e.preventDefault(); e.stopPropagation(); setQuery(''); } }} />
+                      {query && <button type="button" className={s.clear} onClick={() => setQuery('')} aria-label={t('common.clear')}><Icon name="close" size={13} /></button>}
+                    </label>
+                    <span className={`${s.findCount} num`}>
+                      {q ? t('group.outline.found', { n: fmt.number(shownGroups.length), total: fmt.number(cfg.groups.length) }) : t('group.outline.total', { n: fmt.number(cfg.groups.length), count: cfg.groups.length })}
+                    </span>
+                    <button ref={sortBtn} type="button" className={s.sortBtn} aria-expanded={sorting} onClick={() => setSorting((o) => !o)}>
+                      <Icon name="sort" size={14} />{t('group.outline.sort')}
+                    </button>
+                  </div>
+                )}
+                <ul ref={list} className={s.rows} data-dragging={drag.drag ? '' : undefined}>
+                  {shownGroups.map((x, i) => (
+                    <li key={x.id} data-row={x.id} className={s.row} style={{ '--c': x.color, '--i': Math.min(i, 10) }} data-moving={drag.drag?.ids.includes(x.id) || undefined}
+                      onPointerEnter={() => setHot(x.id)} onPointerLeave={() => setHot(null)}>
+                      <Tooltip label={t('colorGroups.moveHint')} delay={700}>
+                        <span className={s.grip} onPointerDown={(e) => drag.begin(e, [x.id])}><Icon name="grip" size={15} /></span>
+                      </Tooltip>
                       <SwatchPicker color={x.color} onPick={(color) => setColor(x.id, { color })} />
-                      <input className={s.nameInput} value={x.name} maxLength={40} onChange={(e) => setColor(x.id, { name: e.target.value })} aria-label={t('colorGroups.name')} spellCheck={false} />
+                      <input className={s.nameInput} value={x.name} maxLength={40} onChange={(e) => setColor(x.id, { name: e.target.value })} aria-label={t('colorGroups.name')} spellCheck={false}
+                        onKeyDown={(e) => moveKey(e, x.id)} />
                       <span className={`${s.rowCount} num`}>{t('colorGroups.files', { n: fmt.number(counts[x.id] ?? 0), count: counts[x.id] ?? 0 })}</span>
                       <Tooltip label={counts[x.id] ? t('colorGroups.removeLeaving', { n: fmt.number(counts[x.id]), count: counts[x.id] }) : t('colorGroups.remove')}>
                         <button type="button" className={s.remove} aria-label={t('colorGroups.remove')} onClick={() => edit((c) => ({ ...c, groups: c.groups.filter((g) => g.id !== x.id) }))}>
@@ -127,7 +176,14 @@ export default function ColorGroupsDialog({ open, onClose, groupId, nonce }) {
                       </Tooltip>
                     </li>
                   ))}
+                  {q && !shownGroups.length && <li className={s.nothing}>{t('group.outline.nothing', { q })}</li>}
+                  {drag.drag && <span className={s.line} style={{ transform: `translateY(${drag.drag.line - 1}px)` }} aria-hidden="true" />}
                 </ul>
+                <Menu open={sorting} onClose={() => setSorting(false)} anchor={sortBtn} label={t('group.outline.sort')} placement="bottom-end"
+                  items={colorOrder.COLOR_SORTS.map((by) => ({
+                    key: by, label: t(`group.outline.sorts.${by}`), icon: by === 'color' ? 'palette' : by.endsWith('desc') || by === 'count' ? 'sort-desc' : 'sort-asc',
+                    onSelect: () => reorder(colorOrder.sortColorGroups(cfg.groups, by, counts)),
+                  }))} />
                 <button type="button" className={s.addColor} onClick={addColor}>
                   <span className={s.addDot} style={{ '--c': nextSwatch(cfg.groups.map((x) => x.color)) }}><Icon name="plus" size={12} stroke={2} /></span>
                   {t('colorGroups.add')}
@@ -137,7 +193,13 @@ export default function ColorGroupsDialog({ open, onClose, groupId, nonce }) {
           </section>
         </div>
       )}
-      {drag.marker && <Portal><span className={s.marker} style={drag.marker} /></Portal>}
+      {drag.drag && cfg && (
+        <Portal>
+          <div ref={ghost} className={s.ghost} aria-hidden="true">
+            {(() => { const g = cfg.groups.find((x) => x.id === drag.drag.ids[0]); return g && <span className={s.ghostChip} style={{ '--c': g.color }}><i />{g.name}</span>; })()}
+          </div>
+        </Portal>
+      )}
     </Dialog>
   );
 }

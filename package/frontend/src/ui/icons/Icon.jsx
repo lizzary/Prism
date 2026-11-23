@@ -174,6 +174,11 @@ const I = {
   /* back to fitting the screen */
   fit: '<path d="M9 4.5V9H4.5"/><path d="M15 4.5V9h4.5"/><path d="M15 19.5V15h4.5"/><path d="M9 19.5V15H4.5"/>',
   'check-square': '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.2 12.2 2.6 2.6 5-5.2"/>',
+  /* the colour groups as a list beside the files: a panel with its left column of rows */
+  sidebar: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><path d="M9.8 4.5v15"/><path d="M5.9 8.6h1.6"/><path d="M5.9 11.8h1.6"/><path d="M5.9 15h1.6"/>',
+  /* to the very top / bottom of a list */
+  'to-top': '<path d="M6 4.8h12"/><path d="M12 19.2V9.2"/><path d="m7.6 13.4 4.4-4.4 4.4 4.4"/>',
+  'to-bottom': '<path d="M6 19.2h12"/><path d="M12 4.8v10"/><path d="m7.6 10.6 4.4 4.4 4.4-4.4"/>',
 };
 
 export function Icon({ name, size, stroke = 1.6, className, style, label }) {

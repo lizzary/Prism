@@ -165,6 +165,87 @@ export function Select({ value, onChange, options, label, className, placeholder
   );
 }
 
+/**
+ * A whole number to type or to step: − value +. Holding − or + keeps stepping; while typing, ↑ ↓ step (Shift: by 10)
+ * and so does the wheel; Enter or leaving the field takes what was typed (`onEnter(n)` hears Enter), Escape drops it.
+ * size: 'xs' (inside a toolbar control) | 'md'. `inputProps` go to the field (data-autofocus, aria…).
+ */
+export function Stepper({ value, onChange, min = 1, max = 999, label, decLabel, incLabel, size = 'md', className, onEnter, inputProps }) {
+  const [draft, setDraft] = useState(null);
+  const field = useRef(null);
+  const live = useRef({});
+  const hold = useRef(0);
+  const clamp = (n) => Math.max(min, Math.min(max, n));
+  const typed = (text) => { const n = parseInt(text ?? '', 10); return Number.isFinite(n) ? clamp(n) : null; };
+  live.current = { value, draft, onChange, dropped: live.current.dropped };
+  const commit = () => {
+    const { draft: d, dropped } = live.current;
+    live.current.dropped = false;
+    if (d == null) return value;
+    setDraft(null);
+    const n = dropped ? null : typed(d);
+    if (n != null && n !== value) onChange(n);
+    return n ?? value;
+  };
+  const step = (d) => {
+    const from = typed(live.current.draft) ?? live.current.value;
+    const n = clamp(from + d);
+    const wasTyping = live.current.draft != null;
+    setDraft(null);
+    live.current.draft = null;
+    live.current.value = n;
+    if (n !== from || wasTyping) live.current.onChange(n);
+  };
+  const stop = () => { clearTimeout(hold.current); hold.current = 0; };
+  useEffect(() => stop, []);
+  // held down: one step at once, then a steady run after a moment
+  const press = (d) => (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    step(d);
+    const run = (wait) => { hold.current = setTimeout(() => { step(d); run(70); }, wait); };
+    run(420);
+    window.addEventListener('pointerup', stop, { once: true });
+    window.addEventListener('pointercancel', stop, { once: true });
+  };
+  // the wheel steps only while the field is being edited, so scrolling past it never changes it
+  useEffect(() => {
+    const el = field.current;
+    const onWheel = (e) => {
+      if (document.activeElement !== el || !e.deltaY) return;
+      e.preventDefault();
+      step(e.deltaY < 0 ? 1 : -1);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const digits = String(max).length;
+  const iconSize = size === 'xs' ? 13 : 16;
+  return (
+    <span className={cx(s.stepper, s[`st_${size}`], className)}>
+      <button type="button" className={s.stepBtn} tabIndex={-1} aria-label={decLabel ?? '−'} disabled={value <= min}
+        onPointerDown={press(-1)} onPointerLeave={stop} onClick={(e) => { if (e.detail === 0) step(-1); }}>
+        <Icon name="minus" size={iconSize} stroke={1.9} />
+      </button>
+      <input ref={field} className={cx(s.stepValue, 'num')} type="text" inputMode="numeric" autoComplete="off" spellCheck={false}
+        value={draft ?? String(value)} maxLength={digits} aria-label={label} style={{ '--digits': digits }}
+        onChange={(e) => setDraft(e.target.value.replace(/\D/g, ''))}
+        onFocus={(e) => e.target.select()}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); const n = commit(); onEnter?.(n); }
+          else if (e.key === 'Escape') { live.current.dropped = true; setDraft(null); }
+          else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); step((e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 10 : 1)); }
+        }}
+        {...inputProps} />
+      <button type="button" className={s.stepBtn} tabIndex={-1} aria-label={incLabel ?? '+'} disabled={value >= max}
+        onPointerDown={press(1)} onPointerLeave={stop} onClick={(e) => { if (e.detail === 0) step(1); }}>
+        <Icon name="plus" size={iconSize} stroke={1.9} />
+      </button>
+    </span>
+  );
+}
+
 /** A toggle chip (search domains, file types). */
 export function Chip({ selected, onClick, children, icon, count, disabled, className, color, ref, ...rest }) {
   return (

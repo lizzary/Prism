@@ -112,7 +112,7 @@ export function buildFile(spec, group, i, id, cover) {
     let j = -1;
     if (c.by === 'palette') j = c.map[art.palette] ?? -1;
     else if (c.by === 'cut') j = CUTS.findIndex((cut) => tags.some((x) => x.name === cut));
-    else j = pickWeighted(q, c.weights);
+    else j = pickWeighted(c.seed ? seeded(`${c.seed}|${id}`) : q, c.weights);
     if (j >= 0) colors[group.configs[k].id] = group.configs[k].groups[j].id;
   });
   return {

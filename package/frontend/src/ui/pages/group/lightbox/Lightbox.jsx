@@ -8,7 +8,7 @@ import { navigate, paths } from '../../../../app/router.jsx';
 import { useT } from '../../../../i18n/index.jsx';
 import { useFormat } from '../../../lib/format.js';
 import { Icon } from '../../../icons/Icon.jsx';
-import { Button, IconButton, Segmented } from '../../../components/controls.jsx';
+import { Button, IconButton, Stepper } from '../../../components/controls.jsx';
 import { Popover, Portal, Tooltip, useScrollLock } from '../../../components/overlay.jsx';
 import { Details } from './Details.jsx';
 import { VideoPlayer } from './VideoPlayer.jsx';
@@ -26,9 +26,24 @@ function tileRect(id) {
   const r = el?.getBoundingClientRect();
   return r && r.bottom > 0 && r.top < innerHeight && r.width > 0 ? r : null;
 }
-const flip = (from, to) => `translate(${from.left + from.width / 2 - (to.left + to.width / 2)}px, ${from.top + from.height / 2 - (to.top + to.height / 2)}px) scale(${from.width / to.width}, ${from.height / to.height})`;
+/**
+ * The picture (its box `m` on screen) laid over a tile `t` the way the tile shows it: scaled evenly until it covers the
+ * tile, cropped to it with the tile's corners, centred on it — so it lands on (and lifts off) its tile seamlessly,
+ * whatever the tile's shape.
+ */
+function onTile(t, m) {
+  const k = Math.max(t.width / m.width, t.height / m.height);
+  const dx = t.left + t.width / 2 - (m.left + m.width / 2), dy = t.top + t.height / 2 - (m.top + m.height / 2);
+  const ix = Math.max(0, (m.width - t.width / k) / 2), iy = Math.max(0, (m.height - t.height / k) / 2);
+  return { transform: `translate(${dx}px, ${dy}px) scale(${k})`, clipPath: `inset(${iy}px ${ix}px round ${5 / k}px)` };
+}
+const SHOWN = { transform: 'none', clipPath: 'inset(0px 0px round 3px)' };
 
-export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onSlide, onClose, onCover, onDownload, onDelete }) {
+/**
+ * sequence: the files to walk, in order (the page's files on show); onReveal(id, { now }): bring a file's tile into full
+ * view on the page, at once, and say where it is on screen ({ left, top, width, height } | null).
+ */
+export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onSlide, onClose, onReveal, onCover, onDownload, onDelete }) {
   const t = useT();
   const fmt = useFormat();
   const index = sequence.findIndex((f) => f.id === fileId);
@@ -45,6 +60,7 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
   const [show, setShow] = useState(null);             // slideshow: { paused, startedAt, left }
   const [pick, setPick] = useState(false);            // the slideshow's seconds
   const [flash, setFlash] = useState(null);           // a moment's sign that the slideshow paused or went on
+  const [madeCover, setMadeCover] = useState(null);   // the file just made the group's cover here (its mark arrives with a glint)
   const stage = useRef(null);
   const img = useRef(null);
   const player = useRef(null);
@@ -52,6 +68,8 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
   const idleTimer = useRef(0);
   const drag = useRef(null);
   const wheelTimer = useRef(0);
+  const leaving = useRef(false);                      // closing: the picture is on its way back
+  const boxEl = useRef(null);
   useScrollLock(true);
 
   // the file left the group (deleted here, or elsewhere): its neighbour takes its place; nothing left, the lightbox closes
@@ -63,6 +81,13 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
 
   useEffect(() => { detailsOpen = details; }, [details]);
   useEffect(() => { setZoom({ z: 1, x: 0, y: 0 }); }, [fileId]);
+  // the page follows along under the dark room, a moment after each step: the file's tile is kept in view, so on
+  // closing it is there — drawn, its picture loaded — for the picture to fly back to
+  useEffect(() => {
+    if (!onReveal) return undefined;
+    const id = setTimeout(() => { if (!leaving.current) onReveal(fileId); }, 450);
+    return () => clearTimeout(id);
+  }, [fileId]); // eslint-disable-line react-hooks/exhaustive-deps
   // the file being looked at, for the home page's "last viewed"
   useEffect(() => { const id = setTimeout(() => fileActions.viewed(fileId), 500); return () => clearTimeout(id); }, [fileId]);
   // the neighbours are fetched ahead, so stepping is instant
@@ -95,6 +120,13 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
   const isVideo = file?.kind === 'video';
 
   // ------------------------------------------------------------------ arriving and leaving
+  // While the lightbox is open the page's top bar steps aside (see TopBar): the lightbox's own bar comes down into
+  // its place as it rises, and it settles back the moment the lightbox starts to close.
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.dataset.lightbox = '';
+    return () => { delete root.dataset.lightbox; };
+  }, []);
   const entered = useRef(false);
   useLayoutEffect(() => {
     if (entered.current || !fit || !img.current) return;
@@ -102,25 +134,41 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
     // from its tile on the page when it is on screen; otherwise it simply comes forward
     const from = tileRect(file.id);
     const ease = 'cubic-bezier(.22,1,.36,1)';
-    if (from) img.current.animate([{ transform: flip(from, img.current.getBoundingClientRect()) }, { transform: 'none' }], { duration: 460, easing: ease });
+    if (from) img.current.animate([onTile(from, img.current.getBoundingClientRect()), SHOWN], { duration: 460, easing: ease });
     else img.current.animate([{ opacity: 0, transform: 'scale(0.965)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: ease });
     requestAnimationFrame(() => setPhase('open'));
   }, [fit]); // eslint-disable-line react-hooks/exhaustive-deps
-  const close = () => {
-    if (phase === 'exit') return;
+  // Leaving: the room fades as one (backdrop, glow, vignette) while the picture flies back into its tile, and the
+  // lightbox goes the moment both arrive. A tile that is off screen (the files were stepped through) is brought into
+  // view first, unseen under the still-dark room; a picture with nowhere to go (zoomed in, or one the page does not
+  // show) fades with the room instead.
+  const exit = (to) => {
     setPhase('exit');
+    delete document.documentElement.dataset.lightbox;
+    const el = img.current;
+    // once the picture is down the lightbox is gone at once — the page under it is whole and can be used — and
+    // only then is it taken away
+    const done = () => { boxEl.current?.setAttribute('data-gone', ''); onClose(file?.id ?? null); };
+    if (to && el) {
+      el.animate([SHOWN, onTile(to, el.getBoundingClientRect())], { duration: 380, easing: 'cubic-bezier(.65,0,.35,1)', fill: 'forwards' });
+      setTimeout(done, 380);
+    } else {
+      el?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'forwards' });
+      setTimeout(done, 320);
+    }
+  };
+  const close = () => {
+    if (leaving.current) return;
+    leaving.current = true;
     setShow(null);
-    const to = file && !details ? tileRect(file.id) : null;
-    const done = () => onClose(file?.id ?? null);
-    if (to && img.current && zoom.z === 1) {
-      img.current.animate([{ transform: 'none' }, { transform: flip(to, img.current.getBoundingClientRect()) }], { duration: 340, easing: 'cubic-bezier(.65,0,.35,1)', fill: 'forwards' });
-      setTimeout(done, 300);
-    } else setTimeout(done, 220);
+    const id = file?.id;
+    // the page puts the tile in full view if it is not (unseen, under the still-dark room) and says where it is
+    exit(id && zoom.z === 1 ? (onReveal?.(id, { now: true }) ?? tileRect(id)) : null);
   };
 
   // ------------------------------------------------------------------ stepping
   const go = (k, how = 'step') => {
-    if (!sequence.length) return;
+    if (!sequence.length || leaving.current) return;
     const next = how === 'loop' ? (k + sequence.length) % sequence.length : clamp(k, 0, sequence.length - 1);
     if (next === index) return;
     setDir(next > index ? 1 : -1);
@@ -135,7 +183,15 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
   };
 
   // ------------------------------------------------------------------ the slideshow
-  const start = (sec) => { setPick(false); onSlide(sec); setShow({ paused: false, startedAt: Date.now(), left: sec * 1000 }); setIdle(true); };
+  const start = (sec) => {
+    setPick(false);
+    if (sec !== slide) onSlide(sec);
+    setShow({ paused: false, startedAt: Date.now(), left: sec * 1000 });
+    setIdle(true);
+    // the closing popover hands focus back to the slideshow button; let it go, so its label does not hang in the air
+    // once the controls step back (Space still pauses — the lightbox listens for it everywhere)
+    setTimeout(() => { if (document.activeElement === slideBtn.current) slideBtn.current.blur(); }, 0);
+  };
   const playPause = () => {
     setShow((v) => {
       if (!v) return v;
@@ -195,10 +251,13 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
 
   return (
     <Portal>
-      <div className={`${s.box} theme-night`} data-phase={phase} data-idle={chromeHidden || undefined} data-details={details || undefined} data-show={show ? (show.paused ? 'paused' : 'playing') : undefined}
+      <div ref={boxEl} className={`${s.box} theme-night`} data-phase={phase} data-idle={chromeHidden || undefined} data-details={details || undefined} data-show={show ? (show.paused ? 'paused' : 'playing') : undefined}
         role="dialog" aria-modal="true" aria-label={`${file.name}.${file.ext}`} onPointerMove={wake} onPointerDown={wake}>
-        <div className={s.backdrop} />
-        <div key={file.id} className={s.ambient} style={{ backgroundImage: `url("${mediaUrl(file, 'low')}")` }} aria-hidden="true" />
+        {/* the room: dark, faintly lit by the picture's own colours, darker at the edges — it comes and goes as one */}
+        <div className={s.room} aria-hidden="true">
+          <div className={s.backdrop} />
+          <div key={file.id} className={s.ambient} style={{ backgroundImage: `url("${mediaUrl(file, 'low')}")` }} />
+        </div>
 
         <header className={s.top}>
           <IconButton icon="close" tone="art" label={t('lightbox.close')} onClick={close} placement="bottom" />
@@ -213,9 +272,16 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
           <div className={s.tools}>
             <IconButton ref={slideBtn} icon={show && !show.paused ? 'pause' : 'slideshow'} tone="art" active={!!show || pick}
               label={show ? t('lightbox.stop') : t('lightbox.slideshow')} onClick={() => (show ? setShow(null) : setPick((p) => !p))} />
-            {file.kind === 'image' && (
-              <IconButton icon="cover" tone="art" active={isCover} label={isCover ? t('lightbox.isCover') : t('lightbox.cover')} onClick={() => !isCover && onCover(file.id)} />
-            )}
+            {/* the cover is a fact about the picture, not a button held down: once it is the cover, the button gives way to a mark */}
+            {file.kind === 'image' && (isCover ? (
+              <Tooltip label={t('lightbox.isCover')}>
+                <span className={s.coverMark} data-fresh={madeCover === file.id || undefined} tabIndex={0} role="img" aria-label={t('lightbox.isCover')}>
+                  <Icon name="cover" size={16} /><span>{t('lightbox.coverMark')}</span>
+                </span>
+              </Tooltip>
+            ) : (
+              <IconButton icon="cover" tone="art" label={t('lightbox.cover')} onClick={() => { setMadeCover(file.id); onCover(file.id); }} />
+            ))}
             <IconButton icon="download" tone="art" label={t('lightbox.download')} onClick={() => onDownload(file.id)} />
             <IconButton icon="trash" tone="art" label={t('lightbox.delete')} className={s.danger} onClick={remove} />
             <span className={s.sep} />
@@ -292,9 +358,18 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
         <Popover open={pick} onClose={() => setPick(false)} anchor={slideBtn} placement="bottom-end" label={t('lightbox.slideshow')} className={`${s.pop} theme-night`}>
           <div className={s.pick}>
             <span className={s.pickLabel}>{t('lightbox.seconds')}</span>
-            <Segmented size="sm" value={slide} onChange={onSlide} label={t('lightbox.seconds')}
-              options={browsing.SLIDE_SECONDS.map((n) => ({ value: n, label: t('lightbox.secondsN', { n }) }))} />
-            <Button variant="primary" icon="play" onClick={() => start(slide)} data-autofocus>{t('lightbox.start')}</Button>
+            {/* any number of seconds: typed (Enter starts), or one more / one less; a few usual ones under it */}
+            <div className={s.pickRow}>
+              <Stepper value={slide} min={browsing.SLIDE_RANGE[0]} max={browsing.SLIDE_RANGE[1]} onChange={onSlide} onEnter={start}
+                label={t('lightbox.seconds')} decLabel={t('lightbox.secondLess')} incLabel={t('lightbox.secondMore')} inputProps={{ 'data-autofocus': '' }} />
+              <span className={s.pickUnit}>{t('lightbox.secondsUnit', { n: slide })}</span>
+            </div>
+            <div className={s.presets}>
+              {browsing.SLIDE_SECONDS.map((n) => (
+                <button key={n} type="button" className="num" data-on={n === slide || undefined} onClick={() => onSlide(n)}>{t('lightbox.secondsN', { n })}</button>
+              ))}
+            </div>
+            <Button variant="primary" icon="play" onClick={() => start(slide)}>{t('lightbox.start')}</Button>
           </div>
         </Popover>
       </div>

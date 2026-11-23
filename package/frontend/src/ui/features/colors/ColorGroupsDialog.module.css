@@ -63,13 +63,41 @@
 .total { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
 
 .empty { margin: 8px 0 12px; font-size: 13.5px; color: var(--ink-3); }
-.rows { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow: auto; margin: -4px; padding: 4px; }
+/* finding one among many, and sorting them all */
+.findBar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.find {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  max-width: 320px;
+  height: 34px;
+  padding: 0 6px 0 30px;
+  border-radius: var(--r-2);
+  background: var(--field);
+  box-shadow: 0 0 0 1px var(--line) inset;
+  cursor: text;
+  transition: background-color var(--dur-2), box-shadow var(--dur-2) var(--ease-out);
+}
+.find:focus-within { background: var(--bg); box-shadow: 0 0 0 1px var(--accent) inset, 0 0 0 3px var(--accent-soft); }
+.findIcon { position: absolute; left: 9px; color: var(--ink-3); pointer-events: none; }
+.find input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; background: none; font-size: 13.5px; color: var(--ink); }
+.find input:focus-visible { box-shadow: none; }
+.clear { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: var(--ink-3); }
+.clear:hover { background: var(--hover); color: var(--ink); }
+.findCount { margin-right: auto; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.sortBtn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: var(--r-2); font-size: 13px; font-weight: 540; color: var(--ink-2); transition: background-color var(--dur-1), color var(--dur-1); }
+.sortBtn:hover, .sortBtn[aria-expanded='true'] { background: var(--hover); color: var(--ink); }
+
+.rows { position: relative; display: flex; flex-direction: column; gap: 4px; max-height: min(52vh, 540px); overflow: auto; margin: -4px; padding: 4px; }
 .row {
   position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 48px;
+  flex-shrink: 0;
+  height: 40px;
   padding: 0 8px 0 4px;
   border-radius: var(--r-3);
   background: color-mix(in srgb, var(--c) 9%, var(--bg-raised));
@@ -80,8 +108,9 @@
 }
 @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } }
 .row:hover { box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 50%, transparent) inset; }
-.row[data-dragging] { background: var(--bg-raised); box-shadow: 0 0 0 1px var(--line-2) inset, var(--shadow-3); }
-.grip { display: grid; place-items: center; width: 22px; height: 32px; color: var(--ink-4); cursor: grab; transition: color var(--dur-1); }
+.row[data-moving] { opacity: 0.35; }
+.nothing { padding: 18px 10px; font-size: 13px; color: var(--ink-3); text-align: center; }
+.grip { display: grid; place-items: center; width: 22px; height: 32px; color: var(--ink-4); cursor: grab; touch-action: none; transition: color var(--dur-1); }
 .row:hover .grip { color: var(--ink-3); }
 .swatch {
   flex-shrink: 0;
@@ -96,7 +125,7 @@
 .nameInput {
   flex: 1;
   min-width: 0;
-  height: 34px;
+  height: 30px;
   padding: 0 9px;
   border: 0;
   border-radius: var(--r-2);
@@ -111,7 +140,11 @@
 .remove { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-2); color: var(--ink-3); opacity: 0.6; transition: background-color var(--dur-1), color var(--dur-1), opacity var(--dur-1); }
 .row:hover .remove { opacity: 1; }
 .remove:hover { background: var(--danger-soft); color: var(--danger); }
-.marker { position: fixed; z-index: 300; border-radius: 2px; background: var(--star); box-shadow: 0 0 0 2px var(--bg), 0 0 12px color-mix(in srgb, var(--star) 60%, transparent); pointer-events: none; }
+/* where a dragged colour group would land, and the colour group itself following the pointer */
+.line { position: absolute; top: 0; left: 8px; right: 8px; z-index: 2; height: 2px; border-radius: 1px; background: var(--star); box-shadow: 0 0 0 2px var(--bg-raised), 0 0 10px color-mix(in srgb, var(--star) 60%, transparent); pointer-events: none; transition: transform 100ms var(--ease-out); }
+.ghost { position: fixed; top: 0; left: 0; z-index: 300; pointer-events: none; will-change: transform; }
+.ghostChip { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px 0 9px; border-radius: var(--r-2); background: var(--ink); color: var(--bg); font-size: 13px; font-weight: 560; white-space: nowrap; box-shadow: var(--shadow-2); transform: translate(14px, 10px); }
+.ghostChip i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 30%, transparent); }
 
 .addColor { display: inline-flex; align-items: center; gap: 10px; align-self: flex-start; height: 40px; margin-top: 8px; padding: 0 12px 0 10px; border-radius: var(--r-2); font-size: 13.5px; font-weight: 560; color: var(--ink-2); transition: background-color var(--dur-1), color var(--dur-1); }
 .addColor:hover { background: var(--hover); color: var(--ink); }

@@ -25,6 +25,28 @@ const TONE = { name: '色调', by: 'palette', groups: [['冷蓝', SWATCH.cobalt]
   map: { night: 0, deep: 0, lagoon: 0, amber: 1, dawn: 1, peach: 1, lavender: 2, dusk: 2, sakura: 2, slate: 3 } };
 const RATING = { name: '评分', by: 'random', groups: [['精选', SWATCH.amber], ['可用', SWATCH.moss], ['待定', SWATCH.sand], ['废弃', SWATCH.rose]], weights: [0.12, 0.36, 0.18, 0.1] };
 
+/**
+ * A collection sorted by artist: a hundred and twenty colour groups, a few with many files and most with a handful —
+ * the kind of configuration that needs the outline to find and order. Its own random stream (`seed`), so adding it
+ * leaves every other file of the sample as it was.
+ */
+const ARTIST_NAMES = [
+  'あおい', '白夜', 'Kurone', 'みなと', '雨宮', 'Sora', '柊', 'Lumi', '千夜', 'Noct', 'ゆずき', '鹿野', 'Mizu', '青嵐', 'Haru', '夕凪',
+  'Akira', '星見', 'Rin', '灯', 'Kiyo', 'ことは', '月白', 'Nagi', '藤原', 'Mio', '冬木', 'Shiki', '朝霧', 'Hoshi', '紬', 'Yoru',
+  '葵井', 'Tsuki', '零', 'Kaede', '七瀬', 'Aki', '水無月', 'Ren', '琥珀', 'Hinata', '桐生', 'Natsu', '雪代', 'Iroha', '真白', 'Kaze',
+  '蒼井', 'Yume', '綾瀬', 'Hikari', '霧島', 'Asahi', '小春', 'Raku', '若葉', 'Tomo', '梓', 'Sui', '久遠', 'Yuu', '翠', 'Momo',
+  '朔', 'Ao', '千歳', 'Kuu', '日向', 'Neko', '秋月', 'Shion', '陽炎', 'Mochi', '凛', 'Fuyu', '風花', 'Tama', '紫苑', 'Koto',
+  '瑠璃', 'Yui', '遥', 'Tsubaki', '茜', 'Hana', '湊', 'Sakura', '響', 'Kumo', '澪', 'Ume', '葉月', 'Kai', '詩', 'Yoi',
+  '空色', 'Mint', '黎明', 'Ash', '浅葱', 'Lilac', '海月', 'Moss', '橙', 'Pale', '墨', 'Dawn', '鈴', 'Haze', '雫', 'Ember',
+  '杏', 'Fern', '雲雀', 'Opal', '藍', 'Wren', '燈', 'Iris',
+];
+const ARTISTS = {
+  name: '画师', by: 'random', seed: 'artist',
+  groups: ARTIST_NAMES.map((name, k) => [name, Object.values(SWATCH)[(k * 5) % 12]]),
+  // a long tail: the first few artists hold many files, most hold a few, and some files belong to none
+  weights: (() => { const w = ARTIST_NAMES.map((_, k) => 1 / (k + 4) ** 0.85); const sum = w.reduce((a, b) => a + b, 0); return w.map((x) => (x / sum) * 0.93); })(),
+};
+
 // ------------------------------------------------------------------ groups
 // kind decides the file names: comfy (ComfyUI output) · pixiv · fanbox · mixed · video
 // age: [newest, oldest] file in days; imported: days since the last import; cover: the cover picture's size
@@ -40,7 +62,7 @@ export const GROUPS = [
     palettes: ['dawn', 'mint', 'lagoon', 'sage', 'peach', 'forest', 'slate', 'dusk'], dims: [D.uhd, D.fhd, D.p43, D.qhd, D.uw], cover: [5120, 2160], coverStyle: 'hills',
     age: [3, 700], imported: 3, created: 710, user: 0.1,
     configs: [{ name: '季节', by: 'palette', groups: [['春', SWATCH.rose], ['夏', SWATCH.teal], ['秋', SWATCH.coral], ['冬', SWATCH.sky]],
-      map: { sakura: 0, dawn: 0, lavender: 0, mint: 1, lagoon: 1, forest: 1, sage: 1, peach: 2, amber: 2, dusk: 2, slate: 3, night: 3, deep: 3 } }] },
+      map: { sakura: 0, dawn: 0, lavender: 0, mint: 1, lagoon: 1, forest: 1, sage: 1, peach: 2, amber: 2, dusk: 2, slate: 3, night: 3, deep: 3 } }, ARTISTS] },
   { key: 'chara', name: 'SDXL 角色立绘', kind: 'comfy', family: 'sdxl', count: 256, styles: ['portrait'],
     palettes: ['lavender', 'sakura', 'slate', 'amber', 'mint', 'peach'], dims: [D.sdxlP, D.sdxlT, D.sdxlP2], cover: [768, 1344], coverStyle: 'portrait',
     age: [4, 90], imported: 4, created: 95, user: 0.16,

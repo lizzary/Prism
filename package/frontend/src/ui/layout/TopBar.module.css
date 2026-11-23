@@ -5,7 +5,8 @@
   right: 0;
   z-index: 50;
   height: var(--bar-h);
-  transition: background-color 360ms var(--ease-out), box-shadow 360ms var(--ease-out), color 360ms var(--ease-out), backdrop-filter 360ms;
+  transition: background-color 360ms var(--ease-out), box-shadow 360ms var(--ease-out), color 360ms var(--ease-out), backdrop-filter 360ms,
+    opacity 320ms var(--ease-out) 60ms, transform 460ms var(--ease-out) 60ms;
 }
 .inner {
   display: flex;
@@ -16,6 +17,11 @@
   margin: 0 auto;
   padding: 0 var(--gutter);
 }
+/* a page that uses the whole width (a group's files): the bar spans it too, so its edges line up with the page's */
+.bar[data-wide] .inner { max-width: none; }
+/* a file opens in the lightbox: the bar rises out of the way as the lightbox's own bar comes down into its place,
+   and settles back as the lightbox closes */
+:global(:root[data-lightbox]) .bar { opacity: 0; transform: translateY(-14px); pointer-events: none; transition-delay: 0ms; transition-duration: 360ms, 360ms, 360ms, 360ms, 240ms, 420ms; }
 .onArt { color: #f6f1e4; background: linear-gradient(180deg, rgba(8, 13, 32, 0.62) 0%, rgba(8, 13, 32, 0.34) 55%, rgba(8, 13, 32, 0) 100%); text-shadow: 0 1px 8px rgba(6, 10, 26, 0.6); }
 .onArt svg { filter: drop-shadow(0 1px 3px rgba(6, 10, 26, 0.55)); }
 .solid {

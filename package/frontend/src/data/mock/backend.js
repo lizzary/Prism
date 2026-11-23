@@ -204,7 +204,7 @@ export function listColorGroups() {
   const count = new Map();
   for (const f of L.files) for (const id of Object.values(f.colors)) count.set(id, (count.get(id) ?? 0) + 1);
   return orderedGroups(L).flatMap((g) => g.configs.flatMap((c) => c.groups.map((x) => ({
-    id: x.id, name: x.name, color: x.color, config: c.name, group: { id: g.id, name: g.name }, fileCount: count.get(x.id) ?? 0,
+    id: x.id, name: x.name, color: x.color, config: c.name, configId: c.id, group: { id: g.id, name: g.name }, fileCount: count.get(x.id) ?? 0,
   }))));
 }
 

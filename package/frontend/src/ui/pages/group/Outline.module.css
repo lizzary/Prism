@@ -1,0 +1,167 @@
+/* Beside the files, under the toolbar: it stays in view while the page scrolls, and its list scrolls on its own. */
+.outline {
+  position: sticky;
+  top: calc(var(--bar-h) + 70px);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 284px;
+  height: calc(100vh - var(--bar-h) - 88px);
+  min-height: 320px;
+  border-radius: var(--r-3);
+  background: var(--bg-raised);
+  box-shadow: 0 0 0 1px var(--line) inset, var(--shadow-1);
+  overflow: hidden;
+  animation: outlineIn 420ms var(--ease-out) both;
+}
+@keyframes outlineIn { from { opacity: 0; transform: translateX(-10px); } }
+
+/* ------------------------------------------------------------------ finding */
+.head { display: flex; align-items: center; gap: 4px; padding: 10px 8px 6px 10px; }
+.find {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 6px 0 30px;
+  border-radius: var(--r-2);
+  background: var(--field);
+  box-shadow: 0 0 0 1px var(--line) inset;
+  cursor: text;
+  transition: background-color var(--dur-2), box-shadow var(--dur-2) var(--ease-out);
+}
+.find:hover { background: var(--field-hover); }
+.find:focus-within { background: var(--bg); box-shadow: 0 0 0 1px var(--accent) inset, 0 0 0 3px var(--accent-soft); }
+.findIcon { position: absolute; left: 9px; color: var(--ink-3); pointer-events: none; }
+.find input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; background: none; font-size: 13.5px; color: var(--ink); }
+.find input:focus-visible { box-shadow: none; }
+.kbd { flex-shrink: 0; padding: 0 6px; border-radius: var(--r-1); font: 600 11px/18px var(--font-sans); color: var(--ink-3); box-shadow: 0 0 0 1px var(--line-2) inset; }
+.find:focus-within .kbd { opacity: 0; }
+.clear { display: grid; place-items: center; flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; color: var(--ink-3); transition: background-color var(--dur-1), color var(--dur-1); }
+.clear:hover { background: var(--hover); color: var(--ink); }
+
+.sub { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 10px 8px 14px; border-bottom: 1px solid var(--line); }
+.total { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.sortBtn { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px; border-radius: var(--r-2); font-size: 12.5px; font-weight: 540; color: var(--ink-2); transition: background-color var(--dur-1), color var(--dur-1); }
+.sortBtn:hover:not(:disabled), .sortBtn[aria-expanded='true'] { background: var(--hover); color: var(--ink); }
+.sortBtn:disabled { opacity: 0.4; }
+
+/* ------------------------------------------------------------------ the colour groups */
+.list { position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px 6px 10px; }
+/* the ones on screen: a soft starlit window behind their rows, gliding along as the page scrolls */
+.win {
+  position: absolute;
+  top: 0;
+  left: 4px;
+  right: 4px;
+  border-radius: var(--r-2);
+  background: var(--star-soft);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--star) 38%, transparent) inset;
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 420ms var(--ease-out), height 420ms var(--ease-out), opacity 300ms var(--ease-out);
+}
+.win[data-on] { opacity: 1; }
+.list[data-dragging] .win { opacity: 0.35; }
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 4px 0 6px;
+  border-radius: var(--r-2);
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--dur-1), color var(--dur-1), opacity var(--dur-2);
+}
+.row:hover { background: var(--hover); color: var(--ink); }
+.row[data-in] { color: var(--ink); }
+.row[data-active] { background: var(--press); color: var(--ink); box-shadow: 0 0 0 1px var(--line-2) inset; }
+.row[data-chosen] { background: var(--accent-soft); color: var(--ink); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 42%, transparent) inset; }
+.row[data-moving] { opacity: 0.32; }
+/* just moved here: a glint, so the eye finds where they landed */
+.row[data-moved] { animation: landed 1.3s var(--ease-out); }
+@keyframes landed { 0%, 100% { } 22% { background: color-mix(in srgb, var(--c) 26%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 60%, transparent) inset; } }
+
+.grip { flex-shrink: 0; margin: 0 -6px 0 -4px; color: var(--ink-4); opacity: 0; cursor: grab; transition: opacity var(--dur-1); }
+.row:hover .grip { opacity: 1; }
+.dot { flex-shrink: 0; width: 9px; height: 9px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--c) 18%, transparent); transition: background-color var(--dur-2), box-shadow var(--dur-2); }
+.row[data-folded] .dot { background: transparent; box-shadow: 0 0 0 1.5px var(--c) inset; }
+.noneRow .dot { background: transparent; box-shadow: 0 0 0 1.5px var(--ink-4) inset; }
+.noneRow { margin-top: 6px; }
+.noneRow::before { content: ''; position: absolute; top: -4px; left: 8px; right: 8px; height: 1px; background: var(--line); }
+.name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row[data-folded] .name { color: var(--ink-3); }
+.name mark { padding: 0 1px; border-radius: 2px; background: color-mix(in srgb, var(--star) 34%, transparent); color: inherit; }
+.count { flex-shrink: 0; min-width: 22px; text-align: right; font-size: 11.5px; color: var(--ink-3); }
+
+.fold { display: grid; place-items: center; flex-shrink: 0; width: 22px; height: 22px; border-radius: var(--r-1); color: var(--ink-3); opacity: 0; transition: opacity var(--dur-1), background-color var(--dur-1), color var(--dur-1); }
+.fold svg { transition: transform 300ms var(--ease-out); }
+.fold[data-folded] svg { transform: rotate(-90deg); }
+.fold[data-folded] { opacity: 0.45; }
+.row:hover .fold, .fold:focus-visible { opacity: 1; }
+.fold:hover { background: var(--hover); color: var(--ink); }
+
+.nothing { padding: 18px 10px; font-size: 13px; color: var(--ink-3); text-align: center; }
+
+/* where the dragged rows would land */
+.line {
+  position: absolute;
+  top: 0;
+  left: 6px;
+  right: 6px;
+  z-index: 2;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--star);
+  box-shadow: 0 0 0 2px var(--bg-raised), 0 0 10px color-mix(in srgb, var(--star) 65%, transparent);
+  pointer-events: none;
+  transition: transform 100ms var(--ease-out);
+}
+.ghost { position: fixed; top: 0; left: 0; z-index: 300; pointer-events: none; will-change: transform; }
+.ghostChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 260px;
+  height: 30px;
+  padding: 0 10px 0 9px;
+  border-radius: var(--r-2);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 13px;
+  font-weight: 560;
+  white-space: nowrap;
+  overflow: hidden;
+  box-shadow: var(--shadow-2);
+  transform: translate(14px, 10px);
+  animation: lift 220ms var(--ease-back) both;
+}
+@keyframes lift { from { opacity: 0; transform: translate(14px, 10px) scale(0.9); } }
+.ghostChip i { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 30%, transparent); }
+.ghostChip b { margin-left: 2px; padding: 0 6px; border-radius: 8px; background: var(--star); color: #1d2030; font-size: 11px; line-height: 17px; }
+
+/* ------------------------------------------------------------------ chosen together: moved or shown alone in one press */
+.chosenBar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 6px 6px 14px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent-soft) 60%, var(--bg-raised));
+  animation: barUp 260ms var(--ease-out) both;
+}
+@keyframes barUp { from { opacity: 0; transform: translateY(6px); } }
+.chosenCount { flex: 1; font-size: 12.5px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+
+/* narrower: it floats over the left of the files instead of taking their room */
+@media (max-width: 900px) {
+  /* the toolbar takes two rows here: the outline starts under both */
+  .outline { position: fixed; z-index: 25; left: 12px; top: calc(var(--bar-h) + 108px); height: calc(100vh - var(--bar-h) - 124px); box-shadow: 0 0 0 1px var(--line) inset, var(--shadow-3); }
+}

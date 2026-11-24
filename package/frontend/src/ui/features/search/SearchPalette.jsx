@@ -34,11 +34,27 @@ function Marked({ text, ranges }) {
   return out;
 }
 
-export default function SearchPalette({ open, onClose, groupId, text: presetText = '', domains: presetDomains, nonce }) {
+/**
+ * The palette's frame: it comes and goes (and holds the page still) across openings, and keeps the lists it chooses
+ * from. What is typed, chosen and found belongs to one opening: each opening is a palette of its own (keyed by its
+ * nonce), so it starts from its page's scope at once — never showing, even for a frame, what the last one left.
+ * (The one closing keeps its query on screen as it fades out.)
+ */
+export default function SearchPalette({ open, onClose, nonce, ...rest }) {
+  const { mounted, state } = usePresence(open, 220);
+  const { data: caps } = useSearchCapabilities();
+  const { data: groups } = useGroupList();
+  const { data: colors } = useColorGroupList();
+  useScrollLock(mounted);
+  const modal = useModalLayer(mounted);
+  if (!mounted) return null;
+  return <Palette key={nonce} {...rest} state={state} modal={modal} onClose={onClose} caps={caps} groups={groups} colors={colors} />;
+}
+
+function Palette({ state, modal, onClose, caps, groups, colors, groupId, text: presetText = '', domains: presetDomains }) {
   const t = useT();
   const fmt = useFormat();
-  const { mounted, state } = usePresence(open, 220);
-  const [text, setText] = useState('');
+  const [text, setText] = useState(presetText);
   const [domains, setDomains] = useState(() => initialDomains(groupId, presetDomains));
   const [image, setImage] = useState(null);          // { token, url, name }: the picture to find similar ones to
   const [active, setActive] = useState(0);
@@ -50,22 +66,9 @@ export default function SearchPalette({ open, onClose, groupId, text: presetText
   const groupsBtn = useRef(null);
   const colorsBtn = useRef(null);
   const fileInput = useRef(null);
-  const { data: caps } = useSearchCapabilities();
-  const { data: groups } = useGroupList();
-  const { data: colors } = useColorGroupList();
   const { data, loading, settled } = useSearch(text, domains, domains.similar ? image?.token : null);
-  useScrollLock(mounted);
-  const modal = useModalLayer(mounted);
 
-  // every opening starts from its page's scope
-  useEffect(() => {
-    if (!open) return;
-    setDomains(initialDomains(groupId, presetDomains));
-    setText(presetText);
-    setImage(null);
-    setActive(0);
-    setTimeout(() => input.current?.focus(), 30);
-  }, [open, nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const id = setTimeout(() => input.current?.focus(), 30); return () => clearTimeout(id); }, []);
   useEffect(() => { setActive(0); }, [settled?.text, settled?.image, domains]);
 
   const items = useMemo(() => [
@@ -80,7 +83,6 @@ export default function SearchPalette({ open, onClose, groupId, text: presetText
   const firstFile = items.findIndex((x) => x.kind === 'file');
   useEffect(() => { list.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' }); }, [active]);
 
-  if (!mounted) return null;
   const choose = (item) => { if (!item) return; onClose(); item.go(); };
   const move = (d) => setActive((a) => Math.max(0, Math.min(items.length - 1, a + d)));
   const onKey = (e) => {

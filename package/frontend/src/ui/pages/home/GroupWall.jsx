@@ -292,8 +292,9 @@ function Cover({ group, eager }) {
       onPointerLeave={() => { over.current = false; show(0); }}
       // a picture still on its way in is not on show (the main cover is): the page opens on what the card shows
       onClick={() => { if (shown > 0 && !loaded.current.has(covers[shown].id)) coverOnShow.set(group.id, null); }}>
-      {/* the covers as one picture: whichever is on show is the one that grows into the page's banner */}
-      <ViewTransition name={`group-art-${group.id}`} share="morph" default="none">
+      {/* the covers as one picture: whichever is on show is the one that grows into the page's banner (and, coming
+          back, lands here above the arriving page: .landing, base.css) */}
+      <ViewTransition name={`group-art-${group.id}`} share="morph landing" default="none">
         <div className={s.frames} data-settling={settling || undefined}>
           <CoverImage src={mediaUrl(covers[0], 'original')} eager={eager} />
           {armed && covers.slice(1).map((f, k) => (

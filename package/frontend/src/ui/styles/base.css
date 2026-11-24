@@ -54,7 +54,17 @@ input::placeholder, textarea::placeholder { color: var(--ink-3); opacity: 1; }
 ::view-transition-old(.page-out) { animation: 260ms var(--ease-in-out) both pr-page-out; }
 ::view-transition-new(.page-in) { animation: 520ms var(--ease-out) 60ms both pr-page-in; }
 ::view-transition-group(.morph) { animation-duration: 560ms; animation-timing-function: var(--ease-out); }
-::view-transition-old(.morph), ::view-transition-new(.morph) { height: 100%; object-fit: cover; }
+/* a group's cover between its card and its page's banner: both ends fill one frame (the card's crop opening out into
+   the banner's, or closing back in) and hand over early, so it reads as one picture, never two boxes */
+::view-transition-image-pair(.morph) { overflow: clip; border-radius: var(--r-2); }
+::view-transition-old(.morph), ::view-transition-new(.morph) { width: 100%; height: 100%; object-fit: cover; animation-duration: 300ms; }
+/* The page arriving is a new part of a page change, and new parts are drawn last — above everything that carries
+   over. The top bar stays above the pages; a group's cover coming back to its card (.landing: the card's end of the
+   pair) lands above the home page arriving under it, instead of sinking beneath it — where the card's own pale frame,
+   in that page's picture, would veil it until the change ended. (Going to the group, the banner stays under its page:
+   the page's name and shading belong over it.) */
+::view-transition-group(topbar) { z-index: 2; }
+::view-transition-group(.landing) { z-index: 1; }
 /* a picture travelling between a thumbnail on another page and the lightbox: both ends fill the same frame, so the
    thumbnail's crop opens out into the whole picture (or closes back in); it hands over to the full picture early, so
    what flies is the picture itself, not a thumbnail blown up */

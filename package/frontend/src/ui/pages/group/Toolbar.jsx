@@ -1,6 +1,7 @@
 // The group page's toolbar, sticking under the top bar and spanning the page. On the left, everything about colour
-// groups: which configuration gathers the files, their layout, a number per colour group, fold all — then the colour
-// groups themselves as a strip that follows the page (the ones on screen sit in a soft window) and jumps to any of them.
+// groups: their list beside the files, which configuration gathers the files, their layout, a number per colour group,
+// fold all — then the colour groups themselves as a strip that follows the page (the ones on screen sit in a soft
+// window) and jumps to any of them.
 // On the right, how the files look (sort, size, proportions, quality and files per page) and what to do (refresh,
 // whiteboard, upload).
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -23,10 +24,10 @@ export function Toolbar({ data, arranged, view, setView, clock, arrived, onRefre
   return (
     <div className={s.bar} data-stuck={stuck || undefined}>
       <div className={s.cluster}>
+        {grouped && <ListToggle open={outline} colors={arranged.sections.filter((x) => x.color).slice(0, 3).map((x) => x.color.color)} onToggle={onOutline} />}
         <Palette data={data} onUse={onUseConfig} onEdit={onEditColors} />
         {grouped && (
           <>
-            <IconButton size="sm" icon="sidebar" active={outline} label={outline ? t('group.outline.close') : t('group.outline.open')} onClick={onOutline} />
             <Segmented size="sm" iconOnly label={t('group.layout.label')} value={view.layout} onChange={(v) => setView({ layout: v })}
               options={[
                 { value: 'single', icon: 'cols-1', label: t('group.layout.single') },
@@ -59,6 +60,34 @@ export function Toolbar({ data, arranged, view, setView, clock, arrived, onRefre
         <Button variant="primary" size="sm" icon="upload" className={s.labelled} onClick={onUpload}>{t('group.upload')}</Button>
       </div>
     </div>
+  );
+}
+
+// the 'list' icon's bullets and lines (as in Icon.jsx), drawn here so the bullets can take the colour groups' colours
+const LIST_ROWS = [[6.5, 9.5], [12, 9.5], [17.5, 6.5]];   // each row: y, length of its line
+
+/**
+ * The colour groups as a list beside the files: named, first in the bar — right above where the list opens (its key,
+ * G, waits in the list's find field). The icon's bullets are the first colour groups' own colours; its lines write
+ * themselves out again as the pointer comes.
+ */
+function ListToggle({ open, colors, onToggle }) {
+  const t = useT();
+  const label = open ? t('group.outline.close') : t('group.outline.open');
+  return (
+    <Tooltip label={label} delay={500}>
+      <button type="button" className={s.list} aria-pressed={open} aria-label={label} aria-keyshortcuts="G" onClick={onToggle}>
+        <svg viewBox="0 0 24 24" width="17" height="17" className={s.listIcon} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+          {LIST_ROWS.map(([y, len], k) => (
+            <g key={y} style={{ '--k': k }}>
+              <circle cx="5.2" cy={y} r="1.9" fill={colors[k] ?? 'currentColor'} stroke="none" />
+              <path d={`M9.6 ${y}h${len}`} pathLength="1" />
+            </g>
+          ))}
+        </svg>
+        <span className={s.listLabel}>{t('group.outline.button')}</span>
+      </button>
+    </Tooltip>
   );
 }
 

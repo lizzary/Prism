@@ -178,11 +178,13 @@ export function Outline({ sections, seen, view, setView, onJump, onOrder, onClos
         <label className={s.find}>
           <Icon name="search" size={15} className={s.findIcon} />
           <input ref={field} value={query} onChange={(e) => { setQuery(e.target.value); setActive(null); }} onKeyDown={onKey}
-            placeholder={t('group.outline.find')} spellCheck={false} autoComplete="off"
+            placeholder={t('group.outline.find')} spellCheck={false} autoComplete="off" aria-keyshortcuts="G"
             role="combobox" aria-expanded="true" aria-controls={`${uid}-list`} aria-activedescendant={active ? rowId(active) : undefined} />
+          {/* G brings the cursor here from anywhere on the page: shown while the field is empty, focused or not, so a
+              list opened from the toolbar shows its key at once */}
           {query
             ? <button type="button" className={s.clear} onClick={() => { setQuery(''); field.current?.focus(); }} aria-label={t('common.clear')}><Icon name="close" size={13} /></button>
-            : <kbd className={s.kbd}>G</kbd>}
+            : <kbd className={s.kbd} aria-hidden="true">G</kbd>}
         </label>
         <IconButton size="sm" icon="close" label={t('group.outline.close')} onClick={onClose} />
       </div>

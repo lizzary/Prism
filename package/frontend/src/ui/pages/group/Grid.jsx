@@ -244,27 +244,32 @@ export function Grid({ ref, data, arranged, view, onView, selection, arrived, fo
     <div ref={grid} className={s.grid} style={{ height: layout.height }} data-resizing={resizing || undefined} data-dragging={dragging?.kind}
       data-mode={arranged.grouped ? view.layout : 'plain'} onPointerLeave={() => setHot(null)}>
       {layout.boxes.map((b) => (
-        <div key={b.key} className={s.box} style={{ '--c': colorOf(b.section), transform: `translate(${b.x}px, ${b.y}px)`, width: b.w, height: b.h }}
+        <div key={b.key} className={s.box} style={{ '--c': colorOf(b.section), '--i': b.i, transform: `translate(${b.x}px, ${b.y}px)`, width: b.w, height: b.h }}
           data-none={b.section === NONE || undefined} data-open-left={b.open.left || undefined} data-open-right={b.open.right || undefined}
+          data-shelf={b.shelf || undefined} data-empty={(b.shelf && b.empty) || undefined}
           data-hot={hot === b.section || undefined} data-target={(target?.section === b.section && dragging?.kind === 'files') || undefined}
           data-flash={(flash?.key === b.section && flash.at) || undefined}
           data-lifted={(dragging?.kind === 'section' && dragging.key === b.section) || undefined}
           onPointerEnter={() => setHot(b.section)}>
-          {b.empty && <span className={s.emptyDrop}><Icon name="drag-drop" size={18} />{t('group.section.dropHere')}</span>}
+          {b.empty && !b.shelf && <span className={s.emptyDrop}><Icon name="drag-drop" size={18} />{t('group.section.dropHere')}</span>}
         </div>
       ))}
 
       {layout.heads.map((hd) => {
         const sec = full.get(hd.section);
-        return sec && (
-          <Heading key={hd.key} hd={hd} sec={sec} name={nameOf(hd.section)} color={colorOf(hd.section)} view={view} onView={onView}
-            draggable={hd.section !== NONE && order.length > 1} onDrag={(e) => drag.beginSection(e, hd.section)}
-            lifted={dragging?.kind === 'section' && dragging.key === hd.section} onHot={() => setHot(hd.section)} />
-        );
+        if (!sec) return null;
+        const draggable = hd.section !== NONE && order.length > 1;
+        const lifted = dragging?.kind === 'section' && dragging.key === hd.section;
+        const onDrag = (e) => drag.beginSection(e, hd.section);
+        const onHot = () => setHot(hd.section);
+        return hd.kind === 'shelf'
+          ? <ShelfTab key={hd.key} hd={hd} sec={sec} name={nameOf(hd.section)} color={colorOf(hd.section)} draggable={draggable} onDrag={onDrag}
+              lifted={lifted} onHot={onHot} onUnfold={() => onView({ collapsed: toggled(view.collapsed, hd.section, false) })} />
+          : <Heading key={hd.key} hd={hd} sec={sec} name={nameOf(hd.section)} color={colorOf(hd.section)} view={view} onView={onView}
+              draggable={draggable} onDrag={onDrag} lifted={lifted} onHot={onHot} />;
       })}
 
       {shown.map((x) => {
-        if (x.kind === 'capsule') return <Capsule key={x.key} x={x} sec={full.get(x.section)} color={colorOf(x.section)} onUnfold={() => onView({ collapsed: toggled(view.collapsed, x.section, false) })} />;
         const f = files.get(x.id);
         return f && (
           <Tile key={x.key} x={x} file={f} quality={quality} selected={selection.has(f.id)} selecting={selecting} carried={carried.has(f.id)}
@@ -400,21 +405,42 @@ function Heading({ hd, sec, name, color, view, onView, draggable, onDrag, lifted
 }
 
 /**
- * A folded (or empty) colour group in the flowing layout: it keeps its place in the flow as one slim card under its
- * heading — a few of its pictures fanned, pressing it unfolds it; an empty one takes files dropped on it.
+ * A folded (or empty) colour group in the flowing layout: a tab on the shelf between the open ones, as tall as a heading
+ * at any size. Its colour, name and size, and a few of its pictures fanned at its end; pressing it unfolds it, dragging
+ * it moves the colour group, and files dropped on it join it (an empty one is drawn as a place to drop them).
  */
-function Capsule({ x, sec, color, onUnfold }) {
+function ShelfTab({ hd, sec, name, color, draggable, onDrag, lifted, onHot, onUnfold }) {
   const t = useT();
-  const style = { '--c': color, transform: `translate(${x.x}px, ${x.y}px)`, width: x.w, height: x.h };
-  if (!sec?.total) return <div className={s.capsule} data-empty="" style={style}><Icon name="drag-drop" size={18} /><span>{t('group.section.dropHere')}</span></div>;
+  const fmt = useFormat();
+  const empty = !sec.total;
+  // unfolding an empty one would show nothing more: it stays a place to drop files, folded or not
+  const folded = sec.collapsed && !empty;
   const peek = sec.files.slice(0, 3);
+  const label = folded ? `${name} · ${t('group.section.unfold')}` : t('group.section.dropHere');
   return (
-    <button type="button" className={s.capsule} style={style} onClick={onUnfold} aria-label={t('group.section.unfold')}>
-      <span className={s.fan} aria-hidden="true">
-        {peek.map((f, k) => <img key={f.id} src={mediaUrl(f, 'low')} alt="" draggable={false} loading="lazy" style={{ '--k': k, '--n': peek.length }} />)}
-      </span>
-      <span className={s.capLabel}><Icon name="chevron-down" size={13} stroke={2} />{t('group.section.unfold')}</span>
-    </button>
+    <Tooltip label={label} delay={600}>
+      <div className={s.shelfTab} role={folded ? 'button' : undefined} tabIndex={folded ? 0 : undefined} aria-expanded={folded ? false : undefined}
+        aria-label={folded ? label : undefined}
+        style={{ '--c': color, '--i': hd.i, transform: `translate(${hd.x}px, ${hd.y}px)`, width: hd.w, height: hd.h }}
+        data-none={sec.key === NONE || undefined} data-folded={folded || undefined} data-empty={empty || undefined}
+        data-grab={draggable || undefined} data-lifted={lifted || undefined}
+        onPointerDown={draggable ? onDrag : undefined} onPointerEnter={onHot} onClick={folded ? onUnfold : undefined}
+        onKeyDown={folded ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onUnfold(); } } : undefined}>
+        <i className={s.dot} />
+        <span className={s.name}>{name}</span>
+        <span className={`${s.count} num`}>{fmt.number(sec.total)}</span>
+        <span className={s.shelfEnd}>
+          {empty
+            ? <Icon name="drag-drop" size={16} className={s.shelfDrop} />
+            : (
+              <span className={s.shelfFan} aria-hidden="true">
+                {peek.map((f, k) => <img key={f.id} src={mediaUrl(f, 'low')} alt="" draggable={false} loading="lazy" style={{ '--k': k, '--n': peek.length }} />)}
+              </span>
+            )}
+          {folded && <Icon name="chevron-down" size={14} className={s.shelfChev} />}
+        </span>
+      </div>
+    </Tooltip>
   );
 }
 

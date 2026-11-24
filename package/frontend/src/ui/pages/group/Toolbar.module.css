@@ -13,6 +13,32 @@
 .look, .actions { padding-left: 14px; border-left: 1px solid var(--line); }
 .actions { gap: 8px; }
 
+/* ------------------------------------------------------------------ the colour groups as a list beside the files */
+/* sized like the bar's other labelled buttons (whiteboard, upload) */
+.list {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px 0 10px;
+  border-radius: var(--r-2);
+  font-size: 13px;
+  font-weight: 560;
+  letter-spacing: 0.01em;
+  color: var(--ink-2);
+  transition: background-color var(--dur-1), color var(--dur-1), box-shadow var(--dur-1), transform var(--dur-1) var(--ease-out);
+}
+.list:hover { background: var(--hover); color: var(--ink); }
+.list:active { background: var(--press); transform: translateY(1px); }
+.list[aria-pressed='true'] { background: var(--press); color: var(--ink); box-shadow: 0 0 0 1px var(--line-2) inset; }
+.listIcon { flex-shrink: 0; overflow: visible; }
+/* the pointer comes: the list writes itself out again, row by row, its bullets swelling a little */
+.list:hover .listIcon path { stroke-dasharray: 1 1; animation: listWrite 460ms var(--ease-out) both; animation-delay: calc(var(--k) * 70ms); }
+@keyframes listWrite { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.listIcon circle { transform-box: fill-box; transform-origin: center; transition: transform 300ms var(--ease-back); }
+.list:hover .listIcon circle { transform: scale(1.15); }
+
 /* ------------------------------------------------------------------ the colour-group configuration in use */
 .palette {
   display: inline-flex;
@@ -258,22 +284,42 @@
   100% { opacity: 0; }
 }
 
-/* ------------------------------------------------------------------ narrower: the strip goes, then labels go, icons stay */
+/* ------------------------------------------------------------------ narrower: the strip goes, then labels go, icons stay
+   (each step comes a little before the bar, as measured in both languages, would no longer fit one row with what the
+   step before still shows) */
 @container (max-width: 1240px) {
   .strip { display: none; }
 }
-@container (max-width: 1180px) {
+/* whiteboard and upload by their icons; the colour-group list keeps its name the longest */
+@container (max-width: 1300px) {
   .labelled span { display: none; }
   .labelled { width: 32px; padding: 0; }
   .sort > button:first-child { min-width: 0; }
 }
-@container (max-width: 1000px) {
+@container (max-width: 1160px) {
   .paletteName { display: none; }
   .track { width: 64px; }
 }
+/* the sort by its icon (its menu still names each sort), a number for each colour group without the word, the size by
+   its track alone; the controls a little closer together */
+@container (max-width: 1085px) {
+  .sort > button:first-child > span, .limitUnit, .sizeEnd { display: none; }
+  .bar { column-gap: 10px; }
+  .cluster { gap: 4px; }
+  .actions { gap: 6px; }
+  .look, .actions { padding-left: 10px; }
+}
+/* the last step in one row: the list by its icon too */
+@container (max-width: 920px) {
+  .listLabel { display: none; }
+  .list { width: 32px; padding: 0; justify-content: center; }
+}
+/* two rows: room again for the list's name */
 @container (max-width: 860px) {
   .bar { flex-wrap: wrap; }
   .middle { display: none; }
   .look, .actions { border-left: 0; padding-left: 0; }
   .actions { margin-left: auto; }
+  .listLabel { display: inline; }
+  .list { width: auto; padding: 0 12px 0 10px; }
 }

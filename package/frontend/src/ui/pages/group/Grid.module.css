@@ -2,8 +2,8 @@
 .grid[data-resizing] *, .grid[data-resizing] { transition: none !important; }
 
 /* everything is placed by translate() from the computed layout, and glides when the layout changes */
-.tile, .box, .head, .capsule { position: absolute; top: 0; left: 0; }
-.tile, .capsule { transition: transform 480ms var(--ease-out), width 480ms var(--ease-out), height 480ms var(--ease-out), opacity 300ms var(--ease-out); }
+.tile, .box, .head, .shelfTab { position: absolute; top: 0; left: 0; }
+.tile, .shelfTab { transition: transform 480ms var(--ease-out), width 480ms var(--ease-out), height 480ms var(--ease-out), opacity 300ms var(--ease-out); }
 .box { transition: transform 480ms var(--ease-out), width 480ms var(--ease-out), height 480ms var(--ease-out), background-color 260ms, box-shadow 260ms, opacity 260ms; }
 .head { transition: transform 480ms var(--ease-out), width 480ms var(--ease-out), height 480ms var(--ease-out), opacity 260ms; }
 
@@ -227,41 +227,46 @@
 .cont .name { color: var(--ink-3); font-weight: 500; }
 .wrapIcon { flex-shrink: 0; color: color-mix(in srgb, var(--c) 80%, var(--ink-3)); }
 
-/* ------------------------------------------------------------------ a folded (or empty) colour group in the flow */
-.capsule {
-  --c: var(--ink-3);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  overflow: hidden;
-  border-radius: var(--r-2);
-  background: color-mix(in srgb, var(--c) 10%, var(--bg));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 28%, transparent) inset;
-  color: var(--ink-2);
-  animation: tileIn 460ms var(--ease-out) both;
-  transition: transform 480ms var(--ease-out), width 480ms var(--ease-out), height 480ms var(--ease-out), background-color var(--dur-2), box-shadow var(--dur-2);
-}
-.capsule:hover { background: color-mix(in srgb, var(--c) 16%, var(--bg-raised)); color: var(--ink); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 46%, transparent) inset, var(--shadow-1); }
-.capsule[data-empty] { flex-direction: row; gap: 8px; padding: 0 10px; background: transparent; box-shadow: none; border: 1.5px dashed color-mix(in srgb, var(--c) 45%, var(--line-2)); font-size: 12.5px; color: var(--ink-3); text-align: center; }
-.fan { position: relative; flex-shrink: 0; width: min(54%, 72px); aspect-ratio: 1; }
-.fan img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+/* ------------------------------------------------------------------ flowing: folded and empty colour groups on a shelf */
+/* one tab each, as tall as a heading at any size; a shelf's tabs arrive one after another (filling only until they
+   have arrived, so hovering and lifting them still ease) */
+.box[data-shelf], .shelfTab { animation: shelfIn 380ms var(--ease-out) backwards; animation-delay: calc(min(var(--i, 0), 14) * 18ms); }
+@keyframes shelfIn { from { opacity: 0; } }
+/* an empty one is a place to drop files: an outline, no fill */
+.box[data-shelf][data-empty]:not([data-target]) { background: transparent; box-shadow: none; border: 1.5px dashed color-mix(in srgb, var(--c) 42%, var(--line-2)); }
+.box[data-shelf][data-empty][data-hot]:not([data-target]) { border-color: color-mix(in srgb, var(--c) 62%, var(--line-2)); }
+
+.shelfTab { z-index: 1; display: flex; align-items: center; gap: 9px; padding: 0 12px 0 16px; border-radius: var(--r-3); user-select: none; outline: none; }
+.shelfTab[data-grab] { cursor: grab; }
+.shelfTab[data-folded] { cursor: pointer; }
+.shelfTab:focus-visible { box-shadow: var(--focus-ring); }
+.shelfTab[data-lifted] { opacity: 0.45; }
+.shelfTab[data-none] .dot { background: transparent; box-shadow: 0 0 0 1.5px var(--ink-4) inset; }
+.shelfTab .name { font-size: 14px; }
+.shelfTab[data-empty] .name { color: var(--ink-2); font-weight: 540; }
+.shelfEnd { display: flex; align-items: center; gap: 7px; flex-shrink: 0; margin-left: auto; padding-left: 6px; }
+/* a few of its pictures, fanned like a small hand of cards; they open a little as the pointer comes */
+.shelfFan { display: flex; align-items: center; padding-left: 12px; }
+.shelfFan img {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  margin-left: -12px;
+  border-radius: 6px;
   object-fit: cover;
-  border-radius: 5px;
   box-shadow: 0 0 0 1.5px var(--bg-raised), var(--shadow-1);
   --d: calc(var(--k) - (var(--n) - 1) / 2);
-  transform: translateX(calc(var(--d) * 14%)) rotate(calc(var(--d) * 8deg));
-  transition: transform 420ms var(--ease-back);
+  transform: rotate(calc(var(--d) * 8deg));
+  animation: peekIn 420ms var(--ease-back) backwards;
+  animation-delay: calc(min(var(--i, 0), 14) * 18ms + 90ms + var(--k) * 40ms);
+  transition: transform 380ms var(--ease-back), margin-left 380ms var(--ease-back);
 }
-.capsule:hover .fan img { transform: translateX(calc(var(--d) * 24%)) translateY(-3px) rotate(calc(var(--d) * 12deg)); }
-.capLabel { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 540; white-space: nowrap; }
-.capLabel svg { transition: transform 320ms var(--ease-out); }
-.capsule:hover .capLabel svg { transform: translateY(2px); }
+.shelfTab[data-folded]:hover .shelfFan img { margin-left: -8px; transform: translateY(-2px) rotate(calc(var(--d) * 12deg)); }
+/* folded: the chevron points along; it turns to open as the pointer comes */
+.shelfChev { flex-shrink: 0; color: var(--ink-3); transform: rotate(-90deg); transition: transform 320ms var(--ease-out), color var(--dur-1); }
+.shelfTab[data-folded]:hover .shelfChev { color: var(--ink); transform: none; }
+.shelfDrop { flex-shrink: 0; color: var(--ink-4); transition: color var(--dur-1); }
+.shelfTab:hover .shelfDrop { color: var(--ink-3); }
 
 /* ------------------------------------------------------------------ dragging */
 .marker {

@@ -225,7 +225,7 @@ export default {
     section: { fold: 'Fold', unfold: 'Unfold', showAll: 'Show all {n}', showLess: 'Back to {n}', dropHere: 'Drag files here', continued: 'Continued from the row above' },
     strip: { label: 'Colour groups', jump: 'Go to {name}' },
     outline: {
-      title: 'Colour groups', open: 'List the colour groups beside the files (G)', close: 'Hide the colour group list',
+      title: 'Colour groups', button: 'List', open: 'List the colour groups beside the files (G)', close: 'Hide the colour group list',
       find: 'Find a colour group', total: { one: '{n} colour group', other: '{n} colour groups' }, found: '{n} of {total}',
       nothing: 'No colour group matches “{q}”',
       sort: 'Sort', sorted: 'Sorted: {how}',

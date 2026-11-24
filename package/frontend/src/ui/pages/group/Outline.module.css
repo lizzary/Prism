@@ -37,8 +37,10 @@
 .findIcon { position: absolute; left: 9px; color: var(--ink-3); pointer-events: none; }
 .find input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; background: none; font-size: 13.5px; color: var(--ink); }
 .find input:focus-visible { box-shadow: none; }
-.kbd { flex-shrink: 0; padding: 0 6px; border-radius: var(--r-1); font: 600 11px/18px var(--font-sans); color: var(--ink-3); box-shadow: 0 0 0 1px var(--line-2) inset; }
-.find:focus-within .kbd { opacity: 0; }
+/* the key that finds a colour group (G): it stays while the field is empty, focused too, and arrives just after the
+   list does, so the eye finds it */
+.kbd { flex-shrink: 0; padding: 0 6px; border-radius: var(--r-1); font: 600 11px/18px var(--font-sans); color: var(--ink-3); box-shadow: 0 0 0 1px var(--line-2) inset; animation: kbdIn 420ms var(--ease-back) 220ms backwards; }
+@keyframes kbdIn { from { opacity: 0; transform: scale(0.8); } }
 .clear { display: grid; place-items: center; flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; color: var(--ink-3); transition: background-color var(--dur-1), color var(--dur-1); }
 .clear:hover { background: var(--hover); color: var(--ink); }
 

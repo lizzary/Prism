@@ -8,6 +8,8 @@
 //   mixed    tiles flow on from one colour group into the next, even within a row. Each colour group's run is a band
 //            of its colour with a slim heading inside its top; a run that goes on in the next row leaves this row
 //            through its open right end and comes back in through an open left end, its heading saying it carries on.
+//            Folded and empty colour groups have no pictures to give a row its height: those next to each other wait
+//            together on a shelf between the open ones, a tab each, as tall as a heading at every size.
 
 /** Five sizes, by how many tiles share the full width of a row: two at the largest, two more at each step down. */
 export const LEVELS = {
@@ -22,6 +24,7 @@ const TYPICAL = [0.6, 2];       // what a group's rows are sized for stays withi
 
 const PAD = 12, HEAD = 46, BOX_GAP = 18, COLS_GAP = 18, EMPTY = 66;   // single / double
 const FPAD = 7, FHEAD = 30, ROW_GAP = 10, SEP = 2 * FPAD + 8;        // mixed
+const TAB_W = 256, TAB_GAP = 10;                                     // mixed: the narrowest tab on a shelf (HEAD tall)
 
 const clampRatio = (r) => Math.max(RATIO[0], Math.min(RATIO[1], r || 1));
 const fileItem = (f, section) => ({ kind: 'file', id: f.id, r: f.width / f.height, section });
@@ -46,8 +49,7 @@ function metrics(o) {
 }
 
 /**
- * Rows of items: justified at their own proportions, or equal squares. An item has proportions `r`, or a `fixed`
- * width (a folded colour group in the flow). gapOf(item, previous) → the gap before it.
+ * Rows of pictures: justified at their own proportions `r`, or equal squares. gapOf(item, previous) → the gap before it.
  */
 function flowRows(items, width, { natural }, M, gapOf) {
   if (!natural) {
@@ -57,52 +59,44 @@ function flowRows(items, width, { natural }, M, gapOf) {
     const rows = [];
     let row = [], x = 0;
     for (const it of items) {
-      const w = it.fixed ?? size;
       let g = row.length ? gapOf(it, row[row.length - 1].it) : 0;
-      if (row.length && x + g + w > width + 0.5) { rows.push({ h: size, items: row }); row = []; x = 0; g = 0; }
-      row.push({ it, x: x + g, w });
-      x += g + w;
+      if (row.length && x + g + size > width + 0.5) { rows.push({ h: size, items: row }); row = []; x = 0; g = 0; }
+      row.push({ it, x: x + g, w: size });
+      x += g + size;
     }
     if (row.length) rows.push({ h: size, items: row });
     return rows;
   }
   const target = M.row;
   const rows = [];
-  let row = [], sr = 0, sf = 0, sg = 0;      // the row so far: its proportions, fixed widths and gaps
-  // the height a row would have; a fixed width counts as the proportions it has at the target height
-  const heightOf = (r, f, g) => (width - g) / (r + f / target);
+  let row = [], sr = 0, sg = 0;      // the row so far: its proportions and gaps
+  const heightOf = (r, g) => (width - g) / r;
   const flush = (last) => {
-    const room = width - sf - sg;
+    const room = width - sg;
     // a short last row keeps the target height instead of stretching across
-    const h = sr > 0 ? room / sr : target;
-    const fill = sr > 0 && room > 0 && (!last || h <= target * 1.08);
+    const h = room / sr;
+    const fill = room > 0 && (!last || h <= target * 1.08);
     const height = fill ? h : target;
     let x = 0;
-    const out = row.map((e) => { x += e.g; const p = { it: e.it, x, w: e.f || e.r * height }; x += p.w; return p; });
+    const out = row.map((e) => { x += e.g; const p = { it: e.it, x, w: e.r * height }; x += p.w; return p; });
     // the last picture takes what rounding left over, so a full row meets the edge exactly
-    const k = fill ? row.findLastIndex((e) => !e.f) : -1;
-    if (k >= 0) {
-      const d = width - x;
-      out[k].w += d;
-      for (let i = k + 1; i < out.length; i++) out[i].x += d;
-    }
+    if (fill) out[out.length - 1].w += width - x;
     rows.push({ h: height, items: out.map((p) => ({ ...p, w: Math.max(1, p.w) })) });
-    row = []; sr = 0; sf = 0; sg = 0;
+    row = []; sr = 0; sg = 0;
   };
   for (const it of items) {
-    const f = it.fixed ?? 0;
-    const r = f ? 0 : clampRatio(it.r);
+    const r = clampRatio(it.r);
     const g = row.length ? gapOf(it, row[row.length - 1].it) : 0;
-    const before = row.length ? heightOf(sr, sf, sg) : Infinity;
-    const after = heightOf(sr + r, sf + f, sg + g);
-    if (after > target) { row.push({ it, r, f, g }); sr += r; sf += f; sg += g; continue; }
+    const before = row.length ? heightOf(sr, sg) : Infinity;
+    const after = heightOf(sr + r, sg + g);
+    if (after > target) { row.push({ it, r, g }); sr += r; sg += g; continue; }
     // this item would bring the row under the target: keep it here or start the next row with it, whichever
     // leaves the row nearer the target (compared as proportions, so tall and short count alike)
     if (row.length && Math.abs(Math.log(before / target)) < Math.abs(Math.log(after / target))) {
       flush(false);
-      row.push({ it, r, f, g: 0 }); sr = r; sf = f; sg = 0;
+      row.push({ it, r, g: 0 }); sr = r; sg = 0;
     } else {
-      row.push({ it, r, f, g }); sr += r; sf += f; sg += g;
+      row.push({ it, r, g }); sr += r; sg += g;
       flush(false);
     }
   }
@@ -119,10 +113,11 @@ const itemsOf = (section) => section.files.map((f) => fileItem(f, section.key));
  * sections: the page's sections (domain/arrange.js `page.sections`).
  * o: { width, level, ratio (typicalRatio of the group's files), natural, mode: 'single' | 'double' | 'mixed', grouped }
  * → { height,
- *     tiles: [{ key, kind: 'file' | 'capsule', id, section, x, y, w, h }],
- *     boxes: [{ key, section, x, y, w, h, open: { left, right }, empty, collapsed, pair? }],
- *     heads: [{ key, section, x, y, w, h, kind: 'head' | 'tab' | 'cont' }],
- *     rows:  [{ y, h, x, w, section?, items: [{ id, kind, section, x, w }] }]   (for dropping) }
+ *     tiles: [{ key, kind: 'file', id, section, x, y, w, h }],
+ *     boxes: [{ key, section, x, y, w, h, open: { left, right }, empty, collapsed, pair?, shelf?, i? }],
+ *     heads: [{ key, section, x, y, w, h, kind: 'head' | 'tab' | 'cont' | 'shelf', i? }],
+ *     rows:  [{ y, h, x, w, section?, items: [{ id, kind: 'file' | 'shelf', section, x, w }] }]   (for dropping) }
+ * A `shelf` box and head are one folded or empty colour group's tab (flowing); `i`: its place on its shelf.
  */
 export function layoutPage(sections, o) {
   if (!o.width) return { height: 0, tiles: [], boxes: [], heads: [], rows: [] };
@@ -219,19 +214,56 @@ function columns(laid, M) {
 }
 
 function flowing(sections, o, M) {
-  // a folded (or empty) colour group keeps its place in the flow as one slim card, whatever the size
-  const capsule = Math.round(Math.max(96, Math.min(160, (o.natural ? M.row : M.square) * 0.62)));
+  const out = { tiles: [], boxes: [], heads: [], rows: [] };
+  let y = 0;
+  for (const part of stretches(sections)) y = (part.shelf ? shelf : flow)(part.sections, o, M, y, out) + ROW_GAP;
+  return { ...out, height: Math.max(0, Math.round(y - ROW_GAP)) };
+}
+
+/** The sections in stretches: open colour groups that flow on together, and the folded or empty ones between them. */
+function stretches(sections) {
+  const parts = [];
+  for (const s of sections) {
+    const shelved = s.collapsed || !s.files.length;
+    const last = parts[parts.length - 1];
+    if (last && last.shelf === shelved) last.sections.push(s);
+    else parts.push({ shelf: shelved, sections: [s] });
+  }
+  return parts;
+}
+
+/**
+ * Folded and empty colour groups next to each other: a tab each, in even columns across the page, as tall as a heading
+ * whatever the size of the pictures. → where its last line of tabs ends.
+ */
+function shelf(sections, o, M, y0, out) {
+  const cols = Math.max(1, Math.floor((o.width + TAB_GAP) / (TAB_W + TAB_GAP)));
+  const w = (o.width - TAB_GAP * (cols - 1)) / cols;
+  const lines = [];
+  sections.forEach((s, i) => {
+    const k = Math.floor(i / cols);
+    const y = Math.round(y0 + k * (HEAD + TAB_GAP));
+    const [x, tw] = snap((i % cols) * (w + TAB_GAP), w);
+    const key = `${s.key}@shelf`;
+    out.boxes.push({ key, section: s.key, x, y, w: tw, h: HEAD, open: { left: false, right: false }, empty: !s.total, collapsed: s.collapsed, shelf: true, i });
+    out.heads.push({ key, section: s.key, x, y, w: tw, h: HEAD, kind: 'shelf', i });
+    (lines[k] ??= { y, h: HEAD, x: 0, w: o.width, items: [] }).items.push({ id: key, kind: 'shelf', section: s.key, x, w: tw });
+  });
+  out.rows.push(...lines);
+  return y0 + lines.length * (HEAD + TAB_GAP) - TAB_GAP;
+}
+
+/** Open colour groups flowing on into one another, from y0. → where their last row ends. */
+function flow(sections, o, M, y0, out) {
   const items = [];
   for (const s of sections) {
     const first = items.length;
-    if (s.collapsed || !s.files.length) items.push({ kind: 'capsule', id: `cap:${s.key}`, fixed: capsule, section: s.key });
-    else items.push(...itemsOf(s));
+    items.push(...itemsOf(s));
     items[first] = { ...items[first], starts: true };
   }
   const width = o.width - 2 * FPAD;
   const rows = flowRows(items, width, o, M, (it, prev) => (it.section !== prev.section ? SEP : M.gap));
-  const out = { tiles: [], boxes: [], heads: [], rows: [] };
-  let y = 0;
+  let y = y0;
   rows.forEach((row, ri) => {
     // the band: its heading inside the top, then the tiles, then a little padding
     const top = Math.round(y);
@@ -253,14 +285,14 @@ function flowing(sections, o, M) {
       const left = fromAbove ? 0 : a.x - FPAD;
       const right = onBelow ? o.width : b.x + b.w + FPAD;
       const key = `${run.section}@${ri}`;
-      out.boxes.push({ key, section: run.section, x: left, y: top, w: right - left, h: bottom - top, open: { left: fromAbove, right: onBelow }, capsule: a.p.it.kind === 'capsule' });
+      out.boxes.push({ key, section: run.section, x: left, y: top, w: right - left, h: bottom - top, open: { left: fromAbove, right: onBelow } });
       out.heads.push({ key, section: run.section, x: left, y: top, w: right - left, h: FHEAD, kind: fromAbove ? 'cont' : 'tab' });
       for (const { p, x, w } of run.items) out.tiles.push({ key: p.it.id, ...p.it, x, y: ty, w, h: th });
     });
     out.rows.push({ y: ty, h: th, x: 0, w: o.width, items: placed.map(({ p, x, w }) => ({ id: p.it.id, kind: p.it.kind, section: p.it.section, x, w })) });
     y += FHEAD + row.h + FPAD + ROW_GAP;
   });
-  return { ...out, height: Math.max(0, Math.round(y - ROW_GAP)) };
+  return y - ROW_GAP;
 }
 
 /** Where each colour group is on the page, top to bottom (all of its boxes or runs): key → { top, bottom }. */
@@ -283,9 +315,8 @@ const inside = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y +
  * `before` / `after` name a file on show next to the gap; arrange's placeBatch skips over the batch's own files.
  */
 export function dropFiles(layout, x, y) {
-  // a heading or a folded colour group: to the end of that colour group
+  // a heading (a tab on a shelf is one): to the end of that colour group
   for (const h of layout.heads) if (inside(h, x, y)) return { section: h.section, end: true, marker: null };
-  for (const t of layout.tiles) if (t.kind === 'capsule' && inside(t, x, y)) return { section: t.section, end: true, marker: null };
   // inside a box: only its own rows (single / double); an empty or folded box takes the files at its end
   const box = layout.boxes.find((b) => inside(b, x, y) && !b.key.includes('@'));
   const rows = box ? layout.rows.filter((r) => r.section === box.section) : layout.rows;
@@ -306,11 +337,12 @@ export function dropFiles(layout, x, y) {
   if (prev && next && prev.section !== next.section) side = x - (prev.x + prev.w) < next.x - x ? 'prev' : 'next';
   else side = next ? 'next' : 'prev';
   const gapX = (a, b) => (a && b ? (a.x + a.w + b.x) / 2 : a ? a.x + a.w + 4 : b.x - 4);
+  // between the tabs of a shelf: the nearer tab's colour group, at its end
   if (side === 'next') {
-    if (next.kind === 'capsule') return { section: next.section, end: true, marker: null };
+    if (next.kind === 'shelf') return { section: next.section, end: true, marker: null };
     return { section: next.section, before: next.id, marker: { x: gapX(prev?.section === next.section ? prev : null, next), y: row.y, h: row.h } };
   }
-  if (prev.kind === 'capsule') return { section: prev.section, end: true, marker: null };
+  if (prev.kind === 'shelf') return { section: prev.section, end: true, marker: null };
   return { section: prev.section, after: prev.id, marker: { x: gapX(prev, next?.section === prev.section ? next : null), y: row.y, h: row.h } };
 }
 

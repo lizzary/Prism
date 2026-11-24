@@ -225,7 +225,7 @@ export default {
     section: { fold: '收起', unfold: '展开', showAll: '展开全部 {n} 个', showLess: '收回到 {n} 个', dropHere: '把文件拖到这里', continued: '接上一行' },
     strip: { label: '颜色组', jump: '跳到「{name}」' },
     outline: {
-      title: '颜色组', open: '在文件旁列出颜色组（G）', close: '收起颜色组列表',
+      title: '颜色组', button: '列表', open: '在文件旁显示颜色组列表（G）', close: '收起颜色组列表',
       find: '查找颜色组', total: '{n} 个颜色组', found: '{n} / {total}',
       nothing: '没有名称包含「{q}」的颜色组',
       sort: '排序', sorted: '已排序：{how}',

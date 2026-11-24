@@ -3,6 +3,7 @@ import { cloneElement, useCallback, useEffect, useId, useLayoutEffect, useRef, u
 import { useT } from '../../i18n/index.jsx';
 import { Icon } from '../icons/Icon.jsx';
 import { pageCover } from '../lib/pageCover.js';
+import { afterViewTransition } from '../lib/viewTransition.js';
 import s from './overlay.module.css';
 
 export const Portal = ({ children }) => createPortal(children, document.body);
@@ -31,14 +32,27 @@ export function usePresence(open, ms = 240) {
 }
 
 // ------------------------------------------------------------------ scroll lock & focus
-/** A modal layer: the page under it stops scrolling, and its moving art rests (see pageCover). */
+/**
+ * A modal layer: the page under it stops scrolling, and its moving art rests (see pageCover).
+ * A layer that arrives with a page change (a file opened from another page) locks the page once the change has played:
+ * while a view transition runs, Chrome stops drawing fixed layers — this very layer — over a page that is locked and
+ * scrolled, until the transition ends.
+ */
 let locks = 0;
 export function useScrollLock(active) {
   useEffect(() => {
     if (!active) return undefined;
-    if (locks++ === 0) document.documentElement.style.overflow = 'hidden';
+    let locked = false;
+    const cancel = afterViewTransition(() => {
+      locked = true;
+      if (locks++ === 0) document.documentElement.style.overflow = 'hidden';
+    });
     const leave = pageCover.enter();
-    return () => { leave(); if (--locks === 0) document.documentElement.style.overflow = ''; };
+    return () => {
+      cancel();
+      leave();
+      if (locked && --locks === 0) document.documentElement.style.overflow = '';
+    };
   }, [active]);
 }
 

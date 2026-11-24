@@ -28,8 +28,12 @@
 }
 .task[data-state='running'] .typeIcon { color: var(--star-ink); background: var(--star-soft); }
 .task[data-state='running'] .typeIcon svg { animation: turn 2.6s linear infinite; }
+/* an icon that says how it works (re-index: a viewfinder focusing on the picture) does that instead of turning */
+.task[data-state='running'] .typeIcon svg:has(:global(.pr-focus)) { animation: none; }
+.task[data-state='running'] .typeIcon :global(.pr-focus) { transform-origin: 12px 12px; animation: focus 1.8s var(--ease-in-out) infinite; }
 .task[data-state='failed'] .typeIcon { color: var(--warn); background: var(--warn-soft); }
 @keyframes turn { to { transform: rotate(360deg); } }
+@keyframes focus { 50% { transform: scale(0.84); } }
 .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .line { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .type { font-weight: 600; font-size: 13.5px; flex-shrink: 0; }

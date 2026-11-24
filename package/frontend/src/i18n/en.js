@@ -235,6 +235,7 @@ export default {
       movedTop: { one: 'Moved {n} colour group to the top', other: 'Moved {n} colour groups to the top' },
       movedBottom: { one: 'Moved {n} colour group to the bottom', other: 'Moved {n} colour groups to the bottom' },
       soloHint: 'with Alt, only this one stays open',
+      edit: 'Edit', editAll: 'Edit colour groups', editOne: 'Edit “{name}”',
     },
     pages: { range: '{from}–{to} of {total}', nav: 'Pages' },
     tile: {

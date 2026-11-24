@@ -9,9 +9,9 @@ const shown = new Set();
 /**
  * An image that fades in once decoded. `focus` = { x, y } in 0–1 picks the crop.
  * An image already shown in this session appears at once: coming back to a page its pictures are simply there, and a
- * picture morphing between pages finds its other end visible.
+ * picture morphing between pages finds its other end visible. Other props (data-*) go to the frame.
  */
-export function Picture({ src, alt = '', ratio, fit = 'cover', focus, className, imgClassName, eager, style, children, onLoad }) {
+export function Picture({ src, alt = '', ratio, fit = 'cover', focus, className, imgClassName, eager, style, children, onLoad, ...rest }) {
   const [loadedUrl, setLoadedUrl] = useState(() => (shown.has(src) ? src : null));
   const img = useRef(null);
   useLayoutEffect(() => {
@@ -19,7 +19,7 @@ export function Picture({ src, alt = '', ratio, fit = 'cover', focus, className,
     if (shown.has(src) || (el?.complete && el.naturalWidth > 0)) { shown.add(src); setLoadedUrl(src); }
   }, [src]);
   return (
-    <div className={cx(s.pic, loadedUrl === src && s.loaded, className)} style={{ aspectRatio: ratio, ...style }}>
+    <div {...rest} className={cx(s.pic, loadedUrl === src && s.loaded, className)} style={{ aspectRatio: ratio, ...style }}>
       {src && (
         <img
           key={src}

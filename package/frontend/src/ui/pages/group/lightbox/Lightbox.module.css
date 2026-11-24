@@ -91,6 +91,8 @@
 .danger:hover:not(:disabled) { color: #f1a596 !important; background: rgba(221, 138, 125, 0.16) !important; }
 
 /* ------------------------------------------------------------------ the picture */
+/* (its padding — and --side, 900px — are mirrored in stageRoom in Lightbox.jsx, which sizes the picture before the
+   stage is drawn: change them together) */
 .stage {
   position: absolute;
   inset: 0;

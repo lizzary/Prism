@@ -129,6 +129,8 @@
 .week { display: inline-flex; align-items: center; gap: 6px; color: #f1d78a; }
 
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+/* back on the page (Back / Forward): everything is simply there */
+.content[data-quiet] .last, .content[data-quiet] .deck, .content[data-quiet] .stats, .content[data-quiet] .track > span { animation: none; }
 
 /* the tracking above suits CJK; Latin reads better tight */
 .hello:lang(en) { letter-spacing: 0; }

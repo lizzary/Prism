@@ -55,6 +55,12 @@ input::placeholder, textarea::placeholder { color: var(--ink-3); opacity: 1; }
 ::view-transition-new(.page-in) { animation: 520ms var(--ease-out) 60ms both pr-page-in; }
 ::view-transition-group(.morph) { animation-duration: 560ms; animation-timing-function: var(--ease-out); }
 ::view-transition-old(.morph), ::view-transition-new(.morph) { height: 100%; object-fit: cover; }
+/* a picture travelling between a thumbnail on another page and the lightbox: both ends fill the same frame, so the
+   thumbnail's crop opens out into the whole picture (or closes back in); it hands over to the full picture early, so
+   what flies is the picture itself, not a thumbnail blown up */
+::view-transition-group(.travel) { animation-duration: 520ms; animation-timing-function: var(--ease-out); }
+::view-transition-image-pair(.travel) { overflow: clip; border-radius: 4px; }
+::view-transition-old(.travel), ::view-transition-new(.travel) { width: 100%; height: 100%; object-fit: cover; animation-duration: 260ms; }
 /* cards moving to a new place on the wall (reorder, a new layout): they glide there, the picture re-framing as it goes */
 ::view-transition-group(.tile) { animation-duration: 520ms; animation-timing-function: var(--ease-out); }
 ::view-transition-old(.tile), ::view-transition-new(.tile) { height: 100%; object-fit: cover; }
@@ -64,6 +70,14 @@ input::placeholder, textarea::placeholder { color: var(--ink-3); opacity: 1; }
    parts lose their names, so the page cross-fades whole under the scrim; the layer's panel stays on top as it is —
    live, with no snapshot of it fading out */
 :root[data-modal] #root * { view-transition-name: none !important; }
+/* The lightbox is the top of the document too. A file opening with its page (the home page's last viewed or random, a
+   search result, Back / Forward) or a page left from a file is the lightbox's own change (router.jsx): no part of a
+   page may be lifted above it — the page itself, the top bar, a cover. Only the picture travels, between the thumbnail
+   it is opened from (data-vt-travel) and the lightbox; the rest changes as one, the room darkening over the page being
+   left or lifting off the page arriving. While a file is open, any other change keeps the page under it as well.
+   (Two rules: a browser without transition types drops only the first.) */
+:root[data-lightbox] #root * { view-transition-name: none !important; }
+:root:active-view-transition-type(file-open, file-close) #root *:not([data-vt-travel]) { view-transition-name: none !important; }
 ::view-transition-group(.modal) { z-index: 1; animation: none; }
 ::view-transition-old(.modal) { animation: none; opacity: 0; }
 ::view-transition-new(.modal) { animation: none; }

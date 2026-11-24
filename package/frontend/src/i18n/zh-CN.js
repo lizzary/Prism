@@ -234,6 +234,7 @@ export default {
       chosen: '已选 {n} 个', toTop: '移到最前', toBottom: '移到最后', only: '只展开这些', letGo: '取消选择',
       movedTop: '已将 {n} 个颜色组移到最前', movedBottom: '已将 {n} 个颜色组移到最后',
       soloHint: '按住 Alt 点击：只展开这一个',
+      edit: '编辑', editAll: '编辑颜色组', editOne: '编辑「{name}」',
     },
     pages: { range: '第 {from}–{to} 个，共 {total} 个', nav: '分页' },
     tile: {

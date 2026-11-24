@@ -9,7 +9,8 @@ import s from './GroupStrip.module.css';
 const GAP = 4;
 const MIN = 12, MAX = 26;     // a cover's size: as large as the bar allows, never a speck
 
-export function GroupStrip({ groups, range, onJump }) {
+/** quiet: back on the page (Back / Forward) — the covers are simply there, with no entrance */
+export function GroupStrip({ groups, range, onJump, quiet }) {
   const t = useT();
   const box = useRef(null);
   const [size, setSize] = useState(0);
@@ -33,7 +34,7 @@ export function GroupStrip({ groups, range, onJump }) {
 
   const inView = (i) => !range || (i >= range[0] && i <= range[1]);
   return (
-    <div ref={box} className={s.strip} style={{ '--s': `${size}px`, '--gap': `${GAP}px` }} data-ready={size > 0 || undefined} aria-hidden="true"
+    <div ref={box} className={s.strip} style={{ '--s': `${size}px`, '--gap': `${GAP}px` }} data-ready={size > 0 || undefined} data-quiet={quiet || undefined} aria-hidden="true"
       onWheel={(e) => { const el = box.current; if (el.scrollWidth > el.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { el.scrollLeft += e.deltaY; e.preventDefault(); } }}>
       <div className={s.track}>
         <span className={s.window} data-on={!!range || undefined}

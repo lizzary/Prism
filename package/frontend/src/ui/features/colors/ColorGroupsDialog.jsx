@@ -20,7 +20,8 @@ import s from './ColorGroupsDialog.module.css';
 let seq = 0;
 const fresh = () => `new:${++seq}`;
 
-export default function ColorGroupsDialog({ open, onClose, groupId, nonce }) {
+/** focus: a colour group to open at (from the page's colour group list) — in view, its name ready to change. */
+export default function ColorGroupsDialog({ open, onClose, groupId, nonce, focus }) {
   const t = useT();
   const fmt = useFormat();
   const { data } = useColorConfigs(open ? groupId : null);
@@ -31,21 +32,31 @@ export default function ColorGroupsDialog({ open, onClose, groupId, nonce }) {
   const [query, setQuery] = useState('');
   const [sorting, setSorting] = useState(false);
   const [focusRow, setFocusRow] = useState(null);     // a row whose name takes the cursor once drawn (one just added)
+  const [arrived, setArrived] = useState(null);       // the colour group the editor was opened at: it glints once
   const list = useRef(null);
   const ghost = useRef(null);
   const sortBtn = useRef(null);
   const inited = useRef(null);
 
-  // every opening starts from what is saved
+  // every opening starts from what is saved — at the colour group it was opened for, if any
   useEffect(() => {
     if (!open || !data || inited.current === nonce) return;
     inited.current = nonce;
+    const use = data.activeConfigId ?? data.configs[0]?.id ?? null;
     setConfigs(structuredClone(data.configs));
-    setCurrent(data.activeConfigId ?? data.configs[0]?.id ?? null);
+    setCurrent(use);
     setSaving(false);
     setQuery('');
-  }, [open, data, nonce]);
-  useEffect(() => { if (!open) inited.current = null; }, [open]);
+    const at = focus && data.configs.find((c) => c.id === use)?.groups.some((x) => x.id === focus) ? focus : null;
+    setFocusRow(at);
+    setArrived(at);
+  }, [open, data, nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!arrived) return undefined;
+    const id = setTimeout(() => setArrived(null), 1600);
+    return () => clearTimeout(id);
+  }, [arrived]);
+  useEffect(() => { if (!open) { inited.current = null; setArrived(null); } }, [open]);
 
   const cfg = configs?.find((c) => c.id === current) ?? null;
   const edit = (fn) => setConfigs((cs) => cs.map((c) => (c.id === current ? fn(c) : c)));
@@ -69,10 +80,17 @@ export default function ColorGroupsDialog({ open, onClose, groupId, nonce }) {
   };
   useLayoutEffect(() => {
     if (!focusRow) return;
-    const input = list.current?.querySelector(`[data-row="${CSS.escape(focusRow)}"] input`);
-    if (input) { input.scrollIntoView({ block: 'nearest' }); input.focus(); input.select(); }
+    const row = list.current?.querySelector(`[data-row="${CSS.escape(focusRow)}"]`);
+    const input = row?.querySelector('input');
+    if (input) {
+      // the one the editor was opened at sits in the middle of the list, among its neighbours; one just added, at the end
+      if (focusRow === arrived) list.current.scrollTop = row.offsetTop - list.current.clientHeight / 2 + row.offsetHeight / 2;
+      else input.scrollIntoView({ block: 'nearest' });
+      input.focus();
+      input.select();
+    }
     setFocusRow(null);
-  }, [focusRow]);
+  }, [focusRow]); // eslint-disable-line react-hooks/exhaustive-deps
   /** The colour groups in a new order (ids). */
   const reorder = (ids) => edit((c) => ({ ...c, groups: ids.map((x) => c.groups.find((g) => g.id === x)) }));
   const order = cfg?.groups.map((x) => x.id) ?? [];
@@ -161,13 +179,14 @@ export default function ColorGroupsDialog({ open, onClose, groupId, nonce }) {
                 <ul ref={list} className={s.rows} data-dragging={drag.drag ? '' : undefined}>
                   {shownGroups.map((x, i) => (
                     <li key={x.id} data-row={x.id} className={s.row} style={{ '--c': x.color, '--i': Math.min(i, 10) }} data-moving={drag.drag?.ids.includes(x.id) || undefined}
-                      onPointerEnter={() => setHot(x.id)} onPointerLeave={() => setHot(null)}>
+                      data-arrived={arrived === x.id || undefined} onPointerEnter={() => setHot(x.id)} onPointerLeave={() => setHot(null)}>
                       <Tooltip label={t('colorGroups.moveHint')} delay={700}>
                         <span className={s.grip} onPointerDown={(e) => drag.begin(e, [x.id])}><Icon name="grip" size={15} /></span>
                       </Tooltip>
                       <SwatchPicker color={x.color} onPick={(color) => setColor(x.id, { color })} />
+                      {/* (opened at this one: the dialog's own first focus lands here too, not on the dialog) */}
                       <input className={s.nameInput} value={x.name} maxLength={40} onChange={(e) => setColor(x.id, { name: e.target.value })} aria-label={t('colorGroups.name')} spellCheck={false}
-                        onKeyDown={(e) => moveKey(e, x.id)} />
+                        onKeyDown={(e) => moveKey(e, x.id)} data-autofocus={arrived === x.id ? '' : undefined} />
                       <span className={`${s.rowCount} num`}>{t('colorGroups.files', { n: fmt.number(counts[x.id] ?? 0), count: counts[x.id] ?? 0 })}</span>
                       <Tooltip label={counts[x.id] ? t('colorGroups.removeLeaving', { n: fmt.number(counts[x.id]), count: counts[x.id] }) : t('colorGroups.remove')}>
                         <button type="button" className={s.remove} aria-label={t('colorGroups.remove')} onClick={() => edit((c) => ({ ...c, groups: c.groups.filter((g) => g.id !== x.id) }))}>

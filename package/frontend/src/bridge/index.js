@@ -53,6 +53,8 @@ export const colorOrder = api.colorOrder;
  * → { data: { rev, group, configs, activeConfigId, order, files, view }, clock, arrived }
  */
 export const useGroupPage = useFeed;
+/** Start loading a group's page before it is shown (one of its files is about to be opened from elsewhere). → its data */
+export const preloadGroupPage = (id) => feedOf(id).load();
 /** Rest the page's refresh clock while a drag is under way. → release */
 export const holdGroupPage = (id) => feedOf(id).hold();
 export const refreshGroupPage = (id) => feedOf(id).refresh();

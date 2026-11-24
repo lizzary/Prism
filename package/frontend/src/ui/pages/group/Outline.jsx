@@ -4,6 +4,8 @@
 // Ordering: drag rows to a new place — several at once, chosen with Ctrl or Shift; Alt ↑ ↓ moves them a step (past
 // the next one on show), Alt Shift ↑ ↓ to the very top or bottom; chosen ones go to the top or bottom in one press;
 // or sort them all by name, size or colour. A change is the page's at once (and the bigger ones can be undone).
+// Editing: Edit (beside Sort) opens the colour groups' own editor; a row's pencil, or F2 on the row the keys are on,
+// opens it at that colour group, its name ready to change.
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { browsing, colorOrder } from '../../../bridge/index.js';
 import { useT } from '../../../i18n/index.jsx';
@@ -21,9 +23,10 @@ const toggled = (list, key, on) => (on ? [...new Set([...list, key])] : list.fil
 /**
  * sections: the page's sections (domain/arrange.js `sections`); seen: the colour groups on screen; view / setView:
  * folding; onJump(key): bring it into view; onOrder(order: [colour group id], note?: a toast to show with Undo);
- * onClose(); focusAt: a moment to put the cursor in the find field.
+ * onEdit(colour group id?): open the colour groups' editor (at that one); onClose(); focusAt: a moment to put the cursor
+ * in the find field.
  */
-export function Outline({ sections, seen, view, setView, onJump, onOrder, onClose, focusAt }) {
+export function Outline({ sections, seen, view, setView, onJump, onOrder, onEdit, onClose, focusAt }) {
   const t = useT();
   const fmt = useFormat();
   const uid = useId();
@@ -132,6 +135,12 @@ export function Outline({ sections, seen, view, setView, onJump, onOrder, onClos
       setChosen((cur) => { const n = new Set(cur); if (n.has(active)) n.delete(active); else n.add(active); return n; });
       return;
     }
+    // F2, as for renaming anywhere: the editor, at the row the keys are on (if any)
+    if (e.key === 'F2') {
+      e.preventDefault();
+      onEdit(active && pool.includes(active) ? active : undefined);
+      return;
+    }
     if (e.key === 'Escape') {
       if (query) { e.preventDefault(); e.stopPropagation(); setQuery(''); return; }
       if (chosen.size) { e.preventDefault(); e.stopPropagation(); setChosen(new Set()); return; }
@@ -192,9 +201,16 @@ export function Outline({ sections, seen, view, setView, onJump, onOrder, onClos
         <span className={`${s.total} num`}>
           {q ? t('group.outline.found', { n: fmt.number(shown.length), total: fmt.number(groups.length) }) : t('group.outline.total', { n: fmt.number(groups.length), count: groups.length })}
         </span>
-        <button ref={sortBtn} type="button" className={s.sortBtn} aria-expanded={sorting} onClick={() => setSorting((o) => !o)} disabled={groups.length < 2}>
-          <Icon name="sort" size={14} />{t('group.outline.sort')}
-        </button>
+        <span className={s.tools}>
+          <button ref={sortBtn} type="button" className={s.sortBtn} aria-expanded={sorting} onClick={() => setSorting((o) => !o)} disabled={groups.length < 2}>
+            <Icon name="sort" size={14} />{t('group.outline.sort')}
+          </button>
+          <Tooltip label={t('group.outline.editAll')} delay={400}>
+            <button type="button" className={s.sortBtn} data-overlay="colorGroups" aria-label={t('group.outline.editAll')} onClick={() => onEdit()}>
+              <Icon name="swatches" size={14} />{t('group.outline.edit')}
+            </button>
+          </Tooltip>
+        </span>
       </div>
 
       <div ref={list} id={`${uid}-list`} className={s.list} role="listbox" aria-multiselectable="true" aria-label={t('group.outline.title')}
@@ -209,6 +225,7 @@ export function Outline({ sections, seen, view, setView, onJump, onOrder, onClos
             <i className={s.dot} />
             <span className={s.name}><Marked text={g.name} query={q} /></span>
             <span className={`${s.count} num`}>{fmt.number(g.count)}</span>
+            <EditButton name={g.name} onEdit={() => onEdit(g.id)} />
             <FoldButton folded={g.folded} onFold={(solo) => fold(g.id, solo)} />
           </div>
         ))}
@@ -268,6 +285,20 @@ function Marked({ text, query }) {
   }
   if (at < text.length) parts.push(text.slice(at));
   return parts;
+}
+
+/** This colour group in the colour groups' editor: its name, colour and place, ready to change. */
+function EditButton({ name, onEdit }) {
+  const t = useT();
+  const label = t('group.outline.editOne', { name });
+  return (
+    <Tooltip label={`${label} · F2`} delay={500}>
+      <button type="button" className={s.edit} aria-label={label} aria-keyshortcuts="F2" data-overlay="colorGroups"
+        onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+        <Icon name="edit" size={13} />
+      </button>
+    </Tooltip>
+  );
 }
 
 /** Fold or unfold one colour group on the page; with Alt, it alone stays open (every other one folds). */

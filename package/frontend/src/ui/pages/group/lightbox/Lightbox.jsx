@@ -11,6 +11,7 @@ import { Icon } from '../../../icons/Icon.jsx';
 import { Button, IconButton, Stepper } from '../../../components/controls.jsx';
 import { Popover, Portal, Tooltip, useScrollLock } from '../../../components/overlay.jsx';
 import { Menu } from '../../../components/menu.jsx';
+import { afterViewTransition } from '../../../lib/viewTransition.js';
 import { Details } from './Details.jsx';
 import { VideoPlayer } from './VideoPlayer.jsx';
 import s from './Lightbox.module.css';
@@ -20,6 +21,20 @@ const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const typing = (el) => /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable;
 /** The details stay open from one file, and one visit, to the next. */
 let detailsOpen = false;
+
+/**
+ * The room the stage leaves the picture (its content box: the window less .stage's padding in Lightbox.module.css),
+ * known before the stage is drawn. A file opened from another page is in the very commit that brings its page, and the
+ * page change carries its picture in from there — so the picture must be on the stage, at its size, from that commit.
+ * The stage's own measurement takes over once it is drawn.
+ */
+function stageRoom(details) {
+  const w = document.documentElement.clientWidth, h = document.documentElement.clientHeight;
+  const narrow = matchMedia('(max-width: 900px)').matches;
+  const side = narrow ? Math.min(360, innerWidth * 0.92) : 384;        // --side, the details
+  const x = narrow ? 16 : 88;
+  return { w: Math.max(0, w - x - (details ? side + 40 : x)), h: Math.max(0, h - 66 - 74) };
+}
 
 /** Where the tile of a file is on the page, if it is on screen. */
 function tileRect(id) {
@@ -43,18 +58,21 @@ const SHOWN = { transform: 'none', clipPath: 'inset(0px 0px round 3px)' };
 /**
  * sequence: the files to walk, in order (the page's files on show); onReveal(id, { now }): bring a file's tile into full
  * view on the page, at once, and say where it is on screen ({ left, top, width, height } | null).
+ * withPage: the file came with its page (opened from another page, or a link straight to it). Then the page change
+ * brings the lightbox in — the room darkens over the page being left as the picture travels from where it was opened
+ * (router.jsx, base.css) — so the lightbox is there whole from its first frame, and does not come in again itself.
  */
-export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onSlide, onClose, onReveal, covering, onDownload, onDelete }) {
+export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onSlide, onClose, onReveal, covering, onDownload, onDelete, withPage = false }) {
   const t = useT();
   const fmt = useFormat();
   const index = sequence.findIndex((f) => f.id === fileId);
   const known = useRef(index);
   if (index >= 0) known.current = index;
   const file = index >= 0 ? sequence[index] : sequence[Math.min(Math.max(0, known.current), sequence.length - 1)];
-  const [phase, setPhase] = useState('enter');        // enter → open → exit
+  const [phase, setPhase] = useState(withPage ? 'open' : 'enter');        // enter → open → exit
   const [details, setDetails] = useState(detailsOpen);
   const [idle, setIdle] = useState(false);
-  const [box, setBox] = useState({ w: 0, h: 0 });
+  const [box, setBox] = useState(() => stageRoom(detailsOpen));
   const [zoom, setZoom] = useState({ z: 1, x: 0, y: 0 });
   const [still, setStill] = useState(false);          // no glide: dragging or wheeling
   const [dir, setDir] = useState(0);                  // which way the last step went
@@ -84,23 +102,31 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
 
   useEffect(() => { detailsOpen = details; }, [details]);
   useEffect(() => { setZoom({ z: 1, x: 0, y: 0 }); }, [fileId]);
+  // Arriving with its page, the lightbox leaves what cannot be seen yet — the page following under the room, the
+  // neighbours' pictures — until the page change has played, so nothing holds up its frames.
+  const [settled, setSettled] = useState(!withPage);
+  useEffect(() => (withPage ? afterViewTransition(() => setSettled(true)) : undefined), []); // eslint-disable-line react-hooks/exhaustive-deps
   // the page follows along under the dark room, a moment after each step: the file's tile is kept in view, so on
   // closing it is there — drawn, its picture loaded — for the picture to fly back to
   useEffect(() => {
-    if (!onReveal) return undefined;
+    if (!onReveal || !settled) return undefined;
     const id = setTimeout(() => { if (!leaving.current) onReveal(fileId); }, 450);
     return () => clearTimeout(id);
-  }, [fileId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fileId, settled]); // eslint-disable-line react-hooks/exhaustive-deps
   // the file being looked at, for the home page's "last viewed"
   useEffect(() => { const id = setTimeout(() => fileActions.viewed(fileId), 500); return () => clearTimeout(id); }, [fileId]);
   // the neighbours are fetched ahead, so stepping is instant
   useEffect(() => {
+    if (!settled) return;
     for (const k of [index - 1, index + 1]) { const f = sequence[k]; if (f) new Image().src = mediaUrl(f, 'original'); }
-  }, [index, sequence]);
+  }, [index, sequence, settled]);
 
   // ------------------------------------------------------------------ size of the stage, the fit, the zoom
   useLayoutEffect(() => {
-    const ro = new ResizeObserver(([e]) => setBox({ w: e.contentRect.width, h: e.contentRect.height }));
+    const ro = new ResizeObserver(([e]) => {
+      const { width: w, height: h } = e.contentRect;
+      setBox((b) => (b.w === w && b.h === h ? b : { w, h }));
+    });
     ro.observe(stage.current);
     return () => ro.disconnect();
   }, []);
@@ -134,6 +160,7 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
   useLayoutEffect(() => {
     if (entered.current || !fit || !img.current) return;
     entered.current = true;
+    if (withPage) return;
     // from its tile on the page when it is on screen; otherwise it simply comes forward
     const from = tileRect(file.id);
     const ease = 'cubic-bezier(.22,1,.36,1)';
@@ -320,21 +347,24 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
           onPointerMove={(e) => { if (drag.current) setZoom((v) => pan({ z: v.z, x: e.clientX - drag.current.x, y: e.clientY - drag.current.y })); }}
           onPointerUp={() => { if (drag.current) { drag.current = null; setStill(false); } }}
           onClick={(e) => { if (e.target === e.currentTarget && zoom.z === 1 && !show) close(); }}>
+          {/* The picture (all of it: the page's quality, the original over it) shares its name with the thumbnail it
+              was opened from on another page, so a page change carries it between the two. Opened that way, React
+              waits for the page's picture before it shows the change (the one image it holds a page change for). */}
           {!fit ? null : isVideo ? (
-            <div ref={img} className={s.media} style={{ width: dw, height: dh }}>
-              <ViewTransition name={`file-art-${file.id}`} share="morph" default="none">
-                <VideoPlayer key={file.id} ref={player} src={streamUrl(file)} poster={mediaUrl(file, 'original')} autoPlay muted={!!show} duration={file.duration} />
-              </ViewTransition>
-            </div>
+            <ViewTransition key={file.id} name={`file-art-${file.id}`} share="travel" default="none">
+              <div ref={img} className={s.media} style={{ width: dw, height: dh }}>
+                <VideoPlayer ref={player} src={streamUrl(file)} poster={mediaUrl(file, 'original')} autoPlay muted={!!show} duration={file.duration} />
+              </div>
+            </ViewTransition>
           ) : (
-            <div ref={img} key={file.id} className={s.media} data-dir={dir} data-still={still || undefined}
-              style={{ width: dw, height: dh, transform: `translate(${zoom.x}px, ${zoom.y}px)`, '--slide': `${slide}s` }}
-              onDoubleClick={(e) => { const [px, py] = fromCentre(e); if (zoom.z > 1) zoomTo(1); else zoomTo(small ? 2.2 : Math.max(2, 1 / fit), px, py); }}>
-              <ViewTransition name={`file-art-${file.id}`} share="morph" default="none">
-                <img className={s.preview} src={mediaUrl(file, quality)} alt="" draggable={false} loading="lazy" decoding="sync" />
-              </ViewTransition>
-              <FullImage src={mediaUrl(file, 'original')} />
-            </div>
+            <ViewTransition key={file.id} name={`file-art-${file.id}`} share="travel" default="none">
+              <div ref={img} className={s.media} data-dir={dir} data-still={still || undefined}
+                style={{ width: dw, height: dh, transform: `translate(${zoom.x}px, ${zoom.y}px)`, '--slide': `${slide}s` }}
+                onDoubleClick={(e) => { const [px, py] = fromCentre(e); if (zoom.z > 1) zoomTo(1); else zoomTo(small ? 2.2 : Math.max(2, 1 / fit), px, py); }}>
+                <img className={s.preview} src={mediaUrl(file, quality)} alt="" draggable={false} loading={withPage ? 'eager' : 'lazy'} decoding="sync" />
+                <FullImage src={mediaUrl(file, 'original')} />
+              </div>
+            </ViewTransition>
           )}
         </div>
 

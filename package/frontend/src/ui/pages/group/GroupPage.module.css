@@ -66,7 +66,11 @@
 .task[data-state='queued'] { background: var(--field); }
 .taskIcon { flex-shrink: 0; color: var(--star-ink); }
 .task[data-state='running'] .taskIcon { animation: turn 2.4s linear infinite; }
+/* re-index: its viewfinder focuses on the picture instead of the icon turning (see TasksPanel) */
+.task[data-state='running'] .taskIcon:has(:global(.pr-focus)) { animation: none; }
+.task[data-state='running'] .taskIcon :global(.pr-focus) { transform-origin: 12px 12px; animation: focus 1.8s var(--ease-in-out) infinite; }
 @keyframes turn { to { transform: rotate(360deg); } }
+@keyframes focus { 50% { transform: scale(0.84); } }
 .taskName { font-weight: 600; white-space: nowrap; }
 .taskStage { color: var(--ink-2); white-space: nowrap; }
 .taskCount { color: var(--ink-2); white-space: nowrap; }

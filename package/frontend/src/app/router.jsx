@@ -1,6 +1,7 @@
 // Hash routing: #/ · #/group/:id · #/group/:id/file/:fileId (a file open in its group)
 // Works from any folder the Go service serves the build from, and keeps back/forward native.
-import { startTransition, useEffect, useState } from 'react';
+import { addTransitionType, startTransition, useEffect, useState } from 'react';
+import { afterViewTransition } from '../ui/lib/viewTransition.js';
 
 function parse(hash) {
   const [a, b, c, d] = hash.replace(/^#\/?/, '').split('/');
@@ -21,6 +22,27 @@ let returned = false;
 
 /** Was the page now showing reached by back / forward? Pages that return should not replay their entrance. */
 export const cameBack = () => returned;
+
+// A change that opens a file with its page (or leaves a file for another page) must cross-fade the whole document: the
+// lightbox's room darkens over the page being left, or lifts off the page arriving. React drops the document's own
+// snapshot from a page change it thinks touches only named parts — and the lightbox arrives through a portal, which it
+// does not count — so the old page would vanish at once. It keeps the snapshot when the root element names itself, so
+// the root is named for that change (as the browser names it anyway), and set free once the change has played.
+let holdingRoot = false;
+const root = () => document.documentElement;
+function holdRoot() {
+  holdingRoot = true;
+  root().style.viewTransitionName = 'root';
+}
+function useReleaseRoot(route) {
+  useEffect(() => {
+    if (!holdingRoot) return undefined;
+    return afterViewTransition(() => {
+      holdingRoot = false;
+      if (root().style.viewTransitionName === 'root') root().style.viewTransitionName = '';
+    });
+  }, [route]);
+}
 
 /**
  * Go to an in-app path. `replace`: take the place of the current entry instead of adding one (stepping through the
@@ -61,11 +83,23 @@ export function useRoute() {
       // page it is not — a transition would snapshot the whole document, lifting the named top bar (and the page's
       // cover) above the lightbox until it ended; the lightbox animates itself.
       if (keyOf(r) === keyOf(parse(from))) update();
-      else startTransition(update);
+      else {
+        // A file opening with its page (last viewed, random, a search result, Back / Forward) or a page left from a
+        // file: the lightbox covers the page there, so this change is the lightbox's own — the room darkens over the
+        // page being left (or lifts off the page arriving) and only the picture travels (base.css).
+        const opening = !!r.fileId, closing = !!parse(from).fileId;
+        if (opening || closing) holdRoot();
+        startTransition(() => {
+          if (opening) addTransitionType('file-open');
+          if (closing) addTransitionType('file-close');
+          update();
+        });
+      }
     };
     window.addEventListener('hashchange', onChange);
     return () => window.removeEventListener('hashchange', onChange);
   }, []);
+  useReleaseRoot(route);
   return route;
 }
 

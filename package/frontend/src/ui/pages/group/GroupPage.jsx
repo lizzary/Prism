@@ -112,6 +112,10 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
     const k = shownFiles.filter((f) => before.has(f.id)).length;
     return [...shownFiles.slice(0, k), arranged.sequence[at], ...shownFiles.slice(k)];
   }, [shownFiles, fileId, arranged.sequence]);
+  // A file open as the page arrives came with it (from another page, or a link straight to it): the page change brings
+  // its lightbox in. Once that one closes, files open over the page as usual.
+  const [withPage, setWithPage] = useState(!!fileId);
+  if (withPage && !fileId) setWithPage(false);
   // opened from elsewhere on another page of this one: the page turns to it, so it is among the files on show
   useLayoutEffect(() => {
     if (!fileId || shownFiles.some((f) => f.id === fileId)) return;
@@ -405,6 +409,7 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
           <div className={s.body}>
             {outlineOpen && (
               <Outline sections={arranged.sections} seen={seen} view={view} setView={setView} onJump={jumpTo} onOrder={orderColors}
+                onEdit={(colorId) => open('colorGroups', { groupId: id, focus: colorId })}
                 onClose={() => setView({ outline: false })} focusAt={outlineFocus} />
             )}
             <div className={s.main}>
@@ -432,7 +437,7 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
         onCancel={() => setAsk(null)} onConfirm={() => shownAsk.commit()} />
 
       {fileId && (
-        <Lightbox key={id} groupId={id} fileId={fileId} group={group} sequence={lightboxFiles} quality={view.quality}
+        <Lightbox key={id} groupId={id} fileId={fileId} group={group} sequence={lightboxFiles} quality={view.quality} withPage={withPage}
           slide={view.slide} onSlide={(sec) => setView({ slide: sec })} onClose={closeLightbox} onReveal={(fid, o) => grid.current?.revealFile(fid, o) ?? null}
           covering={covering} onDownload={(fid) => download([fid])} onDelete={(fid) => remove([fid])} />
       )}

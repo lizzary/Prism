@@ -1,11 +1,12 @@
 import { ViewTransition, useEffect, useRef, useState } from 'react';
 import { libraryActions, mediaUrl, useSetting } from '../../../bridge/index.js';
-import { Link, navigate, paths } from '../../../app/router.jsx';
+import { Link, cameBack, navigate, paths } from '../../../app/router.jsx';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
 import { StarryNight } from '../../art/starry/StarryNight.jsx';
 import { Icon } from '../../icons/Icon.jsx';
 import { Picture } from '../../components/media.jsx';
+import { prepareFile } from '../../lib/prepareFile.js';
 import s from './HomeHero.module.css';
 
 export function greetingKey(h) {
@@ -37,12 +38,14 @@ export function HomeHero({ home, heroRef }) {
   const fontReady = useFontReady('Prism WenKai', greeting);
   const { stats, lastViewed } = home;
   const dbPath = useSetting('dbPath');
+  // coming back is not arriving: no entrance (Back from a file opened here lands its picture in a pill already there)
+  const quiet = useRef(cameBack()).current;
 
   return (
     <section ref={heroRef} className={s.hero}>
       <div className={s.art}><StarryNight /></div>
       <div className={s.veil} aria-hidden="true" />
-      <div className={s.content}>
+      <div className={s.content} data-quiet={quiet || undefined}>
         <div className={`${s.greeting} ${fontReady ? s.in : ''}`}>
           <h1 className={`${s.hello} kai`}>{greeting}</h1>
           <p className={s.prompt}>{t('home.prompt')}</p>
@@ -62,16 +65,21 @@ export function HomeHero({ home, heroRef }) {
   );
 }
 
-/** Where you left off: the picture, its group, and how far into the group it is. */
+/**
+ * Where you left off: the picture, its group, and how far into the group it is. Opening it, the picture travels into
+ * the lightbox as the room darkens over the page; reaching for it already gets the file ready to open.
+ */
 function LastViewed({ item }) {
   const t = useT();
   const fmt = useFormat();
   const { file, group, index, total } = item;
   const ratio = Math.max(0.7, Math.min(1.8, file.width / file.height));
+  const prepared = useRef(false);
+  const prepare = () => { if (!prepared.current) { prepared.current = true; prepareFile(group.id, file); } };
   return (
-    <Link to={paths.file(group.id, file.id)} className={s.last}>
-      <ViewTransition name={`file-art-${file.id}`} share="morph">
-        <Picture src={mediaUrl(file, 'medium')} className={s.lastCover} style={{ width: Math.round(76 * ratio) }} eager />
+    <Link to={paths.file(group.id, file.id)} className={s.last} onPointerEnter={prepare} onPointerDown={prepare} onFocus={prepare}>
+      <ViewTransition name={`file-art-${file.id}`} share="travel">
+        <Picture src={mediaUrl(file, 'medium')} className={s.lastCover} style={{ width: Math.round(76 * ratio) }} eager data-vt-travel="" />
       </ViewTransition>
       <span className={s.lastBody}>
         <span className={s.kicker}><Icon name="history" size={14} />{t('home.lastViewed')} · {fmt.relative(item.viewedAt)}</span>
@@ -86,12 +94,16 @@ function LastViewed({ item }) {
   );
 }
 
-/** A small deck of pictures. Drawing riffles through it, then opens whatever comes up. */
+/**
+ * A small deck of pictures. Drawing riffles through it, then opens whatever comes up: its picture lifts off the top
+ * card into the lightbox. The file is got ready to open while the deck riffles.
+ */
 function RandomDeck({ excludeId }) {
   const t = useT();
   const [cards, setCards] = useState([]);
   const [face, setFace] = useState(0);
   const [drawing, setDrawing] = useState(false);
+  const [drawn, setDrawn] = useState(null);           // the file that came up
   const timers = useRef([]);
   useEffect(() => {
     let alive = true;
@@ -104,12 +116,16 @@ function RandomDeck({ excludeId }) {
     if (drawing || !cards.length) return;
     setDrawing(true);
     const pick = libraryActions.randomFile(excludeId);
+    // the top card then shows the very picture the lightbox opens on, so the two are one as it travels
+    let picture = null;
+    pick.then((hit) => hit && prepareFile(hit.group.id, hit.file)).then((url) => { picture = url; }, () => {});
     // riffle: quick at first, slowing down
     let at = 0;
     for (let i = 0; i < 9; i++) { at += 55 + i * i * 7; timers.current.push(setTimeout(() => setFace((f) => (f + 1) % cards.length), at)); }
     const [hit] = await Promise.all([pick, new Promise((r) => setTimeout(r, at + 60))]);
     if (!hit) { setDrawing(false); return; }
-    setCards((c) => { const next = [...c]; next[(face + 9) % c.length] = mediaUrl(hit.file, 'low'); return next; });
+    setDrawn(hit.file.id);
+    setCards((c) => { const next = [...c]; next[(face + 9) % c.length] = picture ?? mediaUrl(hit.file, 'low'); return next; });
     timers.current.push(setTimeout(() => navigate(paths.file(hit.group.id, hit.file.id)), 260));
   };
 
@@ -119,7 +135,12 @@ function RandomDeck({ excludeId }) {
       <span className={s.cards} aria-hidden="true">
         {[2, 1, 0].map((k) => (
           <span key={k} className={s.card} data-k={k}>
-            {at(k) && <img src={at(k)} alt="" draggable={false} loading="lazy" />}
+            {at(k) && (k > 0 ? <img src={at(k)} alt="" draggable={false} loading="lazy" /> : (
+              // the top card's picture, once drawn, shares its name with the lightbox's (see LastViewed)
+              <ViewTransition name={drawn ? `file-art-${drawn}` : undefined} share="travel" default="none">
+                <img src={at(0)} alt="" draggable={false} loading="lazy" data-vt-travel={drawn ? '' : undefined} />
+              </ViewTransition>
+            ))}
           </span>
         ))}
       </span>

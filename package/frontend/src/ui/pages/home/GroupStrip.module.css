@@ -46,6 +46,7 @@
   transition: opacity 320ms var(--ease-out), transform 260ms var(--ease-back), box-shadow 200ms;
 }
 @keyframes thumbIn { from { opacity: 0; transform: translateY(5px) scale(0.8); } }
+.strip[data-quiet] .thumb { animation: none; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; }
 .thumb[data-in] { opacity: 1; }
 .thumb:hover { z-index: 1; opacity: 1; transform: translateY(-2px) scale(1.16); box-shadow: 0 0 0 1px var(--line-2), var(--shadow-2); }

@@ -107,6 +107,14 @@
   animation-delay: calc(var(--i) * 30ms);
 }
 @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } }
+/* the colour group the editor was opened at (from the page's list): it glows once in its own colour, so the eye finds it */
+.row[data-arrived] { animation: rowIn 380ms var(--ease-out) both, arrived 1.4s var(--ease-out) 260ms; }
+@keyframes arrived {
+  30% {
+    background: color-mix(in srgb, var(--c) 24%, var(--bg-raised));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 72%, transparent) inset, 0 0 0 4px color-mix(in srgb, var(--c) 16%, transparent);
+  }
+}
 .row:hover { box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 50%, transparent) inset; }
 .row[data-moving] { opacity: 0.35; }
 .nothing { padding: 18px 10px; font-size: 13px; color: var(--ink-3); text-align: center; }

@@ -83,9 +83,15 @@ function createFeed(id) {
       subs.add(fn);
       if (subs.size === 1) {
         document.addEventListener('visibilitychange', onVisibility);
-        // coming back to the page: catch up at once (the copy kept here may be old)
-        if (base && Date.now() - answeredAt > 1000) refresh().catch(() => {});
-        else { arm(); publish(); }
+        // coming back to the page: catch up at once if the copy kept here is older than a look's interval (one fetched
+        // moments ago — the page loaded ahead of a file opened from elsewhere — is as fresh as the clock keeps it)
+        if (base && Date.now() - answeredAt > REFRESH_MS) refresh().catch(() => {});
+        else {
+          // the next look when that copy turns an interval old
+          if (base) left = Math.min(left, Math.max(0, REFRESH_MS - (Date.now() - answeredAt)));
+          arm();
+          publish();
+        }
       }
       return () => {
         subs.delete(fn);

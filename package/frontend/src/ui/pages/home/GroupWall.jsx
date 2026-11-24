@@ -198,7 +198,7 @@ export function GroupWall({ home }) {
     <section className={s.section}>
       <div className={s.bar}>
         <h2 className={s.title}>{t('home.groups')}<span className={`${s.count} num`}>{q ? `${shown.length}/${groups.length}` : groups.length}</span></h2>
-        <GroupStrip groups={shown} range={onScreen} onJump={(id) => setFlash({ id, always: true })} />
+        <GroupStrip groups={shown} range={onScreen} onJump={(id) => setFlash({ id, always: true })} quiet={quiet} />
         <label className={s.find}>
           <Icon name="search" size={15} />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('home.findGroup')} spellCheck={false} />

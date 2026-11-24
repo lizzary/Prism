@@ -102,6 +102,8 @@
 }
 .video { left: 6px; padding: 0 6px 0 5px; }
 .coverMark { right: 6px; width: 20px; justify-content: center; color: #f3d77e; }
+/* the main cover: the card shows it at rest */
+.coverMark[data-main] { color: #2a2418; background: rgba(240, 208, 120, 0.94); backdrop-filter: none; box-shadow: 0 1px 4px rgba(12, 18, 38, 0.35); }
 
 /* being carried elsewhere */
 .tile[data-carried] { opacity: 0.26; }

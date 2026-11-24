@@ -11,6 +11,7 @@ import {
   arrange, placeBatch, pageOf, pageOfSection, NONE, DEFAULT_VIEW, SORTS, QUALITY_LEVELS, LAYOUTS, PAGE_SIZES, SIZE_LEVELS, SLIDE_RANGE, SLIDE_SECONDS,
 } from '../domain/arrange.js';
 import { COLOR_SORTS, findInName, moveTogether, sortColorGroups, stepTogether } from '../domain/colorOrder.js';
+import { autoCovers, coverEdits, MAX_COVERS } from '../domain/covers.js';
 
 export { FILE_KINDS };
 
@@ -79,9 +80,11 @@ export const events = { subscribe: (fn) => backend.onChange(fn) };
 // ------------------------------------------------------------------ gallery
 /**
  * A file as pages show it — ref: { id, kind: 'image' | 'video', name, ext, width, height, duration }.
- * A group card: { id, name, createdAt, updatedAt, fileCount, videoCount, bytes, cover: ref | null, coverAuto, previews: [ref],
+ * A group card: { id, name, createdAt, updatedAt, fileCount, videoCount, bytes, cover: ref | null, covers: [ref], coverAuto,
  *                 palette: { name, colors: [{ name, color }] } | null }
- *   coverAuto: no cover was chosen, the newest picture stands in · palette: the colour groups in use
+ *   covers: the pictures the card glances through and the group's page opens with, the main cover first (= cover), at
+ *   most MAX_COVERS · coverAuto: none were chosen, Prism picks them (the newest picture, then a few from all through
+ *   the group) · palette: the colour groups in use
  */
 export const library = {
   /** → { groups: [card] (in the user's order), view: { naturalRatio }, stats: { groups, files, bytes, thisWeek },
@@ -91,10 +94,10 @@ export const library = {
   groups: () => call('read', backend.listGroups),
   /** → [{ id, name, color, config, group: { id, name }, fileCount }] */
   colorGroups: () => call('read', backend.listColorGroups),
-  /** The pictures a group's cover can be chosen from. → [ref] */
+  /** The pictures a group's covers can be chosen from (newest first), and the covers Prism would pick. → { pictures: [ref], auto: [ref] } */
   groupPictures: (id) => call('read', () => backend.groupPictures(id)),
   createGroup: (input) => call('write', () => backend.createGroup(input)),
-  /** patch: any of { name, coverFileId } (coverFileId null: automatic) */
+  /** patch: any of { name, coverFileIds: [fileId] (pictures of the group, the main cover first) | null (Prism picks them) } */
   updateGroup: (id, patch) => call('write', () => backend.updateGroup(id, patch)),
   /** Deletes the group and every file in it. → { ok, files } */
   deleteGroup: (id) => call('write', () => backend.deleteGroup(id)),
@@ -122,7 +125,7 @@ export const groupPage = {
   /**
    * Everything a group's page shows; the page asks again every few seconds. `since`: the revision of the copy
    * already held — while nothing changed the answer is just { rev, unchanged: true }.
-   * → { rev, group: { id, name, createdAt, updatedAt, fileCount, videoCount, bytes, cover, coverAuto, palette } | null,
+   * → { rev, group: a group card | null,
    *     configs, activeConfigId, order: [fileId] (the custom order),
    *     files: [ref + { size, createdAt, importedAt, colors }], view }
    */
@@ -155,7 +158,8 @@ export const groupPage = {
 /**
  * A file's details: { file: ref, group: { id, name }, config: { id, name, colors } | null, color: { id, name, color } | null,
  *   size, createdAt, importedAt, tags: [{ key, label, source: 'model' | 'user', score }], note,
- *   comfy: { model, seed, positive, negative, sampler, scheduler, steps, cfg, denoise } | null, cover: 'chosen' | 'auto' | null }
+ *   comfy: { model, seed, positive, negative, sampler, scheduler, steps, cfg, denoise } | null,
+ *   cover: { index (0: the main cover), count, auto } | null — where it is among the group's covers }
  */
 export const files = {
   detail: (id) => call('read', () => backend.getFileDetail(id)),
@@ -184,6 +188,8 @@ export const files = {
 export const browsing = { arrange, placeBatch, pageOf, pageOfSection, NONE, DEFAULT_VIEW, SORTS, QUALITY_LEVELS, LAYOUTS, PAGE_SIZES, SIZE_LEVELS, SLIDE_RANGE, SLIDE_SECONDS };
 /** Putting a configuration's colour groups in order (move several together, a step at a time, sort all) — domain/colorOrder.js. */
 export const colorOrder = { moveTogether, stepTogether, sortColorGroups, findInName, COLOR_SORTS };
+/** A group's covers: Prism's own picks, and the edits (add, remove, main, toggle, move) — data/domain/covers.js. */
+export const covers = { ...coverEdits, auto: autoCovers, MAX: MAX_COVERS };
 
 // ------------------------------------------------------------------ media
 export const media = {

@@ -234,7 +234,7 @@ export function Grid({ ref, data, arranged, view, onView, selection, arrived, fo
   const quality = view.quality;
   const selecting = selection.size > 0;
   const fresh = arrived.at && Date.now() - arrived.at < 2600 ? new Set(arrived.ids) : null;
-  const coverId = data.group.cover?.id;
+  const coverAt = useMemo(() => new Map(data.group.covers.map((c, k) => [c.id, k])), [data.group.covers]);   // file → its place among the covers
   const colorOf = (key) => full.get(key)?.color?.color ?? NEUTRAL;
   const nameOf = (key) => (key === NONE ? t('group.colors.noColor') : full.get(key)?.color?.name ?? '');
   const target = dragging?.target;
@@ -273,7 +273,7 @@ export function Grid({ ref, data, arranged, view, onView, selection, arrived, fo
         const f = files.get(x.id);
         return f && (
           <Tile key={x.key} x={x} file={f} quality={quality} selected={selection.has(f.id)} selecting={selecting} carried={carried.has(f.id)}
-            cover={coverId === f.id} glow={(fresh?.has(f.id) || lit?.id === f.id) || undefined} h={handlers}
+            cover={coverAt.get(f.id)} glow={(fresh?.has(f.id) || lit?.id === f.id) || undefined} h={handlers}
             onHot={arranged.grouped ? setHot : null} />
         );
       })}
@@ -325,7 +325,11 @@ const Tile = memo(function Tile({ x, file, quality, selected, selecting, carried
       <div className={s.frame}>
         <TileImage src={mediaUrl(file, quality)} className={s.img} />
         {file.kind === 'video' && <span className={s.video}><Icon name="play" size={10} />{fmt.duration(file.duration)}</span>}
-        {cover && <span className={s.coverMark} title={t('group.tile.isCover')}><Icon name="cover" size={13} /></span>}
+        {cover != null && (
+          <span className={s.coverMark} data-main={cover === 0 || undefined} title={cover === 0 ? t('group.tile.isMainCover') : t('group.tile.isCover', { n: cover + 1 })}>
+            <Icon name="cover" size={13} />
+          </span>
+        )}
       </div>
       <button type="button" className={s.check} onClick={h.check} tabIndex={-1} aria-label={t('group.tile.select')}>
         <Icon name="check" size={13} stroke={2.4} />

@@ -10,6 +10,7 @@ import { useFormat } from '../../../lib/format.js';
 import { Icon } from '../../../icons/Icon.jsx';
 import { Button, IconButton, Stepper } from '../../../components/controls.jsx';
 import { Popover, Portal, Tooltip, useScrollLock } from '../../../components/overlay.jsx';
+import { Menu } from '../../../components/menu.jsx';
 import { Details } from './Details.jsx';
 import { VideoPlayer } from './VideoPlayer.jsx';
 import s from './Lightbox.module.css';
@@ -43,7 +44,7 @@ const SHOWN = { transform: 'none', clipPath: 'inset(0px 0px round 3px)' };
  * sequence: the files to walk, in order (the page's files on show); onReveal(id, { now }): bring a file's tile into full
  * view on the page, at once, and say where it is on screen ({ left, top, width, height } | null).
  */
-export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onSlide, onClose, onReveal, onCover, onDownload, onDelete }) {
+export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onSlide, onClose, onReveal, covering, onDownload, onDelete }) {
   const t = useT();
   const fmt = useFormat();
   const index = sequence.findIndex((f) => f.id === fileId);
@@ -60,7 +61,9 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
   const [show, setShow] = useState(null);             // slideshow: { paused, startedAt, left }
   const [pick, setPick] = useState(false);            // the slideshow's seconds
   const [flash, setFlash] = useState(null);           // a moment's sign that the slideshow paused or went on
-  const [madeCover, setMadeCover] = useState(null);   // the file just made the group's cover here (its mark arrives with a glint)
+  const [madeCover, setMadeCover] = useState(null);   // the file just made one of the group's covers here (its mark arrives with a glint)
+  const [coverMenu, setCoverMenu] = useState(false);
+  const coverMark = useRef(null);
   const stage = useRef(null);
   const img = useRef(null);
   const player = useRef(null);
@@ -246,7 +249,7 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
   const small = file.width * fit < 0.9 * box.w && file.height * fit < 0.9 * box.h;
   const actual = fit ? fit * zoom.z : 1;                  // shown pixels per file pixel
   const slider = zMax > 1 ? Math.log(zoom.z) / Math.log(zMax) : 0;
-  const isCover = group.cover?.id === file.id;
+  const coverAt = file.kind === 'image' ? group.covers.findIndex((c) => c.id === file.id) : -1;   // its place among the covers
   const chromeHidden = idle && !pick && phase === 'open';
 
   return (
@@ -272,15 +275,25 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
           <div className={s.tools}>
             <IconButton ref={slideBtn} icon={show && !show.paused ? 'pause' : 'slideshow'} tone="art" active={!!show || pick}
               label={show ? t('lightbox.stop') : t('lightbox.slideshow')} onClick={() => (show ? setShow(null) : setPick((p) => !p))} />
-            {/* the cover is a fact about the picture, not a button held down: once it is the cover, the button gives way to a mark */}
-            {file.kind === 'image' && (isCover ? (
-              <Tooltip label={t('lightbox.isCover')}>
-                <span className={s.coverMark} data-fresh={madeCover === file.id || undefined} tabIndex={0} role="img" aria-label={t('lightbox.isCover')}>
-                  <Icon name="cover" size={16} /><span>{t('lightbox.coverMark')}</span>
-                </span>
-              </Tooltip>
+            {/* being a cover is a fact about the picture, not a button held down: once it is one, the button gives way to a
+                mark that says which (the main one, or its place), and offers the rest */}
+            {file.kind === 'image' && (coverAt < 0 ? (
+              <IconButton icon="cover-add" tone="art" label={t('lightbox.addCover')} onClick={() => { if (covering.add(file.id)) setMadeCover(file.id); }} />
             ) : (
-              <IconButton icon="cover" tone="art" label={t('lightbox.cover')} onClick={() => { setMadeCover(file.id); onCover(file.id); }} />
+              <>
+                {/* (made the main cover, the mark comes in anew: its star glints again) */}
+                <Tooltip key={coverAt === 0 ? 'main' : 'cover'} label={coverAt === 0 ? t('lightbox.isMainCover') : t('lightbox.isCover', { n: coverAt + 1 })}>
+                  <button ref={coverMark} type="button" className={s.coverMark} data-fresh={madeCover === file.id || undefined} data-open={coverMenu || undefined}
+                    aria-haspopup="menu" aria-expanded={coverMenu} onClick={() => setCoverMenu((o) => !o)}>
+                    <Icon name="cover" size={16} /><span>{coverAt === 0 ? t('lightbox.mainCoverMark') : t('lightbox.coverMark', { n: coverAt + 1 })}</span>
+                  </button>
+                </Tooltip>
+                <Menu open={coverMenu} onClose={() => setCoverMenu(false)} anchor={coverMark} placement="bottom-end" className={`${s.pop} theme-night`} label={t('lightbox.coverMenu')}
+                  items={[
+                    ...(coverAt > 0 ? [{ key: 'main', label: t('group.tile.mainCover'), icon: 'cover', onSelect: () => { if (covering.main(file.id)) setMadeCover(file.id); } }] : []),
+                    { key: 'remove', label: t('group.tile.removeCover'), icon: 'cover-remove', onSelect: () => covering.remove(file.id) },
+                  ]} />
+              </>
             ))}
             <IconButton icon="download" tone="art" label={t('lightbox.download')} onClick={() => onDownload(file.id)} />
             <IconButton icon="trash" tone="art" label={t('lightbox.delete')} className={s.danger} onClick={remove} />

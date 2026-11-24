@@ -1,6 +1,6 @@
 // The home page's wall of groups. Covers keep their own proportions in justified rows (or all become squares);
 // every card is placed from computed geometry, so a new layout, a new order or a filter lets the cards glide to
-// their places instead of jumping. Moving across a cover glances through the pictures inside the group.
+// their places instead of jumping. Moving across a card glances through the group's covers.
 // The wall's bar carries the wall in miniature (GroupStrip), which follows the page and jumps to any group.
 import { ViewTransition, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { libraryActions, mediaUrl, useOptimisticView } from '../../../bridge/index.js';
@@ -9,6 +9,7 @@ import { Link, cameBack, paths } from '../../../app/router.jsx';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
 import { justify } from '../../lib/justify.js';
+import { coverOnShow } from '../../lib/coverOnShow.js';
 import { moveTo, useReorder } from '../../lib/useReorder.js';
 import { Icon } from '../../icons/Icon.jsx';
 import { Button, IconButton, Segmented } from '../../components/controls.jsx';
@@ -48,26 +49,42 @@ function place(ids, ratios, width, natural) {
   return { boxes, height: rows * (size + LABEL_H) + (rows - 1) * GAP_Y };
 }
 
-/** The wall's width; while the window is being resized the cards follow at once instead of gliding. */
+/** The wall's width when it was last measured. */
+let measuredWidth = 0;
+/** The wall's width before it can be measured: its section is centred, at most --maxw wide, inside the gutters. */
+function estimateWidth() {
+  const page = document.body.clientWidth;             // the page, less the gutter kept for the scrollbar
+  const gutter = Math.min(64, Math.max(20, innerWidth * 0.042));
+  return Math.max(0, Math.min(page - 2 * gutter, 1520));
+}
+
+/**
+ * The wall's width; while the window is being resized the cards follow at once instead of gliding. The cards are
+ * there from the first render — laid out at the width last measured (coming back) or an estimate (the first visit,
+ * put right before it is painted) — so a page change already finds them: coming back from a group's page, its banner
+ * has a card to settle into.
+ */
 function useWallWidth(ref, present) {
-  const [width, setWidth] = useState(0);
+  const [width, setWidth] = useState(() => measuredWidth || estimateWidth());
   const [resizing, setResizing] = useState(false);
   useLayoutEffect(() => {
     const el = ref.current;
-    let last = el.getBoundingClientRect().width, timer = 0;
-    setWidth(last);
+    let last = width, timer = 0;
     // the wall's own height follows its cards: only a change of width is a resize
-    const ro = new ResizeObserver(([e]) => {
-      if (Math.abs(e.contentRect.width - last) < 0.5) return;
-      last = e.contentRect.width;
+    const take = (w) => {
+      measuredWidth = w;
+      if (Math.abs(w - last) < 0.5) return;
+      last = w;
       setResizing(true);
-      setWidth(last);
+      setWidth(w);
       clearTimeout(timer);
       timer = setTimeout(() => setResizing(false), 200);
-    });
+    };
+    take(el.getBoundingClientRect().width);
+    const ro = new ResizeObserver(([e]) => take(e.contentRect.width));
     ro.observe(el);
     return () => { ro.disconnect(); clearTimeout(timer); };
-  }, [ref, present]);
+  }, [ref, present]); // eslint-disable-line react-hooks/exhaustive-deps
   return [width, resizing];
 }
 
@@ -237,33 +254,59 @@ function GroupCard({ group, box, index, eager, flash, drag, onEdit }) {
 }
 
 /**
- * The cover, and the pictures behind it: moving across it from left to right glances through the group
- * (the cover first, then a few pictures from all through the group). They load on the first visit of the pointer.
+ * The group's covers, the main one in front: moving across the card from left to right glances through them, in
+ * the order they were chosen (their pictures load on the pointer's first visit). Opening the group, the picture on
+ * show grows into the banner of its page, which opens on it; coming back, the banner's picture settles here, and a
+ * moment later the card turns back to its main cover.
  */
 function Cover({ group, eager }) {
-  const frames = group.cover ? [group.cover, ...group.previews] : [];
-  const [armed, setArmed] = useState(false);
-  const [at, setAt] = useState(0);
-  if (!group.cover) return <div className={`${s.cover} ${s.coverEmpty}`}><EmptyArt size={96} /></div>;
+  const covers = group.covers;
+  const n = covers.length;
+  // back from the group's page while it showed another of its covers: that one lands here first
+  const [landed] = useState(() => Math.max(0, covers.findIndex((c) => c.id === coverOnShow.of(group.id))));
+  const [at, setAt] = useState(landed);
+  const [armed, setArmed] = useState(landed > 0);
+  const [settling, setSettling] = useState(false);
+  const over = useRef(false);
+  const loaded = useRef(new Set());
+  const shown = Math.min(at, Math.max(0, n - 1));
+  const show = (k) => { setAt(k); coverOnShow.set(group.id, k > 0 ? covers[k].id : null); };
+  const showRef = useRef(show);
+  showRef.current = show;
+  useEffect(() => {
+    if (!landed) return undefined;
+    // once it has landed (and unless the pointer is on it), the card slowly turns back to its main cover
+    const timer = setTimeout(() => { if (!over.current) { setSettling(true); showRef.current(0); } }, 1200);
+    return () => clearTimeout(timer);
+  }, [landed]);
+  if (!n) return <div className={`${s.cover} ${s.coverEmpty}`}><EmptyArt size={96} /></div>;
   const skim = (e) => {
     const r = e.currentTarget.getBoundingClientRect();
-    setAt(Math.max(0, Math.min(frames.length - 1, Math.floor(((e.clientX - r.left) / r.width) * frames.length))));
+    const k = Math.max(0, Math.min(n - 1, Math.floor(((e.clientX - r.left) / r.width) * n)));
+    if (k !== shown) show(k);
   };
   return (
-    <div className={s.cover} data-skimming={at > 0 || undefined}
-      onPointerEnter={(e) => { if (e.pointerType === 'mouse' && frames.length > 1) setArmed(true); }}
-      onPointerMove={armed ? skim : undefined} onPointerLeave={() => setAt(0)}>
-      {/* opening the group, the cover grows into its page's banner (and settles back here on the way home) */}
+    <div className={s.cover} data-skimming={shown > 0 || undefined}
+      onPointerEnter={(e) => { over.current = true; setSettling(false); if (e.pointerType === 'mouse' && n > 1) setArmed(true); }}
+      onPointerMove={armed ? skim : undefined}
+      onPointerLeave={() => { over.current = false; show(0); }}
+      // a picture still on its way in is not on show (the main cover is): the page opens on what the card shows
+      onClick={() => { if (shown > 0 && !loaded.current.has(covers[shown].id)) coverOnShow.set(group.id, null); }}>
+      {/* the covers as one picture: whichever is on show is the one that grows into the page's banner */}
       <ViewTransition name={`group-art-${group.id}`} share="morph" default="none">
-        <CoverImage src={mediaUrl(group.cover, 'original')} eager={eager} />
+        <div className={s.frames} data-settling={settling || undefined}>
+          <CoverImage src={mediaUrl(covers[0], 'original')} eager={eager} />
+          {armed && covers.slice(1).map((f, k) => (
+            <img key={f.id} src={mediaUrl(f, 'original')} alt="" draggable={false} loading="lazy" className={s.frame} data-on={shown === k + 1}
+              // the one landing from the banner is already decoded: drawn at once, so it is there when it lands
+              decoding={landed === k + 1 ? 'sync' : 'async'} onLoad={() => loaded.current.add(f.id)} />
+          ))}
+        </div>
       </ViewTransition>
-      {armed && frames.slice(1).map((f, k) => (
-        <img key={f.id} src={mediaUrl(f, 'medium')} alt="" draggable={false} decoding="async" loading="lazy" className={s.frame} data-on={at === k + 1} />
-      ))}
-      {armed && frames[at]?.kind === 'video' && <span className={s.videoMark}><Icon name="play" size={12} /></span>}
-      {armed && (
+      {armed && covers[shown]?.kind === 'video' && <span className={s.videoMark}><Icon name="play" size={12} /></span>}
+      {armed && n > 1 && (
         <span className={s.ticks} aria-hidden="true">
-          {frames.map((f, k) => <i key={f.id} data-on={at === k} />)}
+          {covers.map((f, k) => <i key={f.id} data-on={shown === k} />)}
         </span>
       )}
     </div>

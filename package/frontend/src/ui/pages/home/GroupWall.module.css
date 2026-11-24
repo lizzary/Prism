@@ -68,12 +68,16 @@
   isolation: isolate;
   transition: height 560ms var(--ease-out);
 }
+/* the covers, stacked: one picture as far as a page change is concerned (it is what grows into the group's banner) */
+.frames { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; }
 .coverImg, .frame { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .coverImg { opacity: 0; transform: scale(1.015); transition: opacity 520ms var(--ease-out), transform 1200ms var(--ease-out); }
 .coverImg[data-ready] { opacity: 1; transform: none; }
 .card:hover .coverImg, .card:hover .frame { transform: scale(1.035); }
 .frame { opacity: 0; transition: opacity 90ms linear, transform 1200ms var(--ease-out); }
 .frame[data-on='true'] { opacity: 1; }
+/* a cover handed back by the group's page, once it has landed: the card turns back to its main cover slowly */
+.frames[data-settling] .frame { transition: opacity 900ms var(--ease-in-out), transform 1200ms var(--ease-out); }
 .coverEmpty { display: grid; place-items: center; background: var(--field); box-shadow: 0 0 0 1px var(--line) inset; }
 
 /* glancing through the group: one tick per picture, the lit one is on show */

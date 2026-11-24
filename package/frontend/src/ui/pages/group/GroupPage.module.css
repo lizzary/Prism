@@ -6,15 +6,25 @@
 .banner { position: relative; height: clamp(250px, 40vh, 420px); overflow: hidden; }
 .banner[data-blank] { height: calc(var(--bar-h) + 70px); }
 .bannerArt { position: absolute; inset: -2px 0 0; will-change: transform; transform-origin: 50% 0; }
+.bannerFrames { position: absolute; inset: 0; }
 .bannerImg {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 46%, rgba(0, 0, 0, 0.84) 62%, rgba(0, 0, 0, 0.5) 78%, rgba(0, 0, 0, 0.16) 91%, transparent 100%);
   mask-image: linear-gradient(180deg, #000 0%, #000 46%, rgba(0, 0, 0, 0.84) 62%, rgba(0, 0, 0, 0.5) 78%, rgba(0, 0, 0, 0.16) 91%, transparent 100%);
+  opacity: 0;
+  /* the cover giving way stays whole until the one arriving over it is fully in: nothing dims in between */
+  transition: opacity 0s linear 460ms;
   animation: settle 1.4s var(--ease-out) both;
 }
+.bannerImg[data-on='true'] { z-index: 1; opacity: 1; transition: opacity 460ms var(--ease-out); }
+/* a cover shown for the first time here fades in as it settles */
+.bannerImg[data-later] { animation: settle 1.4s var(--ease-out) both, coverIn 460ms var(--ease-out) backwards; }
 @keyframes settle { from { transform: scale(1.04); } }
+@keyframes coverIn { from { opacity: 0; } }
 .bannerShade { position: absolute; inset: 0 0 auto; height: 160px; background: linear-gradient(180deg, rgba(8, 13, 32, 0.42), transparent); pointer-events: none; }
 .banner[data-blank] .bannerShade { display: none; }
 
@@ -23,6 +33,28 @@
 .banner[data-blank] + .head { margin-top: 0; }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
 .titleRow { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+/* the group's covers beside its name: a tick each, the one in the banner lit, the one kept there in starlight */
+.covers { display: flex; align-items: center; gap: 2px; margin-left: auto; margin-top: 4px; }
+.coverTicks { display: flex; align-items: center; }
+.coverTick { position: relative; width: 24px; height: 30px; border-radius: var(--r-1); }
+.coverTick::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  top: 50%;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--ink) 30%, transparent);
+  transition: background-color 220ms, transform 360ms var(--ease-back), box-shadow 220ms;
+}
+.coverTick:hover::before, .coverTick[data-shown]::before { background: color-mix(in srgb, var(--ink) 72%, transparent); transform: scaleY(1.4); }
+.coverTick[data-kept]::before { background: var(--star); box-shadow: 0 0 8px color-mix(in srgb, var(--star) 50%, transparent); }
+.coverTick[data-kept][data-shown]::before { transform: scaleY(1.4); }
+.coverTick:focus-visible { box-shadow: none; }
+.coverTick:focus-visible::before { box-shadow: var(--focus-ring); }
 .title { font-size: clamp(30px, 3.1vw, 46px); font-weight: 540; letter-spacing: -0.025em; line-height: 1.12; }
 .edit { margin-top: 4px; }
 .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; margin-top: 10px; font-size: 13.5px; color: var(--ink-3); }

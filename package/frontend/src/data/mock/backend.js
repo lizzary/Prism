@@ -12,6 +12,7 @@ import { keyCatalog } from '../domain/keys.js';
 import { expandName, planTree, selectFiles } from '../domain/exportPlan.js';
 import { uniqueName } from '../domain/filename.js';
 import { arrange, cleanView } from '../domain/arrange.js';
+import { autoCovers, MAX_COVERS } from '../domain/covers.js';
 
 // ------------------------------------------------------------------ change feed
 const listeners = new Set();
@@ -88,7 +89,7 @@ const savePrefs = (L) => { L.edits.prefs = true; saveDbPrefs(L.path, L.prefs); }
 export { lib as currentLibrary, indexLibrary as reindex };
 const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k]]));
 /** What an edit can change, kept as it was before the first edit since the last snapshot (edits replace these values, never mutate them). */
-export const GROUP_FIELDS = ['name', 'coverFileId', 'configs', 'activeConfigId', 'fileOrder'];
+export const GROUP_FIELDS = ['name', 'coverFileIds', 'configs', 'activeConfigId', 'fileOrder'];
 export const FILE_FIELDS = ['userTags', 'note', 'colors'];
 const noteEdit = (map, item, fields) => { if (!map.has(item.id)) map.set(item.id, pick(item, fields)); };
 
@@ -107,23 +108,22 @@ export function orderedGroups(L) {
   return [...fresh, ...placed];
 }
 
-/** A few pictures spread across the group, for glancing through it without opening it. */
-function previewsOf(files, cover, n = 6) {
-  const pool = files.filter((f) => f !== cover);
-  if (pool.length <= n) return pool;
-  return Array.from({ length: n }, (_, k) => pool[Math.floor(((k + 0.5) * pool.length) / n)]);
+/**
+ * A group's covers, main first (see domain/covers.js): the ones chosen, or Prism's own picks while none are —
+ * also for a group kept only by a snapshot. → { files, auto }
+ */
+export function coversOf(L, g) {
+  const live = L.groupsById.has(g.id);
+  const files = live ? L.filesByGroup.get(g.id) ?? [] : [...L.vault.files.values()].filter((f) => f.groupId === g.id);
+  const chosen = (g.coverFileIds ?? []).map((id) => (live ? L.filesById.get(id) : L.vault.files.get(id))).filter((f) => f?.groupId === g.id);
+  return chosen.length ? { files: chosen, auto: false } : { files: autoCovers(files), auto: true };
 }
-
-/** The cover: the one chosen, or the first picture (also for a group kept only by a snapshot). */
-export function coverOf(L, g) {
-  const files = L.filesByGroup.get(g.id) ?? [...L.vault.files.values()].filter((f) => f.groupId === g.id);
-  const chosen = L.filesById.get(g.coverFileId) ?? L.vault.files.get(g.coverFileId);
-  return chosen ?? files.find((f) => f.kind === 'image') ?? files[0] ?? null;
-}
+/** The main cover. */
+export const coverOf = (L, g) => coversOf(L, g).files[0] ?? null;
 
 function groupCard(L, g) {
   const files = L.filesByGroup.get(g.id) ?? [];
-  const cover = coverOf(L, g);
+  const covers = coversOf(L, g);
   const cfg = g.configs.find((c) => c.id === g.activeConfigId);
   return {
     id: g.id, name: g.name, createdAt: g.createdAt,
@@ -131,9 +131,9 @@ function groupCard(L, g) {
     fileCount: files.length,
     videoCount: files.filter((f) => f.kind === 'video').length,
     bytes: files.reduce((s, f) => s + f.size, 0),
-    cover: cover ? fileRef(cover) : null,
-    coverAuto: !L.filesById.has(g.coverFileId),
-    previews: previewsOf(files, cover).map(fileRef),
+    cover: covers.files[0] ? fileRef(covers.files[0]) : null,
+    covers: covers.files.map(fileRef),
+    coverAuto: covers.auto,
     palette: cfg ? { name: cfg.name, colors: cfg.groups.map((c) => ({ name: c.name, color: c.color })) } : null,
   };
 }
@@ -208,10 +208,12 @@ export function listColorGroups() {
   }))));
 }
 
-/** The pictures of a group a cover can be chosen from, newest first. */
+/** The pictures of a group its covers can be chosen from (newest first), and the covers Prism would pick itself. */
 export function groupPictures(id, limit = 120) {
   const L = lib();
-  return (L.filesByGroup.get(id) ?? []).filter((f) => f.kind === 'image').slice(0, limit).map(fileRef);
+  const files = L.filesByGroup.get(id) ?? [];
+  const pictures = files.filter((f) => f.kind === 'image').sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+  return { pictures: pictures.slice(0, limit).map(fileRef), auto: autoCovers(files).map(fileRef) };
 }
 
 export function createGroup({ name }) {
@@ -231,9 +233,10 @@ export function updateGroup(id, patch) {
   if (!g) return null;
   noteEdit(L.edits.groups, g, GROUP_FIELDS);
   if ('name' in patch) { const n = String(patch.name ?? '').trim(); if (!n) return null; g.name = n; }
-  if ('coverFileId' in patch) {
-    if (patch.coverFileId == null) g.coverFileId = null;                // automatic: the newest picture
-    else if (L.filesById.get(patch.coverFileId)?.groupId === id) g.coverFileId = patch.coverFileId;
+  if ('coverFileIds' in patch) {
+    // null or none: Prism picks them; otherwise pictures of this group, each once, the main one first
+    const ids = [...new Set(patch.coverFileIds ?? [])].filter((fid) => { const f = L.filesById.get(fid); return f?.groupId === id && f.kind === 'image'; });
+    g.coverFileIds = ids.slice(0, MAX_COVERS);
   }
   indexLibrary(L);
   emit('library');
@@ -291,9 +294,8 @@ export function getGroupPage(id, since) {
   if (since != null && since === L.rev) return { rev: L.rev, unchanged: true };
   const g = L.groupsById.get(id);
   if (!g) return { rev: L.rev, group: null };
-  const { previews, ...group } = groupCard(L, g); // eslint-disable-line no-unused-vars
   return {
-    rev: L.rev, group,
+    rev: L.rev, group: groupCard(L, g),
     configs: g.configs, activeConfigId: g.activeConfigId, order: g.fileOrder ?? [],
     files: (L.filesByGroup.get(id) ?? []).map(fileRow),
     view: getGroupView(id),
@@ -319,7 +321,7 @@ export function markViewed(fileId) {
   emit('viewed');
 }
 
-/** cover: 'chosen' (picked as the group's cover), 'auto' (standing in as the cover) or null. */
+/** cover: where the file is among its group's covers — { index (0: the main cover), count, auto } — or null. */
 export function getFileDetail(id) {
   const L = lib();
   const f = L.filesById.get(id);
@@ -327,6 +329,8 @@ export function getFileDetail(id) {
   const g = L.groupsById.get(f.groupId);
   const cfg = g.configs.find((c) => c.id === g.activeConfigId) ?? null;
   const color = colorOf(g, f);
+  const covers = coversOf(L, g);
+  const at = covers.files.indexOf(f);
   return {
     file: fileRef(f), group: groupChip(L, f.groupId),
     config: cfg ? { id: cfg.id, name: cfg.name, colors: cfg.groups } : null,
@@ -334,7 +338,7 @@ export function getFileDetail(id) {
     size: f.size, createdAt: f.createdAt, importedAt: f.importedAt,
     tags: mergeTags(f.tags, f.userTags).map((t) => ({ key: t.key, label: tagLabel(t.name), source: t.source, score: t.score ?? null })),
     note: f.note, comfy: f.comfy,
-    cover: coverOf(L, g)?.id !== f.id ? null : g.coverFileId === f.id ? 'chosen' : 'auto',
+    cover: at < 0 ? null : { index: at, count: covers.files.length, auto: covers.auto },
   };
 }
 
@@ -405,8 +409,8 @@ export function deleteFiles(ids) {
   L.trash ??= new Map();
   for (const f of gone) {
     const g = L.groupsById.get(f.groupId);
-    const cover = g?.coverFileId === f.id;
-    if (cover) { noteEdit(L.edits.groups, g, GROUP_FIELDS); g.coverFileId = null; }
+    const cover = g?.coverFileIds.indexOf(f.id) ?? -1;          // a chosen cover leaves the covers (undo puts it back)
+    if (cover >= 0) { noteEdit(L.edits.groups, g, GROUP_FIELDS); g.coverFileIds = g.coverFileIds.filter((x) => x !== f.id); }
     L.trash.set(f.id, { cover });
     L.vault.files.set(f.id, f);
   }
@@ -423,7 +427,8 @@ export function restoreFiles(ids) {
     L.vault.files.delete(f.id);
     L.files.push(f);
     const g = L.groupsById.get(f.groupId);
-    if (L.trash.get(f.id).cover && !g.coverFileId) g.coverFileId = f.id;
+    const { cover } = L.trash.get(f.id);
+    if (cover >= 0 && !g.coverFileIds.includes(f.id) && g.coverFileIds.length < MAX_COVERS) g.coverFileIds = [...g.coverFileIds.slice(0, cover), f.id, ...g.coverFileIds.slice(cover)];
     L.trash.delete(f.id);
   }
   indexLibrary(L);

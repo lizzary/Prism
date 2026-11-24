@@ -34,7 +34,7 @@ export function Details({ fileId }) {
         <p className={s.sub}>
           <span><Icon name={f.kind === 'video' ? 'video' : 'image'} size={14} />{t(`details.kind.${f.kind}`)}</span>
           <span className="num">{ratioOf(f.width, f.height)}</span>
-          {d.cover && <span className={s.coverTag}><Icon name="cover" size={13} />{t('details.cover')}</span>}
+          {d.cover && <span className={s.coverTag}><Icon name="cover" size={13} />{d.cover.index === 0 ? t('details.mainCover') : t('details.cover', { n: d.cover.index + 1 })}</span>}
         </p>
       </header>
 

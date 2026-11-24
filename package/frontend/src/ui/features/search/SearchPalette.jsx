@@ -8,7 +8,7 @@ import { colorArrival } from '../../lib/arrival.js';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
 import { Icon } from '../../icons/Icon.jsx';
-import { Popover, Portal, Tooltip, usePresence, useScrollLock } from '../../components/overlay.jsx';
+import { Popover, Portal, Tooltip, useModalLayer, usePresence, useScrollLock } from '../../components/overlay.jsx';
 import { Spinner } from '../../components/feedback.jsx';
 import { ScopePicker } from './ScopePicker.jsx';
 import s from './SearchPalette.module.css';
@@ -55,6 +55,7 @@ export default function SearchPalette({ open, onClose, groupId, text: presetText
   const { data: colors } = useColorGroupList();
   const { data, loading, settled } = useSearch(text, domains, domains.similar ? image?.token : null);
   useScrollLock(mounted);
+  const modal = useModalLayer(mounted);
 
   // every opening starts from its page's scope
   useEffect(() => {
@@ -125,7 +126,7 @@ export default function SearchPalette({ open, onClose, groupId, text: presetText
     <Portal>
       <div className={s.layer} data-state={state}>
         <div className={s.scrim} onPointerDown={onClose} />
-        <div className={s.palette} role="dialog" aria-modal="true" aria-label={t('bar.search')} onKeyDown={onKey} data-drag={dragOver || undefined}
+        <div {...modal} className={s.palette} role="dialog" aria-modal="true" aria-label={t('bar.search')} onKeyDown={onKey} data-drag={dragOver || undefined}
           onDragOver={(e) => { if (available('similar') && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); setDragOver(true); } }}
           onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(false); }}
           onDrop={(e) => { e.preventDefault(); setDragOver(false); takeImage(e.dataTransfer.files?.[0]); }}>

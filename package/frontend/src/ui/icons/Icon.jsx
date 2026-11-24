@@ -167,6 +167,9 @@ const I = {
   'sort-asc': '<path d="M4 6.5h4"/><path d="M4 11.5h6.5"/><path d="M4 16.5h9"/><path d="M17.5 19V5.5"/><path d="m14.5 8.5 3-3 3 3"/>',
   /* the group's cover: a picture with a small star on it */
   cover: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><path d="m3.8 16.6 4.4-4.4a1.4 1.4 0 0 1 2 0l5.4 5.4"/><path d="M15.6 7.2c.2 1.3.95 2.05 2.25 2.25-1.3.2-2.05.95-2.25 2.25-.2-1.3-.95-2.05-2.25-2.25 1.3-.2 2.05-.95 2.25-2.25Z"/>',
+  /* joining the covers / leaving them: the cover picture, its corner opened for a plus or a minus */
+  'cover-add': '<path d="M20.5 12.6V6.7a2.2 2.2 0 0 0-2.2-2.2H5.7a2.2 2.2 0 0 0-2.2 2.2v10.6a2.2 2.2 0 0 0 2.2 2.2h6.6"/><path d="m3.8 16.6 4.4-4.4a1.4 1.4 0 0 1 2 0l2.9 2.9"/><path d="M15.6 7.2c.2 1.3.95 2.05 2.25 2.25-1.3.2-2.05.95-2.25 2.25-.2-1.3-.95-2.05-2.25-2.25 1.3-.2 2.05-.95 2.25-2.25Z"/><path d="M18 14.6v5.8"/><path d="M15.1 17.5h5.8"/>',
+  'cover-remove': '<path d="M20.5 12.6V6.7a2.2 2.2 0 0 0-2.2-2.2H5.7a2.2 2.2 0 0 0-2.2 2.2v10.6a2.2 2.2 0 0 0 2.2 2.2h6.6"/><path d="m3.8 16.6 4.4-4.4a1.4 1.4 0 0 1 2 0l2.9 2.9"/><path d="M15.6 7.2c.2 1.3.95 2.05 2.25 2.25-1.3.2-2.05.95-2.25 2.25-.2-1.3-.95-2.05-2.25-2.25 1.3-.2 2.05-.95 2.25-2.25Z"/><path d="M15.1 17.5h5.8"/>',
   /* a slideshow: a picture with play on it, the next one waiting behind */
   slideshow: '<rect x="3.5" y="6" width="13.5" height="12" rx="2"/><path d="M20.5 8.2v7.6"/><path d="M8.8 9.6v4.8a.55.55 0 0 0 .85.46l3.7-2.4a.55.55 0 0 0 0-.92l-3.7-2.4a.55.55 0 0 0-.85.46Z"/>',
   /* carried on from the row above */

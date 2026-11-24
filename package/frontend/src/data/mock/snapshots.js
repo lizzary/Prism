@@ -75,7 +75,8 @@ function seedHistory(L) {
   if (flux) { L.edits.groups.set(flux.id, { ...before(flux, GROUP_FIELDS), name: 'FLUX dev 测试' }); }
   const chara = L.groupsById.get('g_chara');
   const other = L.filesByGroup.get('g_chara')?.[12];
-  if (chara && other) L.edits.groups.set(chara.id, { ...before(chara, GROUP_FIELDS), coverFileId: other.id });
+  // (its main cover used to be another picture)
+  if (chara && other) L.edits.groups.set(chara.id, { ...before(chara, GROUP_FIELDS), coverFileIds: [...new Set([other.id, ...chara.coverFileIds.slice(1)])] });
   L.edits.prefs = true;
   L.docs = null;
   // an archive exported months ago waits in the backup folder

@@ -131,7 +131,23 @@ export function groupRecord(spec) {
     id: `${id}_c${k}`, name: c.name,
     groups: c.groups.map(([name, color], j) => ({ id: `${id}_c${k}_${j}`, name, color })),
   }));
-  return { id, key: spec.key, name: spec.name, createdAt: daysAgo(spec.created, 20, 10), coverFileId: null, configs, activeConfigId: configs[0]?.id ?? null };
+  return { id, key: spec.key, name: spec.name, createdAt: daysAgo(spec.created, 20, 10), coverFileIds: [], configs, activeConfigId: configs[0]?.id ?? null };
+}
+
+/** Sample groups whose covers Prism picks by itself (an inbox fills up on its own); the others have chosen ones. */
+const AUTO_COVERS = new Set(['inbox']);
+
+/**
+ * The covers someone chose for a sample group: its painted cover first, then a few more of its pictures from all
+ * through the group. A random stream of their own, so the files stay exactly as they were.
+ */
+function chosenCovers(spec, files, main) {
+  if (!main || AUTO_COVERS.has(spec.key)) return [];
+  const q = seeded(`covers|${spec.key}`);
+  const pool = files.filter((f) => f !== main && f.kind === 'image');
+  const n = Math.min(pool.length, q.int(2, 5));
+  const picks = Array.from({ length: n }, (_, k) => pool[Math.min(pool.length - 1, Math.floor(((k + q.range(0.15, 0.85)) * pool.length) / n))]);
+  return [...new Set([main.id, ...picks.map((f) => f.id)])];
 }
 
 /** The whole seeded gallery. */
@@ -142,11 +158,15 @@ export function seedLibrary() {
   for (const spec of GROUPS) {
     const g = groupRecord(spec);
     const coverAt = spec.count ? Math.min(spec.count - 1, seeded(`cover|${spec.key}`).int(0, 6)) : -1;
+    const own = [];
+    let main = null;
     for (let i = 0; i < spec.count; i++) {
       const f = buildFile(spec, g, i, nextFileId(), i === coverAt);
-      if (i === coverAt) g.coverFileId = f.id;
+      if (i === coverAt) main = f;
+      own.push(f);
       files.push(f);
     }
+    g.coverFileIds = chosenCovers(spec, own, main);
     groups.push(g);
   }
   return { groups, files, nextFileId, specs: Object.fromEntries(GROUPS.map((s) => [`g_${s.key}`, s])) };

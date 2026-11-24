@@ -60,6 +60,13 @@ input::placeholder, textarea::placeholder { color: var(--ink-3); opacity: 1; }
 ::view-transition-old(.tile), ::view-transition-new(.tile) { height: 100%; object-fit: cover; }
 ::view-transition-new(.tile-in) { animation: 420ms var(--ease-out) 80ms both pr-tile-in; }
 ::view-transition-old(.tile-out) { animation: 220ms var(--ease-in-out) both pr-tile-out; }
+/* a modal layer open over the page (useModalLayer): a page change under it must not lift the page above it. The page's
+   parts lose their names, so the page cross-fades whole under the scrim; the layer's panel stays on top as it is —
+   live, with no snapshot of it fading out */
+:root[data-modal] #root * { view-transition-name: none !important; }
+::view-transition-group(.modal) { z-index: 1; animation: none; }
+::view-transition-old(.modal) { animation: none; opacity: 0; }
+::view-transition-new(.modal) { animation: none; }
 /* theme switch: the new theme is revealed by a growing circle (see SettingsDialog) */
 :root.vt-theme::view-transition-old(root), :root.vt-theme::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
 :root.vt-theme [data-vt-name] { view-transition-name: none !important; }

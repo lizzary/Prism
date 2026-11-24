@@ -28,7 +28,10 @@ export const useHome = () => useSuspenseQuery(...Q.home);
 export const preloadHome = () => preloadSuspense(...Q.home);
 export const useGroupList = () => useQuery(...Q.groups);
 export const useColorGroupList = () => useQuery(...Q.colorGroups);
+/** The pictures a group's covers can be chosen from, and Prism's own picks: { pictures, auto }. */
 export const useGroupPictures = (id) => useQuery(id ? `group-pictures:${id}` : null, () => api.library.groupPictures(id), ['library']);
+/** A group's covers: MAX, Prism's own picks (auto) and the edits a list of covers goes through — see data/domain/covers.js. */
+export const coverRules = api.covers;
 
 export const libraryActions = {
   createGroup: api.library.createGroup,
@@ -60,18 +63,39 @@ const withColor = (colors, configId, colorId) => {
   if (colorId) next[configId] = colorId; else delete next[configId];
   return next;
 };
+/** The page with `ids` as the group's covers (null: Prism picks them), the way the data layer will answer. */
+const withCovers = (d, ids) => {
+  const byId = new Map(d.files.map((f) => [f.id, f]));
+  const chosen = (ids ?? []).map((x) => byId.get(x)).filter(Boolean);
+  const covers = (chosen.length ? chosen : api.covers.auto(d.files)).map(ref);
+  return { ...d, group: { ...d.group, covers, cover: covers[0] ?? null, coverAuto: !chosen.length } };
+};
 const without = (d, gone) => {
   const files = d.files.filter((f) => !gone.has(f.id));
   const left = d.files.filter((f) => gone.has(f.id));
-  return {
+  if (!d.group) return { ...d, files };
+  const next = {
     ...d, files,
-    group: d.group && {
+    group: {
       ...d.group, fileCount: files.length,
       bytes: d.group.bytes - left.reduce((n, f) => n + f.size, 0),
       videoCount: d.group.videoCount - left.filter((f) => f.kind === 'video').length,
-      ...(d.group.cover && gone.has(d.group.cover.id) && { cover: files.find((f) => f.kind === 'image') ?? files[0] ?? null, coverAuto: true }),
     },
   };
+  // a deleted cover leaves the covers (and Prism's own picks are picked again)
+  return withCovers(next, d.group.coverAuto ? null : d.group.covers.map((c) => c.id).filter((x) => !gone.has(x)));
+};
+/**
+ * Edit a group's covers, starting from the ones its page shows now. Answers at once (the change shows at once too,
+ * while it is written): → { ok, full (no room for another) }
+ */
+const editCovers = (id, edit) => {
+  const d = feedOf(id).getSnapshot().data;
+  if (!d?.group) return { ok: false };
+  const next = edit(d.group.covers.map((c) => c.id));
+  if (!next) return { ok: false, full: true };
+  groupActions.setCovers(id, next.length ? next : null).catch(() => {});
+  return { ok: true };
 };
 
 /** Changes to a group's files and colour groups. Those made on the page show at once (optimistically). */
@@ -88,10 +112,13 @@ export const groupActions = {
   ),
   remove: (id, ids) => feedOf(id).change((d) => without(d, new Set(ids)), () => api.files.remove(ids)),
   restore: thenRefresh(api.files.restore),
-  setCover: (id, fileId) => feedOf(id).change(
-    (d) => { const f = d.files.find((x) => x.id === fileId); return f ? { ...d, group: { ...d.group, cover: ref(f), coverAuto: false } } : d; },
-    () => api.library.updateGroup(id, { coverFileId: fileId }),
-  ),
+  /** ids: the covers, the main one first; null: Prism picks them. */
+  setCovers: (id, ids) => feedOf(id).change((d) => withCovers(d, ids), () => api.library.updateGroup(id, { coverFileIds: ids })),
+  /** A picture joins the covers at the end. → { ok, full } */
+  addCover: (id, fileId) => editCovers(id, (ids) => api.covers.add(ids, fileId)),
+  /** A picture becomes the main cover (joining the covers if it was not one). → { ok } */
+  mainCover: (id, fileId) => editCovers(id, (ids) => api.covers.main(ids, fileId)),
+  removeCover: (id, fileId) => editCovers(id, (ids) => api.covers.remove(ids, fileId)),
   setActiveConfig: (id, configId) => feedOf(id).change((d) => ({ ...d, activeConfigId: configId }), () => api.groupPage.setActiveConfig(id, configId)),
   reorderColorGroups: (id, configId, order) => feedOf(id).change(
     (d) => {

@@ -42,6 +42,25 @@ export function useScrollLock(active) {
   }, [active]);
 }
 
+/**
+ * A modal layer — a dialog, a sheet, search — open over the page. A page change under it (the first page arriving
+ * under the welcome, a page opened from search) is a document view transition, and that paints every named element
+ * (the page itself, the top bar, a cover) above the rest of the document until it ends — above the layer too. So
+ * while a modal layer is open the page's parts drop their names, and the page changes as a whole under the scrim
+ * (base.css); the layer's panel carries a name of its own, which keeps it on top, live. → props for the panel
+ */
+let modals = 0;
+export function useModalLayer(active) {
+  const id = useId();
+  useLayoutEffect(() => {
+    if (!active) return undefined;
+    if (modals++ === 0) document.documentElement.dataset.modal = '';
+    return () => { if (--modals === 0) delete document.documentElement.dataset.modal; };
+  }, [active]);
+  // data-vt-name: the theme's circle reveals the panel with the page (it takes no name then)
+  return { 'data-vt-name': '', style: { viewTransitionName: `modal${id.replace(/[^\w-]/g, '')}`, viewTransitionClass: 'modal' } };
+}
+
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"]),[contenteditable="true"]';
 function useFocusTrap(ref, active, initial) {
   useEffect(() => {
@@ -160,6 +179,7 @@ export function Dialog({ open, onClose, title, label, children, footer, size = '
   const titleId = useId();
   const { mounted, state } = usePresence(open, 260);
   useScrollLock(mounted);
+  const modal = useModalLayer(mounted);
   useEscape(open && dismissible, onClose);
   useFocusTrap(ref, open, initialFocus);
   if (!mounted) return null;
@@ -167,7 +187,7 @@ export function Dialog({ open, onClose, title, label, children, footer, size = '
     <Portal>
       <div className={s.layer} data-state={state} data-handoff={handoff || undefined}>
         <div className={`${s.scrim} ${scrimClassName ?? ''}`} onPointerDown={dismissible ? onClose : undefined} />
-        <div ref={ref} className={`${s.dialog} ${s[`size_${size}`]} ${className ?? ''}`} role="dialog" aria-modal="true"
+        <div ref={ref} {...modal} className={`${s.dialog} ${s[`size_${size}`]} ${className ?? ''}`} role="dialog" aria-modal="true"
           aria-labelledby={title ? titleId : undefined} aria-label={title ? undefined : label} tabIndex={-1}>
           {bare ? children : (
             <>
@@ -192,6 +212,7 @@ export function Sheet({ open, onClose, children, label, className, handoff }) {
   const ref = useRef(null);
   const { mounted, state } = usePresence(open, 420);
   useScrollLock(mounted);
+  const modal = useModalLayer(mounted);
   useEscape(open, onClose);
   useFocusTrap(ref, open);
   if (!mounted) return null;
@@ -199,7 +220,7 @@ export function Sheet({ open, onClose, children, label, className, handoff }) {
     <Portal>
       <div className={s.layer} data-state={state} data-handoff={handoff || undefined}>
         <div className={`${s.scrim} ${s.sheetScrim}`} onPointerDown={onClose} />
-        <div ref={ref} className={`${s.sheet} ${className ?? ''}`} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>
+        <div ref={ref} {...modal} className={`${s.sheet} ${className ?? ''}`} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>
           {children}
         </div>
       </div>

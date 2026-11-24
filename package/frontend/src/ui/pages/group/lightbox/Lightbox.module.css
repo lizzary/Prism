@@ -55,7 +55,8 @@
 .dims { font-size: 11.5px; color: rgba(241, 236, 223, 0.45); }
 .tools { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
 .sep { width: 1px; height: 20px; margin: 0 6px; background: rgba(241, 236, 223, 0.16); }
-/* this picture is the group's cover: a quiet gold mark where the button was — a state, not a button held down */
+/* this picture is one of the group's covers: a quiet gold mark where the button was — a state, not a button held down
+   (it opens what can be done with it: make it the main cover, take it out) */
 .coverMark {
   display: inline-flex;
   align-items: center;
@@ -71,8 +72,9 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   white-space: nowrap;
-  cursor: default;
+  transition: background-color var(--dur-2), box-shadow var(--dur-2);
 }
+.coverMark:hover, .coverMark[data-open] { background: rgba(227, 192, 102, 0.17); box-shadow: 0 0 0 1px rgba(227, 192, 102, 0.4) inset; }
 .coverMark svg { color: #e3c066; }
 .coverMark:focus-visible { box-shadow: 0 0 0 1px rgba(227, 192, 102, 0.5) inset, var(--focus-ring); }
 /* just made the cover: the mark opens out of the button and its star glints once */

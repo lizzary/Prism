@@ -2,7 +2,7 @@
 // sorted, sized and laid out as the page's settings say — under a toolbar that sticks below the top bar. The page
 // looks for changes every few seconds. Opening a file shows it in the lightbox, over the page.
 import { ViewTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { browsing, fileActions, groupActions, holdGroupPage, mediaUrl, refreshGroupPage, useGroupPage, useOptimisticView, useTasks } from '../../../bridge/index.js';
+import { browsing, coverRules, fileActions, groupActions, holdGroupPage, mediaUrl, refreshGroupPage, useGroupPage, useOptimisticView, useTasks } from '../../../bridge/index.js';
 import { useOverlays, usePageMeta } from '../../../app/shell.jsx';
 import { cameBack, closeFile, navigate, paths } from '../../../app/router.jsx';
 import { useT } from '../../../i18n/index.jsx';
@@ -11,7 +11,7 @@ import { saveFile } from '../../lib/download.js';
 import { pageCover } from '../../lib/pageCover.js';
 import { moveTo } from '../../lib/useReorder.js';
 import { Icon } from '../../icons/Icon.jsx';
-import { Button } from '../../components/controls.jsx';
+import { Button, IconButton } from '../../components/controls.jsx';
 import { Empty, ProgressBar, toast } from '../../components/feedback.jsx';
 import { Menu } from '../../components/menu.jsx';
 import { CompactPager, Pagination } from '../../components/pager.jsx';
@@ -25,6 +25,7 @@ import { DeleteFiles, MoveFiles, Reindex } from './dialogs.jsx';
 import { Lightbox } from './lightbox/Lightbox.jsx';
 import { Outline } from './Outline.jsx';
 import { colorArrival } from '../../lib/arrival.js';
+import { coverOnShow } from '../../lib/coverOnShow.js';
 import s from './GroupPage.module.css';
 
 const { NONE } = browsing;
@@ -81,6 +82,16 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
     const sec = arranged.sections.find((x) => x.key === key);
     return key === NONE || !sec?.color ? { name: t('group.colors.noColor'), color: 'var(--ink-3)', none: true } : { name: sec.color.name, color: sec.color.color };
   };
+
+  // ------------------------------------------------------------------ the covers: the banner shows one of them
+  // It opens on the cover the card on the home page was showing (the one that just grew into it), else the main one;
+  // the ticks beside the name look at the others (peek) and keep one. Whatever it shows goes back to the card.
+  const covers = group.covers;
+  const [kept, setKept] = useState(() => coverOnShow.of(id) ?? covers[0]?.id ?? null);
+  const [peek, setPeek] = useState(null);
+  const shownCover = covers.find((c) => c.id === peek) ?? covers.find((c) => c.id === kept) ?? covers[0] ?? null;
+  const mainCover = covers[0]?.id ?? null;
+  useEffect(() => { coverOnShow.set(id, shownCover && shownCover.id !== mainCover ? shownCover.id : null); }, [id, shownCover?.id, mainCover]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ------------------------------------------------------------------ choosing files
   const [selection, setSelection] = useState(() => new Set());
@@ -152,7 +163,29 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
     toast(one ? t('group.deletedName', { name: `${one.name}.${one.ext}` }) : t('group.deleted', { n: fmt.number(ids.length), count: ids.length }),
       { icon: 'trash', action: { label: t('common.undo'), onClick: () => groupActions.restore(ids).then(() => toast(t('group.restored'), { tone: 'ok' })) } });
   };
-  const setCover = async (fid) => { await groupActions.setCover(id, fid); toast(t('group.coverSet'), { tone: 'ok', icon: 'cover' }); };
+  const editGroup = (props) => open('groupEditor', { group, onDeleted: () => navigate(paths.home()), ...props });
+  /** A picture made the main cover, added to the covers or taken out of them; each can be undone. → done */
+  const covering = {
+    run(edit, fid, note) {
+      const before = group.coverAuto ? null : covers.map((c) => c.id);
+      const r = groupActions[edit](id, fid);
+      if (r.full) {
+        // (over the lightbox a dialog would open behind it: there the note only says why)
+        toast(t('group.cover.full', { n: coverRules.MAX }), { tone: 'warn', icon: 'cover', action: fileId ? undefined : { label: t('group.covers.edit'), onClick: () => editGroup({ focus: 'covers' }) } });
+        return false;
+      }
+      if (!r.ok) return false;
+      toast(note, { tone: 'ok', icon: 'cover', action: { label: t('common.undo'), onClick: () => groupActions.setCovers(id, before) } });
+      return true;
+    },
+    main(fid) {
+      const done = covering.run('mainCover', fid, t('group.cover.main'));
+      if (done) { setKept(fid); setPeek(null); }          // the banner turns to the new main cover
+      return done;
+    },
+    add: (fid) => covering.run('addCover', fid, t('group.cover.added', { n: Math.min(covers.length + 1, coverRules.MAX), max: coverRules.MAX })),
+    remove: (fid) => covering.run('removeCover', fid, t('group.cover.removed')),
+  };
   const reindex = async (ids, kinds) => {
     const r = await fileActions.reindex(ids, kinds);
     if (r.ok) toast(t('group.reindex.started', { n: fmt.number(ids.length), count: ids.length }), { icon: 'reindex' });
@@ -171,11 +204,16 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
     const many = selection.has(fid) && selection.size > 1;
     const ids = many ? [...selection] : [fid];
     const n = { n: fmt.number(ids.length), count: ids.length };
-    const isCover = group.cover?.id === fid;
+    const coverAt = covers.findIndex((c) => c.id === fid);
     const items = many ? [] : [
       { key: 'open', label: t('group.tile.open'), icon: 'expand', onSelect: () => openFile(fid) },
       { key: 'select', label: selection.has(fid) ? t('group.tile.deselect') : t('group.tile.select'), icon: 'check-square', onSelect: () => toggle(fid) },
-      ...(f.kind === 'image' ? [{ key: 'cover', label: isCover ? t('group.tile.isCover') : t('group.tile.cover'), icon: 'cover', disabled: isCover, onSelect: () => setCover(fid) }] : []),
+      ...(f.kind === 'image' ? [
+        ...(coverAt !== 0 ? [{ key: 'main', label: t('group.tile.mainCover'), icon: 'cover', onSelect: () => covering.main(fid) }] : []),
+        coverAt < 0
+          ? { key: 'add', label: t('group.tile.addCover'), icon: 'cover-add', onSelect: () => covering.add(fid) }
+          : { key: 'remove', label: t('group.tile.removeCover'), icon: 'cover-remove', onSelect: () => covering.remove(fid) },
+      ] : []),
       '-',
     ];
     return [
@@ -325,12 +363,13 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
 
   return (
     <div className={s.page}>
-      <Banner group={group} bannerRef={bannerRef} />
+      <Banner group={group} cover={shownCover} bannerRef={bannerRef} />
       <header className={s.head}>
         <div className={s.titleRow}>
           <h1 className={s.title}>{group.name}</h1>
-          <Button variant="ghost" size="sm" icon="edit" className={s.edit} data-overlay="groupEditor"
-            onClick={() => open('groupEditor', { group, onDeleted: () => navigate(paths.home()) })}>{t('group.edit')}</Button>
+          <Button variant="ghost" size="sm" icon="edit" className={s.edit} data-overlay="groupEditor" onClick={() => editGroup()}>{t('group.edit')}</Button>
+          <CoverTicks covers={covers} shown={shownCover?.id} kept={covers.some((c) => c.id === kept) ? kept : mainCover}
+            onPeek={setPeek} onKeep={(cid) => { setKept(cid); setPeek(null); }} onEdit={() => editGroup({ focus: 'covers' })} />
         </div>
         <p className={s.meta}>
           <span className="num">{t('home.files', { n: fmt.number(group.fileCount), count: group.fileCount })}</span>
@@ -395,15 +434,24 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
       {fileId && (
         <Lightbox key={id} groupId={id} fileId={fileId} group={group} sequence={lightboxFiles} quality={view.quality}
           slide={view.slide} onSlide={(sec) => setView({ slide: sec })} onClose={closeLightbox} onReveal={(fid, o) => grid.current?.revealFile(fid, o) ?? null}
-          onCover={setCover} onDownload={(fid) => download([fid])} onDelete={(fid) => remove([fid])} />
+          covering={covering} onDownload={(fid) => download([fid])} onDelete={(fid) => remove([fid])} />
       )}
     </div>
   );
 }
 
-/** The group's cover, wide, dissolving into the page; it drifts a little slower than the page as it scrolls away. */
-function Banner({ group, bannerRef }) {
+/**
+ * One of the group's covers, wide, dissolving into the page; it drifts a little slower than the page as it scrolls
+ * away. The covers lie stacked: one is fetched when it is first shown and stays, so going back to it is instant, and
+ * a newly shown one fades in over the last before that one goes. To a page change they are one picture — the one on
+ * show is what the card's cover grows into, or settles back from.
+ */
+function Banner({ group, cover, bannerRef }) {
   const img = useRef(null);
+  const first = useRef(cover?.id);
+  const asked = useRef(null);
+  asked.current ??= new Set();
+  if (cover) asked.current.add(cover.id);
   useEffect(() => {
     let raf = 0;
     const on = () => {
@@ -419,16 +467,53 @@ function Banner({ group, bannerRef }) {
     return () => { cancelAnimationFrame(raf); window.removeEventListener('scroll', on); };
   }, []);
   return (
-    <div ref={bannerRef} className={s.banner} data-blank={!group.cover || undefined}>
-      {group.cover && (
+    <div ref={bannerRef} className={s.banner} data-blank={!cover || undefined}>
+      {cover && (
         <div ref={img} className={s.bannerArt}>
           <ViewTransition name={`group-art-${group.id}`} share="morph">
-            {/* lazy only so a page change never waits on it (React holds a transition for eager images); it is on screen, so it loads at once */}
-            <img className={s.bannerImg} src={mediaUrl(group.cover, 'original')} alt="" draggable={false} loading="lazy" decoding="sync" />
+            <div className={s.bannerFrames}>
+              {group.covers.filter((c) => asked.current.has(c.id)).map((c) => (
+                // lazy only so a page change never waits on it (React holds a transition for eager images); it is on
+                // screen, so it loads at once — and the one the page opened on is drawn at once, for the morph to land on
+                <img key={c.id} className={s.bannerImg} data-on={c.id === cover.id} data-later={c.id !== first.current || undefined}
+                  src={mediaUrl(c, 'original')} alt="" draggable={false} loading="lazy" decoding={c.id === first.current ? 'sync' : 'async'} />
+              ))}
+            </div>
           </ViewTransition>
         </div>
       )}
       <div className={s.bannerShade} />
+    </div>
+  );
+}
+
+/**
+ * The group's covers as ticks beside its name, the one in the banner lit: moving along them shows each in the banner,
+ * a click (or the arrow keys) keeps it there. Going home, the card takes back whichever the banner shows.
+ */
+function CoverTicks({ covers, shown, kept, onPeek, onKeep, onEdit }) {
+  const t = useT();
+  const row = useRef(null);
+  if (covers.length < 2) return null;
+  const onKey = (e) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const k = (covers.findIndex((c) => c.id === kept) + step + covers.length) % covers.length;
+    onKeep(covers[k].id);
+    row.current?.children[k]?.focus();
+  };
+  return (
+    <div className={s.covers}>
+      <div ref={row} className={s.coverTicks} role="radiogroup" aria-label={t('group.covers.label')} onKeyDown={onKey} onPointerLeave={() => onPeek(null)}>
+        {covers.map((c, k) => (
+          <button key={c.id} type="button" role="radio" aria-checked={c.id === kept} tabIndex={c.id === kept ? 0 : -1}
+            aria-label={t('group.covers.nth', { n: k + 1, total: covers.length })} className={s.coverTick}
+            data-shown={c.id === shown || undefined} data-kept={c.id === kept || undefined}
+            onPointerEnter={(e) => { if (e.pointerType === 'mouse') onPeek(c.id); }} onClick={() => onKeep(c.id)} />
+        ))}
+      </div>
+      <IconButton size="sm" icon="cover" label={t('group.covers.edit')} data-overlay="groupEditor" onClick={onEdit} />
     </div>
   );
 }

@@ -8,6 +8,10 @@ const GLIDE_MS = 440;
 const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+/** A camera that can be shown: finite, and not so far out that the board's arithmetic breaks down. */
+const FAR = 1e7;
+const sound = (c) => [c.x, c.y, c.z].every(Number.isFinite) && Math.abs(c.x) < FAR && Math.abs(c.y) < FAR && c.z > 0;
+
 export function createStage(initialCam) {
   let cam = { ...initialCam };
   let vp = { w: innerWidth, h: innerHeight };
@@ -75,7 +79,7 @@ export function createStage(initialCam) {
 
     // ---------------------------------------------------------------- moving the camera
     setViewport(w, h) { if (w === vp.w && h === vp.h) return; vp = { w, h }; camMoved = true; schedule(); },
-    set(next) { stop(); cam = { ...next, z: clampZoom(next.z) }; camMoved = true; schedule(); },
+    set(next) { if (!sound(next)) return; stop(); cam = { ...next, z: clampZoom(next.z) }; camMoved = true; schedule(); },
     panBy(dx, dy) { if (fly) fly = null; if (wheel) { wheel.sx += dx; wheel.sy += dy; } cam = { ...cam, x: cam.x - dx / cam.z, y: cam.y - dy / cam.z }; camMoved = true; schedule(); },
     /** Zoom by a factor round a screen point; `smooth` eases there (a mouse wheel's steps), otherwise at once (a pinch). */
     zoomBy(factor, sx, sy, smooth = false) {
@@ -92,6 +96,7 @@ export function createStage(initialCam) {
     },
     /** Fly to a camera — high over a long way, a glide over a short one. → a promise for when it lands */
     flyTo(target, { instant = false } = {}) {
+      if (!sound(target)) return Promise.resolve();
       const to = { ...target, z: clampZoom(target.z) };
       wheel = null;
       return new Promise((resolve) => {

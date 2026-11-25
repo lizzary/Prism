@@ -34,7 +34,9 @@ export function Minimap({ stage, scene, inView, hot, lit, reached, selected, onH
     const paint = (st) => {
       if (!scene.bounds || !svg.current) return;
       const v = st.view();
-      const f = frameOf(scene.bounds, v);
+      // dragging across the map: it holds still under the pointer (fitted afresh to the view, it would grow as the
+      // view went outward, carry the view further out, and so on without end)
+      const f = drag.current?.frame ?? frameOf(scene.bounds, v);
       frameRef.current = f;
       svg.current.setAttribute('viewBox', `${f.x} ${f.y} ${f.w} ${f.h}`);
       const el = view.current;
@@ -46,7 +48,10 @@ export function Minimap({ stage, scene, inView, hot, lit, reached, selected, onH
 
   const toBoard = (e) => {
     const f = frameRef.current, r = svg.current.getBoundingClientRect();
-    return f ? [f.x + ((e.clientX - r.left) / r.width) * f.w, f.y + ((e.clientY - r.top) / r.height) * f.h] : null;
+    if (!f || !r.width || !r.height) return null;
+    // (the map's own edge is as far as it reaches)
+    const u = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), v = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+    return [f.x + u * f.w, f.y + v * f.h];
   };
   const regionAt = (p) => (p ? scene.regions.find((r) => p[0] >= r.x && p[0] <= r.x + r.w && p[1] >= r.y && p[1] <= r.y + r.h) ?? null : null);
   const centreOn = (p, fly) => {
@@ -60,14 +65,15 @@ export function Minimap({ stage, scene, inView, hot, lit, reached, selected, onH
   return (
     <div className={s.minimap}>
       <svg ref={svg} className={s.mapSvg} width={W} height={H} preserveAspectRatio="xMidYMid meet" role="img" aria-label={t('board.minimap')}
-        onPointerDown={(e) => { if (e.button !== 0) return; e.currentTarget.setPointerCapture(e.pointerId); drag.current = { moved: false }; }}
+        onPointerDown={(e) => { if (e.button !== 0) return; e.currentTarget.setPointerCapture(e.pointerId); drag.current = { moved: false, frame: frameRef.current }; }}
         onPointerMove={(e) => {
           const p = toBoard(e);
           if (drag.current) { drag.current.moved = true; centreOn(p, false); return; }
           const r = regionAt(p);
           setPointed(r?.key ?? null);
         }}
-        onPointerUp={(e) => { const d = drag.current; drag.current = null; if (d && !d.moved) centreOn(toBoard(e), true); }}
+        onPointerUp={(e) => { const d = drag.current; const p = d && !d.moved ? toBoard(e) : null; drag.current = null; if (p) centreOn(p, true); else stage.redraw(); }}
+        onPointerCancel={() => { drag.current = null; stage.redraw(); }}
         onPointerLeave={() => { if (!drag.current) setPointed(null); }}>
         {scene.regions.map((r) => (
           <rect key={r.key} x={r.x} y={r.y} width={r.w} height={r.h} rx={18} className={s.mapRegion} style={{ '--c': r.color ?? 'var(--ink-3)' }}

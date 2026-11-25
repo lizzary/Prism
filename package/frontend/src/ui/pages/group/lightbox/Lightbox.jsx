@@ -17,6 +17,8 @@ import { VideoPlayer } from './VideoPlayer.jsx';
 import s from './Lightbox.module.css';
 
 const IDLE_MS = 2600;
+/** How much of a zoomed-in picture (px) always stays in the room, however far it is dragged. */
+const KEEP = 96;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const typing = (el) => /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable;
 /** The details stay open from one file, and one visit, to the next. */
@@ -79,7 +81,7 @@ export function Lightbox({
   const [idle, setIdle] = useState(false);
   const [box, setBox] = useState(() => stageRoom(detailsOpen));
   const [zoom, setZoom] = useState({ z: 1, x: 0, y: 0 });
-  const [still, setStill] = useState(false);          // no glide: dragging or wheeling
+  const [still, setStill] = useState(null);           // 'wheel' | 'drag': a short glide, or none
   const [dir, setDir] = useState(0);                  // which way the last step went
   const [show, setShow] = useState(null);             // slideshow: { paused, startedAt, left }
   const [pick, setPick] = useState(false);            // the slideshow's seconds
@@ -138,9 +140,10 @@ export function Lightbox({
   const fit = file && box.w ? Math.min(box.w / file.width, box.h / file.height) : 0;
   const zMax = fit ? Math.max(3, 4 / fit) : 1;
   const dw = file ? file.width * fit * zoom.z : 0, dh = file ? file.height * fit * zoom.z : 0;
+  // zoomed in, the picture goes wherever it is dragged — only a strip of it always stays in the room, so it is never lost
   const pan = (v) => {
     const w = file.width * fit * v.z, h = file.height * fit * v.z;
-    const mx = Math.max(0, (w - box.w) / 2), my = Math.max(0, (h - box.h) / 2);
+    const mx = Math.max(0, (box.w + w) / 2 - Math.min(KEEP, w / 2)), my = Math.max(0, (box.h + h) / 2 - Math.min(KEEP, h / 2));
     return { z: v.z, x: clamp(v.x, -mx, mx), y: clamp(v.y, -my, my) };
   };
   /** Zoom to z (relative to the fit), keeping the point (px, py) — from the stage's centre — where it is. */
@@ -150,7 +153,13 @@ export function Lightbox({
     const k = z / v.z;
     return pan({ z, x: px - (px - v.x) * k, y: py - (py - v.y) * k });
   });
-  const fromCentre = (e) => { const r = stage.current.getBoundingClientRect(); return [e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2)]; };
+  // (from the middle of the room the picture is centred in: inside the stage's padding, which is not even all round)
+  const fromCentre = (e) => {
+    const el = stage.current, r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    const left = r.left + parseFloat(cs.paddingLeft), right = r.right - parseFloat(cs.paddingRight);
+    const top = r.top + parseFloat(cs.paddingTop), bottom = r.bottom - parseFloat(cs.paddingBottom);
+    return [e.clientX - (left + right) / 2, e.clientY - (top + bottom) / 2];
+  };
   const isVideo = file?.kind === 'video';
 
   // ------------------------------------------------------------------ arriving and leaving
@@ -337,9 +346,9 @@ export function Lightbox({
         <div ref={stage} className={s.stage} data-zoomed={zoom.z > 1 || undefined}
           onWheel={(e) => {
             if (isVideo || e.ctrlKey) return;
-            setStill(true);
+            if (!drag.current) setStill('wheel');
             clearTimeout(wheelTimer.current);
-            wheelTimer.current = setTimeout(() => setStill(false), 160);
+            wheelTimer.current = setTimeout(() => { if (!drag.current) setStill(null); }, 200);
             const [px, py] = fromCentre(e);
             zoomTo(zoom.z * Math.exp(-e.deltaY * 0.0016), px, py);
           }}
@@ -347,10 +356,17 @@ export function Lightbox({
             if (e.button !== 0 || zoom.z === 1) return;
             drag.current = { x: e.clientX - zoom.x, y: e.clientY - zoom.y };
             e.currentTarget.setPointerCapture(e.pointerId);
-            setStill(true);
+            setStill('drag');
           }}
-          onPointerMove={(e) => { if (drag.current) setZoom((v) => pan({ z: v.z, x: e.clientX - drag.current.x, y: e.clientY - drag.current.y })); }}
-          onPointerUp={() => { if (drag.current) { drag.current = null; setStill(false); } }}
+          onPointerMove={(e) => {
+            // where the picture goes is read now: the update runs later, perhaps after the button is let go
+            const d = drag.current;
+            if (!d) return;
+            const x = e.clientX - d.x, y = e.clientY - d.y;
+            setZoom((v) => pan({ z: v.z, x, y }));
+          }}
+          onPointerUp={() => { if (drag.current) { drag.current = null; setStill(null); } }}
+          onPointerCancel={() => { if (drag.current) { drag.current = null; setStill(null); } }}
           onClick={(e) => { if (e.target === e.currentTarget && zoom.z === 1 && !show) close(); }}>
           {/* The picture (all of it: the page's quality, the original over it) shares its name with the thumbnail it
               was opened from on another page, so a page change carries it between the two. Opened that way, React
@@ -363,7 +379,7 @@ export function Lightbox({
             </ViewTransition>
           ) : (
             <ViewTransition key={file.id} name={`file-art-${file.id}`} share="travel" default="none">
-              <div ref={img} className={s.media} data-dir={dir} data-still={still || undefined}
+              <div ref={img} className={s.media} data-dir={dir} data-still={still ?? undefined}
                 style={{ width: dw, height: dh, transform: `translate(${zoom.x}px, ${zoom.y}px)`, '--slide': `${slide}s` }}
                 onDoubleClick={(e) => { const [px, py] = fromCentre(e); if (zoom.z > 1) zoomTo(1); else zoomTo(small ? 2.2 : Math.max(2, 1 / fit), px, py); }}>
                 <img className={s.preview} src={mediaUrl(file, quality)} alt="" draggable={false} loading={withPage ? 'eager' : 'lazy'} decoding="sync" />

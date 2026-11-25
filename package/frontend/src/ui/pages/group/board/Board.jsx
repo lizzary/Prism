@@ -18,7 +18,7 @@ import { Icon } from '../../../icons/Icon.jsx';
 import { Menu } from '../../../components/menu.jsx';
 import { toast } from '../../../components/feedback.jsx';
 import { SwatchPopover } from '../../../features/colors/Swatches.jsx';
-import { buildScene, cardOf, cardsIn, hitTest, inSight, nearestFree, placesOf, resizedSize, snap, GAP, HEAD, PAD, PITCH } from './scene.js';
+import { buildScene, cardOf, cardsIn, hitTest, inSight, nearestFree, packRegions, placesOf, resizedSize, snap, GAP, HEAD, PAD, PITCH } from './scene.js';
 import { frame, reveal, toScreen } from './camera.js';
 import { createStage } from './stage.js';
 import { useBoardInput } from './useBoardInput.js';
@@ -51,6 +51,11 @@ const NO_SIZES = {};
 function insetsFor(index) {
   const bar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bar-h')) || 64;
   return { top: bar + 76, right: 24, bottom: 28, left: 24 + (index ? INDEX_W + 14 : 0) };
+}
+/** The shape Prism arranges a board for: the open part of the view now, width to height (the index left out). */
+function viewShape() {
+  const i = insetsFor(false);
+  return Math.round(((innerWidth - i.left - i.right) / Math.max(200, innerHeight - i.top - i.bottom)) * 10) / 10;
 }
 
 /**
@@ -89,8 +94,9 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
   const [resizing, setResizing] = useState(null);    // { key, edge, origin: [x, y], base: { cols, w, h }, size, alt, x, y }
   const savedSizes = prefs.sizes?.[configKey] ?? NO_SIZES;
   const sizes = useMemo(() => (resizing ? { ...savedSizes, [resizing.key]: resizing.size } : savedSizes), [savedSizes, resizing?.key, resizing?.size]); // eslint-disable-line react-hooks/exhaustive-deps
-  // the shape Prism arranges for: the open part of the view when the board was opened (a resize does not shuffle it)
-  const [aspect] = useState(() => { const i = insetsFor(false); return Math.round(((innerWidth - i.left - i.right) / Math.max(200, innerHeight - i.top - i.bottom)) * 10) / 10; });
+  // the shape Prism arranges for: the view's when the board was opened, or when it was last arranged (a resize alone
+  // does not shuffle it)
+  const [aspect, setAspect] = useState(viewShape);
   // (the files in no colour group have a region only while there are some: dropped on the empty board, files leave
   // their colour groups and it appears)
   const sections = useMemo(() => arranged.sections.filter((x) => x.key !== NONE || x.total > 0), [arranged.sections]);
@@ -249,11 +255,20 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
     const next = { ...(layout ?? placesOf(scene)), [key]: [landing.x, landing.y] };
     setPrefs({ layouts: { ...prefs.layouts, [configKey]: next } });
   };
-  /** Pack the board afresh in colour-group order (what was put by hand goes back to Prism), with a way back. */
+  /**
+   * Pack the board afresh in colour-group order, for the view as it is now (what was put by hand goes back to Prism;
+   * gaps left by colour groups that shrank or went close up), with a way back. Already just so: it says so, nothing moves.
+   */
   const arrangeAll = () => {
-    if (!untidy) return;
-    const before = { saved, session: sessionLayouts.get(sessionKey) ?? null, places: placesOf(scene) };
+    const shape = viewShape();
+    const fresh = packRegions(scene.regions, shape);
+    if (!untidy && scene.regions.every((r) => { const p = fresh.get(r.key); return p[0] === r.x && p[1] === r.y; })) {
+      toast(t('board.alreadyArranged'), { icon: 'whiteboard' });
+      return;
+    }
+    const before = { saved, places: placesOf(scene) };
     sessionLayouts.delete(sessionKey);
+    setAspect(shape);
     if (saved) setPrefs({ layouts: Object.fromEntries(Object.entries(prefs.layouts).filter(([k]) => k !== configKey)) });
     else held();
     toast(t('board.arranged'), {
@@ -706,7 +721,8 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
       ...(config ? [{ key: 'new', label: t('board.newColorHere'), icon: 'plus', onSelect: () => newColor([], menu.world) }] : []),
       { key: 'all', label: t('common.selectAll'), icon: 'check-square', hint: 'Ctrl A', onSelect: selectAll },
       { key: 'fit', label: t('board.centre'), icon: 'fit', hint: '0', onSelect: fitAll },
-      ...(untidy ? ['-', { key: 'arrange', label: t('board.arrange'), icon: 'whiteboard', onSelect: arrangeAll }] : []),
+      '-',
+      { key: 'arrange', label: t('board.arrange'), icon: 'whiteboard', onSelect: arrangeAll },
     ];
   };
 
@@ -755,7 +771,7 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
         <BoardBar group={group} data={data} grouped={grouped} colors={scene.regions.filter((r) => !r.none).slice(0, 3).map((r) => r.color)}
           indexOpen={indexOpen} onIndex={() => setPrefs({ index: !indexOpen })} onBack={on.close}
           onUseConfig={on.useConfig} onEditColors={() => on.editColors()} onNewColor={config ? () => newColor() : null}
-          arranged={!untidy} onArrange={arrangeAll}
+          onArrange={arrangeAll}
           findRef={findField} query={query} onQuery={setQuery} found={finding && found.data ? { files: foundFiles.length, colors: foundColors.size } : null}
           searching={found.loading} step={step} total={matches.length} onStep={goMatch} onSelectFound={() => { if (foundFiles.length) setSelection(new Set(foundFiles)); }} />
 

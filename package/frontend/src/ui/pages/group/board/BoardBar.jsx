@@ -13,7 +13,7 @@ import s from './Board.module.css';
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 export function BoardBar({
-  data, grouped, colors, indexOpen, onIndex, onBack, onUseConfig, onEditColors, onNewColor, arranged, onArrange,
+  data, grouped, colors, indexOpen, onIndex, onBack, onUseConfig, onEditColors, onNewColor, onArrange,
   findRef, query, onQuery, found, searching, step, total, onStep, onSelectFound,
 }) {
   const t = useT();
@@ -25,11 +25,10 @@ export function BoardBar({
         {grouped && <ListToggle open={indexOpen} colors={colors} onToggle={onIndex} labels={{ open: t('board.index.open'), close: t('board.index.close') }} />}
         <Palette data={data} onUse={onUseConfig} onEdit={onEditColors} />
         {onNewColor && <IconButton icon="plus" size="sm" label={t('board.newColor')} onClick={onNewColor} />}
-        {!arranged && (
-          <Tooltip label={t('board.arrangeTip')} delay={500}>
-            <Button variant="ghost" size="sm" icon="whiteboard" onClick={onArrange}>{t('board.arrange')}</Button>
-          </Tooltip>
-        )}
+        {/* always here: the board can be arranged again whenever it is wanted, tidy or not */}
+        <Tooltip label={t('board.arrangeTip')} delay={500}>
+          <Button variant="ghost" size="sm" icon="whiteboard" onClick={onArrange}>{t('board.arrange')}</Button>
+        </Tooltip>
       </div>
       <Find findRef={findRef} query={query} onQuery={onQuery} found={found} searching={searching} step={step} total={total} onStep={onStep} onSelectFound={onSelectFound} />
     </div>

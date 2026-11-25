@@ -268,7 +268,7 @@ export default {
     found: { files: '{n} 个文件', colors: '{n} 个颜色组' },
     selectFound: '选中找到的 {n} 个文件',
     newColor: '新建颜色组', newColorHere: '在这里新建颜色组', newFrom: '用这些文件新建颜色组',
-    arrange: '整理', arrangeTip: '按颜色组的顺序重新排好所有颜色组', arranged: '已按颜色组的顺序整理',
+    arrange: '整理', arrangeTip: '按颜色组的顺序重新排好所有颜色组', arranged: '已按颜色组的顺序整理', alreadyArranged: '已经整理好了',
     outOfColors: '移出颜色组',
     movedOut: '已将 {n} 个文件移出颜色组',
     zoomIn: '放大', zoomOut: '缩小', zoom100: '实际大小', centre: '回到中心',

@@ -272,7 +272,7 @@ export default {
     found: { files: { one: '{n} file', other: '{n} files' }, colors: { one: '{n} colour group', other: '{n} colour groups' } },
     selectFound: { one: 'Select the {n} file found', other: 'Select the {n} files found' },
     newColor: 'New colour group', newColorHere: 'New colour group here', newFrom: 'New colour group with these',
-    arrange: 'Arrange', arrangeTip: 'Put every colour group back in its order', arranged: 'Arranged in colour-group order',
+    arrange: 'Arrange', arrangeTip: 'Put every colour group back in its order', arranged: 'Arranged in colour-group order', alreadyArranged: 'Already arranged',
     outOfColors: 'Out of every colour group',
     movedOut: { one: 'Took {n} file out of its colour group', other: 'Took {n} files out of their colour groups' },
     zoomIn: 'Zoom in', zoomOut: 'Zoom out', zoom100: 'Actual size', centre: 'Back to the centre',

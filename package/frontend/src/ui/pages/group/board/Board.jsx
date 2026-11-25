@@ -18,7 +18,7 @@ import { Icon } from '../../../icons/Icon.jsx';
 import { Menu } from '../../../components/menu.jsx';
 import { toast } from '../../../components/feedback.jsx';
 import { SwatchPopover } from '../../../features/colors/Swatches.jsx';
-import { buildScene, cardOf, cardsIn, hitTest, nearestFree, placesOf, snap } from './scene.js';
+import { buildScene, cardOf, cardsIn, hitTest, inSight, nearestFree, placesOf, resizedSize, snap, GAP, HEAD, PAD, PITCH } from './scene.js';
 import { frame, reveal, toScreen } from './camera.js';
 import { createStage } from './stage.js';
 import { useBoardInput } from './useBoardInput.js';
@@ -45,6 +45,7 @@ const cameras = new Map();
 const sessionLayouts = new Map();
 const typing = (el) => /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable;
 const PEEK_MS = 360;
+const NO_SIZES = {};
 
 /** The part of the view left open by the app's bar, the board's own bar and the index. */
 function insetsFor(index) {
@@ -84,14 +85,18 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
   const sessionKey = `${id}|${configKey}`;
   const [, held] = useReducer((x) => x + 1, 0);
   const layout = saved ?? sessionLayouts.get(sessionKey) ?? null;
+  // how each colour group was sized by hand — and, while one is being resized, the size the pointer gives it
+  const [resizing, setResizing] = useState(null);    // { key, edge, origin: [x, y], base: { cols, w, h }, size, alt, x, y }
+  const savedSizes = prefs.sizes?.[configKey] ?? NO_SIZES;
+  const sizes = useMemo(() => (resizing ? { ...savedSizes, [resizing.key]: resizing.size } : savedSizes), [savedSizes, resizing?.key, resizing?.size]); // eslint-disable-line react-hooks/exhaustive-deps
   // the shape Prism arranges for: the open part of the view when the board was opened (a resize does not shuffle it)
   const [aspect] = useState(() => { const i = insetsFor(false); return Math.round(((innerWidth - i.left - i.right) / Math.max(200, innerHeight - i.top - i.bottom)) * 10) / 10; });
   // (the files in no colour group have a region only while there are some: dropped on the empty board, files leave
   // their colour groups and it appears)
   const sections = useMemo(() => arranged.sections.filter((x) => x.key !== NONE || x.total > 0), [arranged.sections]);
   const scene = useMemo(
-    () => buildScene(sections, { grouped, name: group.name, noneKey: NONE, layout, aspect }),
-    [sections, grouped, group.name, layout, aspect],
+    () => buildScene(sections, { grouped, name: group.name, noneKey: NONE, layout, sizes, aspect }),
+    [sections, grouped, group.name, layout, sizes, aspect],
   );
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
@@ -114,7 +119,7 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
   useEffect(() => () => stage.dispose(), [stage]);
   const placed = useRef(false);
   useLayoutEffect(() => {
-    stage.place(scene.regions, { instant: !placed.current });
+    stage.place(scene.regions, { instant: !placed.current, follow: resizing?.key });
     placed.current = true;
   }, [stage, scene]);
   useLayoutEffect(() => {
@@ -265,6 +270,15 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
   const prefsRef = useRef(prefs);
   prefsRef.current = prefs;
 
+  /** A colour group's size by hand (null: Prism's own) — saved, like where it is. */
+  const sizeRegion = (key, size) => {
+    const r = scene.regions.find((q) => q.key === key);
+    const clean = r ? resizedSize(r.n, size) : null;
+    const of = { ...(prefs.sizes?.[configKey] ?? {}) };
+    if (clean) of[key] = clean; else delete of[key];
+    setPrefs({ sizes: { ...prefs.sizes, [configKey]: of } });
+  };
+
   // ------------------------------------------------------------------ finding
   const [query, setQuery] = useState('');
   const found = useBoardFind(id, query);
@@ -284,7 +298,7 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
     const inScene = new Set(foundFiles);
     return [
       ...scene.regions.filter((r) => foundColors.has(r.key)).map((r) => ({ kind: 'region', key: r.key })),
-      ...scene.regions.flatMap((r) => r.ids.filter((x) => inScene.has(x)).map((x) => ({ kind: 'card', id: x }))),
+      ...scene.regions.flatMap((r) => r.ids.filter((x, k) => inScene.has(x) && inSight(r, k)).map((x) => ({ kind: 'card', id: x }))),
     ];
   }, [finding, foundFiles, foundColors, scene]);
   const [step, setStep] = useState(-1);
@@ -464,6 +478,35 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
       const landing = landingAt(res.key, res.x, res.y);
       stage.release(landing);
       if (landing) dropRegion(res.key, landing);
+    },
+    // resizing a colour group: its files rearrange to the new size; with Alt, the frame alone changes (files past it hide)
+    onResizeStart: (key, edge) => {
+      const r = sceneRef.current.regions.find((q) => q.key === key);
+      if (!r) return;
+      hold.current = holdGroupPage(id);
+      setPeek(null);
+      setResizing({ key, edge, origin: [r.x, r.y], n: r.n, base: { cols: r.cols, w: r.size?.w, h: r.size?.h }, size: r.size, alt: false });
+    },
+    onResize: ({ key, edge, wx, wy, alt, x, y }) => setResizing((cur) => {
+      if (!cur || cur.key !== key) return cur;
+      const w = wx - cur.origin[0], h = wy - cur.origin[1];
+      let size;
+      if (!alt) {
+        // rearranged: as many across as fit the width (from the bottom edge, as few rows as fit the height); all in sight
+        const cols = edge === 'b'
+          ? Math.max(1, Math.ceil(cur.n / Math.max(1, Math.round((h - HEAD - PAD + GAP) / PITCH))))
+          : Math.max(1, Math.round((w - 2 * PAD + GAP) / PITCH));
+        size = { cols };
+      } else {
+        // framed: the files keep their places, the frame follows the pointer
+        size = { cols: cur.base.cols, ...(edge !== 'b' ? { w } : cur.base.w ? { w: cur.base.w } : {}), ...(edge !== 'r' ? { h } : cur.base.h ? { h: cur.base.h } : {}) };
+      }
+      return { ...cur, size, alt, x, y };
+    }),
+    onResizeEnd: (key) => {
+      hold.current?.(); hold.current = null;
+      if (key && resizing) sizeRegion(key, resizing.size);
+      setResizing(null);
     },
     onPanChange: () => {},
   });
@@ -649,6 +692,8 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
         ]),
         { key: 'select', label: t('board.region.select', { n: fmt.number(r.n), count: r.n }), icon: 'check-square', disabled: !r.n, onSelect: () => setSelection(new Set(r.ids)) },
         { key: 'frame', label: t('board.region.frame'), icon: 'zoom-in', onSelect: () => frameRegion(r.key) },
+        ...(r.hidden ? [{ key: 'showAll', label: t('board.region.showAll', { n: fmt.number(r.n), count: r.n }), icon: 'expand', onSelect: () => sizeRegion(r.key, r.size?.cols ? { cols: r.size.cols } : null) }] : []),
+        ...(r.size ? [{ key: 'resetSize', label: t('board.region.resetSize'), icon: 'fit', onSelect: () => sizeRegion(r.key, null) }] : []),
         ...(!own ? [] : [
           { key: 'edit', label: t('group.colors.edit'), icon: 'swatches', onSelect: () => on.editColors(r.key) },
           '-',
@@ -669,9 +714,10 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
   const fresh = useMemo(() => (arrived?.at && Date.now() - arrived.at < 2600 ? new Set(arrived.ids) : null), [arrived]);
   const look = useMemo(() => ({
     selected: selection, preview, carried: carry ? new Set(carry.ids) : null, lit, hot: carry || lifted ? null : hotCard, fresh,
-    leaving, target: carry?.target ?? null, hotRegion: carry || lifted ? lifted?.key ?? null : hotRegion, liftedRegion: lifted?.key ?? null,
+    leaving, target: carry?.target ?? null, hotRegion: resizing?.key ?? (carry || lifted ? lifted?.key ?? null : hotRegion), liftedRegion: lifted?.key ?? null,
+    resizing: resizing?.key ?? null,
     litRegions: finding ? foundColors : null, reached: tagLit ? null : reached, pour,
-  }), [selection, preview, carry, lit, hotCard, fresh, leaving, lifted, hotRegion, finding, foundColors, reached, tagLit, pour]);
+  }), [selection, preview, carry, lit, hotCard, fresh, leaving, lifted, hotRegion, finding, foundColors, reached, tagLit, pour, resizing?.key]); // eslint-disable-line react-hooks/exhaustive-deps
   const headLook = useMemo(() => ({
     hot: carry ? null : hotRegion, target: carry?.target ?? null, lit: finding ? foundColors : null, found: finding ? foundByRegion : null,
     selected: selectedByRegion, renaming,
@@ -688,6 +734,7 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
   const carriedFiles = carry ? carry.ids.slice(0, 3).map((x) => files.get(x)).filter(Boolean) : [];
   const targetRegion = carry?.target != null ? scene.regions.find((r) => r.key === carry.target) : null;
   const recolorRegion = recolor && scene.regions.find((r) => r.key === recolor.key);
+  const resized = resizing?.x != null ? scene.regions.find((r) => r.key === resizing.key) : null;
 
   return (
     <Portal>
@@ -734,6 +781,17 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
 
         {peek && !carry && !lifted && !marquee && files.get(peek.id) && <Preview file={files.get(peek.id)} rect={peek.rect} quality={view.quality} key={peek.id} />}
 
+        {resized && (
+          <div className={s.sizeChip} style={{ transform: `translate3d(${resizing.x + 18}px, ${resizing.y + 18}px, 0)` }} data-mode={resizing.alt ? 'frame' : 'fit'} aria-hidden="true">
+            <span className={s.sizeWhat}>
+              <Icon name={resizing.alt ? 'eye-off' : 'size-small'} size={14} />
+              {resizing.alt
+                ? t('board.resize.shown', { n: fmt.number(resized.n - resized.hidden), total: fmt.number(resized.n) })
+                : t('board.resize.across', { n: fmt.number(resized.cols), rows: fmt.number(resized.rows), count: resized.cols })}
+            </span>
+            <span className={s.sizeHint}><kbd>Alt</kbd>{resizing.alt ? t('board.resize.toFit') : t('board.resize.toFrame')}</span>
+          </div>
+        )}
         {carry && (
           <div ref={ghost} className={s.ghost} style={{ transform: `translate3d(${carry.x ?? -999}px, ${carry.y ?? -999}px, 0)` }} aria-hidden="true">
             <div className={s.ghostIn}>

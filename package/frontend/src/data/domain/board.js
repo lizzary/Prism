@@ -4,8 +4,12 @@
 /** The layout key of a group that uses no colour groups. */
 export const PLAIN = '~plain';
 
-/** index: the colour-group index beside the board (null: open when there are many colour groups) · minimap */
-export const DEFAULT_BOARD = { layouts: {}, index: null, minimap: true };
+/**
+ * layouts: { configuration: { region key: [x, y] } } · sizes: { configuration: { region key: { cols, w, h } } } — set by
+ * hand: cards across, and a frame smaller than the cards need (the cards past it are hidden) · index: the colour-group
+ * index beside the board (null: open when there are many colour groups) · minimap
+ */
+export const DEFAULT_BOARD = { layouts: {}, sizes: {}, index: null, minimap: true };
 
 /** Keep only well-formed settings: layouts are { configuration: { region key: [x, y] } } in whole board pixels. */
 export function cleanBoard(b) {
@@ -18,8 +22,20 @@ export function cleanBoard(b) {
     }
     if (Object.keys(out).length) layouts[cfg] = out;
   }
+  const sizes = {};
+  for (const [cfg, of] of Object.entries(b?.sizes ?? {})) {
+    if (!of || typeof of !== 'object') continue;
+    const out = {};
+    for (const [key, sz] of Object.entries(of)) {
+      const keep = {};
+      for (const k of ['cols', 'w', 'h']) if (Number.isFinite(sz?.[k]) && sz[k] > 0) keep[k] = Math.round(sz[k]);
+      if (Object.keys(keep).length) out[key] = keep;
+    }
+    if (Object.keys(out).length) sizes[cfg] = out;
+  }
   return {
     layouts,
+    sizes,
     index: typeof b?.index === 'boolean' ? b.index : DEFAULT_BOARD.index,
     minimap: typeof b?.minimap === 'boolean' ? b.minimap : DEFAULT_BOARD.minimap,
   };

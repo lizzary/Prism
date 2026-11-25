@@ -5,6 +5,7 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { mediaUrl } from '../../../../../bridge/index.js';
 import { Icon } from '../../../../icons/Icon.jsx';
+import { useFormat } from '../../../../lib/format.js';
 import { CARD, cardOffset, cardSpan } from '../scene.js';
 import s from './DomRenderer.module.css';
 
@@ -29,7 +30,10 @@ function tierOf(z, was) {
  *   (found, or carrying a tag pointed at — the rest step back), hot: id (under the pointer), fresh: Set | null (just
  *   arrived), leaving: Set | null (being deleted), target: region key (files would land there), hotRegion, liftedRegion,
  *   litRegions: Set | null (found by name), reached: Set | null (a search reached them, by name or files: the rest step
- *   back), pour: { ids: Set, from: [x, y], at, order } | null (files just dropped: they pour in from there) }
+ *   back), pour: { ids: Set, from: [x, y], at, order } | null (files just dropped: they pour in from there),
+ *   resizing: region key (being resized) }
+ * A region framed smaller than its cards (see scene.js) clips them, fading out along the framed edges, and says how
+ * many are past the frame.
  */
 export const DomRenderer = memo(function DomRenderer({ stage, scene, files, covers, look, layerRef }) {
   const world = useRef(null);
@@ -101,6 +105,7 @@ function windowAround(stage) {
 const inside = (v, w, slack) => v.x - slack >= w.x && v.y - slack >= w.y && v.x + v.w + slack <= w.x + w.w && v.y + v.h + slack <= w.y + w.h;
 
 const Region = memo(function Region({ r, win, tier, files, covers, look, refEl }) {
+  const fmt = useFormat();
   // the cards that meet the window (only the rows and columns there)
   const span = useMemo(() => cardSpan(r, win), [r, win]);
   const cards = [];
@@ -119,9 +124,11 @@ const Region = memo(function Region({ r, win, tier, files, covers, look, refEl }
       data-none={r.none || undefined} data-plain={r.plain || undefined} data-empty={!r.n || undefined}
       data-target={look.target === r.key || undefined} data-hot={look.hotRegion === r.key || undefined}
       data-lifted={look.liftedRegion === r.key || undefined} data-lit={look.litRegions?.has(r.key) || undefined}
-      data-dim={(look.reached && !look.reached.has(r.key)) || undefined}>
+      data-dim={(look.reached && !look.reached.has(r.key)) || undefined} data-resizing={look.resizing === r.key || undefined}
+      data-crop-x={r.cropX || undefined} data-crop-y={r.cropY || undefined}>
       <div className={s.body} />
       {!r.n && <div className={s.drop}><Icon name="drag-drop" size={20} /></div>}
+      <div className={s.cards}>
       {cards.map((k) => {
         const id = r.ids[k];
         const f = files.get(id);
@@ -135,9 +142,20 @@ const Region = memo(function Region({ r, win, tier, files, covers, look, refEl }
             fresh={look.fresh?.has(id) ?? false} leaving={look.leaving?.has(id) ?? false} poured={poured} />
         );
       })}
+      </div>
+      {r.hidden > 0 && <span className={`${s.more} num`}>+{fmt.number(r.hidden)}</span>}
+      <i className={s.grip} aria-hidden="true" />
     </div>
   );
 });
+
+/** A small angle of a card's own (±1.5°, never 0), the same every time: chosen cards tilt by it, like picked-up prints. */
+function tiltOf(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  const k = (Math.abs(h) % 6) - 3;
+  return `${(k >= 0 ? k + 1 : k) * 0.5}deg`;
+}
 
 /** A picture seen once in this session appears at once after that (no fade). */
 const seen = new Set();
@@ -166,7 +184,7 @@ const Card = memo(function Card({ file, dx, dy, tier, cover, sel, pre, carried, 
     );
   }, [poured?.[2]]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div className={s.card} style={{ transform: `translate(${dx}px, ${dy}px)` }} data-card={file.id}
+    <div className={s.card} style={{ transform: `translate(${dx}px, ${dy}px)`, '--tilt': tiltOf(file.id) }} data-card={file.id}
       data-sel={sel || undefined} data-pre={pre || undefined} data-carried={carried || undefined} data-dim={dim || undefined}
       data-lit={lit || undefined} data-hot={hot || undefined} data-fresh={fresh || undefined} data-leaving={leaving || undefined}>
       <div ref={face} className={s.face} style={file.tone ? { '--tone': file.tone } : undefined}>

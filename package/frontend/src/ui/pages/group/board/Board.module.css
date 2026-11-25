@@ -122,6 +122,8 @@ button.headDot:hover { transform: scale(1.3); box-shadow: 0 0 0 4px color-mix(in
   font-weight: 650;
 }
 .headSel { background: var(--star); color: #1d2030; }
+.headHidden { display: inline-flex; flex-shrink: 0; align-items: center; gap: 3px; height: 18px; padding: 0 6px 0 5px; border-radius: 9px; font-size: 11px; font-weight: 600; color: var(--ink-3); box-shadow: 0 0 0 1px var(--line-2) inset; }
+.heading[data-cramped] .headHidden { display: none; }
 .headFound { background: var(--star-soft); color: var(--star-ink); box-shadow: 0 0 0 1px color-mix(in srgb, var(--star) 40%, transparent) inset; }
 .headMore {
   display: grid;
@@ -330,6 +332,30 @@ button.headDot:hover { transform: scale(1.3); box-shadow: 0 0 0 4px color-mix(in
 .previewName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 560; }
 .previewName span { color: var(--ink-3); font-weight: 450; }
 .previewDims { flex-shrink: 0; color: var(--ink-3); }
+
+/* ------------------------------------------------------------------ resizing a colour group: what it does, and Alt */
+.sizeChip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 11px 9px;
+  border-radius: var(--r-3);
+  background: var(--ink);
+  color: var(--bg);
+  box-shadow: var(--shadow-2);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: fadeIn 160ms var(--ease-out);
+}
+.sizeWhat { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+.sizeChip[data-mode='frame'] .sizeWhat svg { color: var(--star); }
+.sizeHint { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: color-mix(in srgb, var(--bg) 66%, transparent); }
+.sizeHint kbd { padding: 0 5px; border-radius: var(--r-1); font: 600 10.5px/16px var(--font-sans); box-shadow: 0 0 0 1px color-mix(in srgb, var(--bg) 35%, transparent) inset; }
+.sizeChip[data-mode='frame'] .sizeHint kbd { background: var(--star); color: #1d2030; box-shadow: none; }
 
 /* ------------------------------------------------------------------ cards being carried */
 .ghost { position: absolute; top: 0; left: 0; z-index: 50; pointer-events: none; will-change: transform; }

@@ -119,6 +119,8 @@ const Heading = memo(function Heading({ r, noneName, on, sel, hot, target, lit, 
       {renaming ? <RenameField name={r.name} onDone={(v) => on.rename(r.key, v)} />
         : <span className={s.headName}>{name}</span>}
       <span className={`${s.headCount} num`}>{fmt.number(r.n)}</span>
+      {/* framed smaller than its files: how many are hidden past the frame (readable at any zoom, unlike the board's own) */}
+      {r.hidden > 0 && <span className={`${s.headHidden} num`} title={t('board.region.hidden', { n: fmt.number(r.hidden), count: r.hidden })}><Icon name="eye-off" size={11} stroke={2} />{fmt.number(r.hidden)}</span>}
       {found > 0 && <span className={`${s.headFound} num`}>{fmt.number(found)}</span>}
       {sel > 0 && <span className={`${s.headSel} num`} title={t('group.selection.count', { n: fmt.number(sel), count: sel })}><Icon name="check" size={10} stroke={2.4} />{fmt.number(sel)}</span>}
       <button type="button" className={s.headMore} onPointerDown={stop} onClick={(e) => on.menu(r.key, e.currentTarget)} aria-label={t('common.more')}>

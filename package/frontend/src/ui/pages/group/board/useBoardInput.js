@@ -2,7 +2,9 @@
 // renderer draws the board, it answers the same way.
 //   left            on a card: choose it (Ctrl: one more or one less, Shift: a run of them); drag: carry it (or the
 //                   chosen ones it belongs to) to another colour group, or out of every colour group
-//                   on a heading: drag the colour group somewhere else · elsewhere: a marquee (Shift adds, Ctrl flips)
+//                   on a heading: drag the colour group somewhere else · on a region's right or bottom edge: resize
+//                   it (its files rearrange to the new size; with Alt held the frame alone changes and the files past it
+//                   are hidden — Alt can be pressed or let go mid-drag) · elsewhere: a marquee (Shift adds, Ctrl flips)
 //   right / middle  drag the board (a right click without moving opens a menu) · Space + left: drag the board
 //   wheel           zoom round the pointer (Shift: across) · double-click: open a file, frame a colour group, see it all
 // Near the view's edges a carried card, region or marquee moves the board along, faster the longer it rests there.
@@ -11,6 +13,9 @@ import { hitTest } from './scene.js';
 
 const EDGE = 40;        // px inside the open part of the view's edges (and anywhere beyond them) where carrying moves the board
 const SPEED = 15;       // px per frame at the very edge
+/** How close (in screen px) to a region's right or bottom side the pointer resizes it. */
+const GRIP = 10;
+const RESIZE_CURSOR = { r: 'ew-resize', b: 'ns-resize', rb: 'nwse-resize' };
 
 /**
  * o (read afresh at every event): {
@@ -19,6 +24,7 @@ const SPEED = 15;       // px per frame at the very edge
  *   onMarquee(rect | null, mods), onMarqueeEnd(rect, mods),
  *   onCarryStart(id) → ids | null, onCarry({ ids, x, y (screen), wx, wy }), onCarryEnd({ ids, x, y, wx, wy } | null),
  *   onRegionStart(key), onRegion({ key, x, y } (its top left on the board)), onRegionEnd({ key, x, y } | null),
+ *   onResizeStart(key, edge), onResize({ key, edge, wx, wy, alt, x, y }), onResizeEnd(key | null),
  *   onPanChange(bool) }
  * → { press(event, hit): a press that something drawn over the board (a heading) starts, busy() }
  */
@@ -36,9 +42,10 @@ export function useBoardInput(ref, stage, opts) {
     const mods = (e) => ({ ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey, alt: e.altKey });
     const world = (x, y) => stage.toWorld(x, y);
     const cursor = (c) => { el.style.cursor = c ?? ''; };
+    const grip = () => Math.max(8, Math.min(40, GRIP / stage.camera.z));
 
     const begin = (e, g) => {
-      st.current = { ...g, id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, mods: mods(e), raf: 0, edgeAt: null };
+      st.current = { ...g, id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, mods: mods(e), alt: e.altKey, raf: 0, edgeAt: null };
       try { el.setPointerCapture(e.pointerId); } catch { /* the press already ended */ }
       if (g.mode === 'pan') { cursor('grabbing'); o.current.onPanChange?.(true); }
     };
@@ -47,10 +54,11 @@ export function useBoardInput(ref, stage, opts) {
       el.focus({ preventScroll: true });
       const [wx, wy] = world(e.clientX, e.clientY);
       if (e.button === 1 || (e.button === 0 && space.current)) { e.preventDefault(); begin(e, { mode: 'pan' }); return; }
-      const at = hit !== undefined ? hit : hitTest(o.current.scene(), wx, wy);
+      const at = hit !== undefined ? hit : hitTest(o.current.scene(), wx, wy, grip());
       if (e.button === 2) { begin(e, { mode: 'press-r', hit: at }); return; }
       if (e.button !== 0) return;
-      if (at?.kind === 'card') begin(e, { mode: 'press-card', hit: at, start: [wx, wy] });
+      if (at?.kind === 'resize') begin(e, { mode: 'press-resize', hit: at });
+      else if (at?.kind === 'card') begin(e, { mode: 'press-card', hit: at, start: [wx, wy] });
       else if (at?.kind === 'head') begin(e, { mode: 'press-head', hit: at, start: [wx, wy], origin: [at.region.x, at.region.y] });
       else begin(e, { mode: 'press-empty', hit: at, start: [wx, wy] });
     };
@@ -65,6 +73,8 @@ export function useBoardInput(ref, stage, opts) {
         o.current.onCarry({ ids: g.ids, x: g.x, y: g.y, wx, wy });
       } else if (g.mode === 'region') {
         o.current.onRegion({ key: g.hit.region.key, x: g.origin[0] + wx - g.start[0], y: g.origin[1] + wy - g.start[1] });
+      } else if (g.mode === 'resize') {
+        o.current.onResize({ key: g.hit.region.key, edge: g.hit.edge, wx, wy, alt: g.alt, x: g.x, y: g.y });
       }
     };
     // near the edges of the open part of the view, the board comes along — faster the longer the pointer rests there.
@@ -100,6 +110,7 @@ export function useBoardInput(ref, stage, opts) {
         cursor('grabbing');
       }
       if (mode === 'region') { o.current.onRegionStart(g.hit.region.key); cursor('grabbing'); }
+      if (mode === 'resize') { o.current.onResizeStart(g.hit.region.key, g.hit.edge); cursor(RESIZE_CURSOR[g.hit.edge]); }
       window.getSelection?.()?.removeAllRanges();
       track(g);
       edgeLoop(g);
@@ -120,6 +131,7 @@ export function useBoardInput(ref, stage, opts) {
       if (g.mode === 'carry') o.current.onCarryEnd(null);
       else if (g.mode === 'region') o.current.onRegionEnd(null);
       else if (g.mode === 'marquee') o.current.onMarquee(null, g.mods);
+      else if (g.mode === 'resize') o.current.onResizeEnd(null);
       return true;
     };
 
@@ -139,10 +151,11 @@ export function useBoardInput(ref, stage, opts) {
           if (st.current) return;
           const heading = over.closest?.('[data-heading]');
           const [wx, wy] = world(x, y);
-          const hit = heading ? { kind: 'head', region: o.current.scene().regions.find((r) => r.key === heading.dataset.heading) } : hitTest(o.current.scene(), wx, wy);
-          const sig = hit ? `${hit.kind}:${hit.region?.key}:${hit.id ?? ''}` : '';
+          const hit = heading ? { kind: 'head', region: o.current.scene().regions.find((r) => r.key === heading.dataset.heading) } : hitTest(o.current.scene(), wx, wy, grip());
+          const sig = hit ? `${hit.kind}:${hit.region?.key}:${hit.id ?? hit.edge ?? ''}` : '';
           if (sig === lastHover) return;
           lastHover = sig;
+          if (!space.current) cursor(hit?.kind === 'resize' ? RESIZE_CURSOR[hit.edge] : null);
           o.current.onHover(hit);
         });
         return;
@@ -150,6 +163,7 @@ export function useBoardInput(ref, stage, opts) {
       if (e.pointerId !== g.id) return;
       const dx = e.clientX - g.x, dy = e.clientY - g.y;
       g.x = e.clientX; g.y = e.clientY;
+      g.alt = e.altKey;
       const far = Math.hypot(g.x - g.x0, g.y - g.y0);
       switch (g.mode) {
         case 'pan': stage.panBy(dx, dy); break;
@@ -157,6 +171,7 @@ export function useBoardInput(ref, stage, opts) {
         case 'press-card': if (far > 5) start(g, o.current.canCarry() ? 'carry' : 'marquee'); break;
         case 'press-head': if (far > 4) start(g, o.current.canMoveRegion(g.hit.region.key) ? 'region' : 'marquee'); break;
         case 'press-empty': if (far > 3) start(g, 'marquee'); break;
+        case 'press-resize': if (far > 2) start(g, 'resize'); break;
         default: track(g);
       }
     };
@@ -175,6 +190,7 @@ export function useBoardInput(ref, stage, opts) {
           o.current.onRegionEnd({ key: k, x: g.origin[0] + wx - g.start[0], y: g.origin[1] + wy - g.start[1] });
           break;
         }
+        case 'resize': o.current.onResizeEnd(g.hit.region.key); break;
         case 'marquee': {
           const [x0, y0] = g.start;
           o.current.onMarqueeEnd({ x: Math.min(x0, wx), y: Math.min(y0, wy), w: Math.abs(wx - x0), h: Math.abs(wy - y0) }, g.mods);
@@ -203,9 +219,11 @@ export function useBoardInput(ref, stage, opts) {
     const onLeave = () => { if (st.current) return; lastHover = ''; o.current.onHover(null); };
     const typing = (t) => /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable;
     const onKey = (e) => {
-      if (e.key === 'Escape' && st.current && ['carry', 'region', 'marquee', 'pan'].includes(st.current.mode)) {
+      if (e.key === 'Escape' && st.current && ['carry', 'region', 'marquee', 'pan', 'resize'].includes(st.current.mode)) {
         e.preventDefault(); e.stopPropagation(); cancel(); return;
       }
+      // resizing: Alt switches between rearranging the files and hiding the ones past the frame, at once
+      if (e.key === 'Alt' && st.current?.mode === 'resize') { e.preventDefault(); st.current.alt = true; track(st.current); return; }
       // Space held: the left button drags the board
       if (e.key === ' ' && !typing(e.target) && !e.repeat && !document.querySelector('[role="dialog"]')) {
         space.current = true;
@@ -213,7 +231,10 @@ export function useBoardInput(ref, stage, opts) {
         e.preventDefault();
       }
     };
-    const onKeyUp = (e) => { if (e.key === ' ') { space.current = false; if (!st.current) cursor(null); } };
+    const onKeyUp = (e) => {
+      if (e.key === ' ') { space.current = false; if (!st.current) cursor(null); }
+      if (e.key === 'Alt' && st.current?.mode === 'resize') { e.preventDefault(); st.current.alt = false; track(st.current); }
+    };
 
     el.addEventListener('pointerdown', onDown);
     el.addEventListener('pointermove', onMove);

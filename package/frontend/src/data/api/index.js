@@ -123,7 +123,8 @@ export const homeView = {
  *   per slide, 1–300), outline (the colour-group outline beside the files is open) } — see domain/arrange.js.
  * Whiteboard settings (board): { layouts: { configuration id (PLAIN_BOARD: no colour groups): { colour group id
  *   (NONE: the files in none): [x, y] } } — where the colour groups were put by hand; a configuration without one is
- *   arranged by Prism —, index (the colour-group index beside the board is open; null: when there are many),
+ *   arranged by Prism —, sizes: { configuration id: { colour group id: { cols, w, h } } } — how many cards across, and
+ *   a frame smaller than the cards need (the ones past it hidden), each set by hand —, index (the colour-group index beside the board is open; null: when there are many),
  *   minimap } — see domain/board.js.
  */
 export const groupPage = {

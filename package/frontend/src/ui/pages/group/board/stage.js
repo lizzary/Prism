@@ -105,8 +105,11 @@ export function createStage(initialCam) {
     framing: (rect, inset, opts) => frame(rect, vp, inset, opts),
 
     // ---------------------------------------------------------------- the regions
-    /** The regions' places now; each one that moved glides there (`instant`: all are simply there). */
-    place(regions, { instant = false } = {}) {
+    /**
+     * The regions' places now; each one that moved glides there (`instant`: all are simply there; `follow`: the key of one
+     * that is simply there — a region being resized follows the pointer).
+     */
+    place(regions, { instant = false, follow = null } = {}) {
       const now = performance.now();
       const keys = new Set();
       const glide = !instant && !reduced();
@@ -114,7 +117,7 @@ export function createStage(initialCam) {
         keys.add(r.key);
         const to = { x: r.x, y: r.y, w: r.w, h: r.h };
         const e = shown.get(r.key);
-        if (!e || !glide) { shown.set(r.key, { from: to, to, t0: 0 }); continue; }
+        if (!e || !glide || r.key === follow) { shown.set(r.key, { from: to, to, t0: 0 }); continue; }
         if (e.to.x === to.x && e.to.y === to.y && e.to.w === to.w && e.to.h === to.h) continue;
         // a region let go by the pointer glides on from where it was held
         const from = lift?.key === r.key ? { ...glideAt(e, now), x: lift.x, y: lift.y } : glideAt(e, now);

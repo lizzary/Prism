@@ -281,6 +281,11 @@ export default {
     region: {
       rename: 'Rename', recolor: 'Change colour', select: { one: 'Select its {n} file', other: 'Select its {n} files' }, frame: 'Zoom to it',
       remove: 'Delete colour group', removed: 'Deleted “{name}”',
+      showAll: { one: 'Show its {n} file', other: 'Show all {n} files' }, hidden: { one: '{n} file hidden past its frame', other: '{n} files hidden past its frame' }, resetSize: 'Original size',
+    },
+    resize: {
+      across: { one: '{n} across · {rows} down', other: '{n} across · {rows} down' }, shown: 'Showing {n} of {total}',
+      toFrame: 'hide files past the edge instead', toFit: 'let go to rearrange instead',
     },
     dock: { tags: 'Tags', note: 'Note', move: 'Move to' },
     tags: {

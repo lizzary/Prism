@@ -274,7 +274,8 @@ export default {
     zoomIn: '放大', zoomOut: '缩小', zoom100: '实际大小', centre: '回到中心',
     minimap: '白板的小地图', mapHint: '点击任意位置即可前往', hideMap: '收起小地图', showMap: '显示小地图',
     index: { title: '颜色组', open: '在白板旁列出颜色组（G）', close: '收起颜色组' },
-    region: { rename: '重命名', recolor: '更换颜色', select: '选中其中的 {n} 个文件', frame: '放大到这个颜色组', remove: '删除颜色组', removed: '已删除「{name}」' },
+    region: { rename: '重命名', recolor: '更换颜色', select: '选中其中的 {n} 个文件', frame: '放大到这个颜色组', remove: '删除颜色组', removed: '已删除「{name}」', showAll: '显示全部 {n} 个文件', hidden: '边框外隐藏了 {n} 个文件', resetSize: '恢复原始大小' },
+    resize: { across: '每行 {n} 个 · 共 {rows} 行', shown: '显示 {n} / {total} 个', toFrame: '改为隐藏边框外的文件', toFit: '松开改为重新排列' },
     dock: { tags: '标签', note: '备注', move: '移到' },
     tags: {
       title: '{n} 个文件的标签', add: '为它们都加上一个标签', none: '还没有标签', noMatch: '它们都没有这样的标签',

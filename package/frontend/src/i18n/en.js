@@ -1,6 +1,6 @@
 export default {
   common: {
-    cancel: 'Cancel', save: 'Save', close: 'Close', clear: 'Clear', remove: 'Remove', notYet: 'This part is still being built',
+    cancel: 'Cancel', save: 'Save', close: 'Close', clear: 'Clear', remove: 'Remove',
     create: 'Create', edit: 'Edit', done: 'Done', open: 'Open', change: 'Change', reset: 'Reset to default', delete: 'Delete', undo: 'Undo',
     selectAll: 'Select all', selectNone: 'Select none', copy: 'Copy', copied: 'Copied', and: ', ', more: 'More',
     prev: 'Previous', next: 'Next', stepNext: 'Next', stepBack: 'Back', manage: 'Manage',
@@ -256,7 +256,7 @@ export default {
     covers: { label: 'Covers', nth: 'Cover {n} of {total}', edit: 'Edit covers' },
     delete: { title: { one: 'Delete this file?', other: 'Delete {n} files?' }, body: { one: 'It will be moved to the recycle bin.', other: 'They will be moved to the recycle bin.' }, confirm: 'Delete' },
     reindex: {
-      title: { one: 'Re-index {n} file', other: 'Re-index {n} files' }, start: 'Re-index', started: { one: 'Re-indexing {n} file', other: 'Re-indexing {n} files' },
+      label: 'What to build again', title: { one: 'Re-index {n} file', other: 'Re-index {n} files' }, start: 'Re-index', started: { one: 'Re-indexing {n} file', other: 'Re-indexing {n} files' },
       noModel: 'Download a tagging model first', openModels: 'Tagging models in Settings',
       kinds: {
         tagging: { title: 'Tags', body: 'The tagger looks again. Tags you added stay.' },
@@ -265,6 +265,37 @@ export default {
       },
     },
     move: { title: { one: 'Move {n} file to “{name}”?', other: 'Move {n} files to “{name}”?' }, confirm: 'Move', files: { one: '{n} file', other: '{n} files' } },
+  },
+  board: {
+    title: 'Whiteboard', label: 'Whiteboard of “{name}”', back: 'Back to the files',
+    find: 'Find on the board', findNone: 'Nothing found', findPrev: 'Previous', findNext: 'Next',
+    found: { files: { one: '{n} file', other: '{n} files' }, colors: { one: '{n} colour group', other: '{n} colour groups' } },
+    selectFound: { one: 'Select the {n} file found', other: 'Select the {n} files found' },
+    newColor: 'New colour group', newColorHere: 'New colour group here', newFrom: 'New colour group with these',
+    arrange: 'Arrange', arrangeTip: 'Put every colour group back in its order', arranged: 'Arranged in colour-group order',
+    outOfColors: 'Out of every colour group',
+    movedOut: { one: 'Took {n} file out of its colour group', other: 'Took {n} files out of their colour groups' },
+    zoomIn: 'Zoom in', zoomOut: 'Zoom out', zoom100: 'Actual size', centre: 'Back to the centre',
+    minimap: 'Map of the board', mapHint: 'Press anywhere to go there', hideMap: 'Hide the map', showMap: 'Show the map',
+    index: { title: 'Colour groups', open: 'Colour groups beside the board (G)', close: 'Hide the colour groups' },
+    region: {
+      rename: 'Rename', recolor: 'Change colour', select: { one: 'Select its {n} file', other: 'Select its {n} files' }, frame: 'Zoom to it',
+      remove: 'Delete colour group', removed: 'Deleted “{name}”',
+    },
+    dock: { tags: 'Tags', note: 'Note', move: 'Move to' },
+    tags: {
+      title: { one: 'Tags of {n} file', other: 'Tags of {n} files' }, add: 'Add a tag to all of them', none: 'No tags yet', noMatch: 'None of them has a tag like that',
+      all: 'All', addAll: 'Add to all of them',
+      onlyThese: { one: 'Select only the {n} file with it', other: 'Select only the {n} files with it' },
+      removeAll: { one: 'Remove from the {n} file with it', other: 'Remove from the {n} files with it' },
+      added: { one: 'Added “{tag}” to {n} file', other: 'Added “{tag}” to {n} files' }, already: 'They all have “{tag}” already',
+      removed: { one: 'Removed “{tag}” from {n} file', other: 'Removed “{tag}” from {n} files' },
+    },
+    note: {
+      title: { one: 'Note for {n} file', other: 'Note for {n} files' }, differ: 'They have {n} different notes now', some: '{n} of {total} have a note',
+      save: { one: 'Save to {n} file', other: 'Save to {n} files' }, clear: { one: 'Clear its note', other: 'Clear {n} notes' },
+      saved: { one: 'Note saved to {n} file', other: 'Note saved to {n} files' }, cleared: { one: 'Cleared {n} note', other: 'Cleared {n} notes' },
+    },
   },
   lightbox: {
     close: 'Close', prev: 'Previous', next: 'Next', details: 'Details', position: '{n} / {total}',

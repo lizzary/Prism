@@ -69,11 +69,11 @@ const LIST_ROWS = [[6.5, 9.5], [12, 9.5], [17.5, 6.5]];   // each row: y, length
 /**
  * The colour groups as a list beside the files: named, first in the bar — right above where the list opens (its key,
  * G, waits in the list's find field). The icon's bullets are the first colour groups' own colours; its lines write
- * themselves out again as the pointer comes.
+ * themselves out again as the pointer comes. (The whiteboard's index uses it too, with its own `labels`.)
  */
-function ListToggle({ open, colors, onToggle }) {
+export function ListToggle({ open, colors, onToggle, labels }) {
   const t = useT();
-  const label = open ? t('group.outline.close') : t('group.outline.open');
+  const label = open ? labels?.close ?? t('group.outline.close') : labels?.open ?? t('group.outline.open');
   return (
     <Tooltip label={label} delay={500}>
       <button type="button" className={s.list} aria-pressed={open} aria-label={label} aria-keyshortcuts="G" onClick={onToggle}>
@@ -92,7 +92,7 @@ function ListToggle({ open, colors, onToggle }) {
 }
 
 /** Which configuration gathers the files: its colours as dots and its name; switch to another, or edit them. */
-function Palette({ data, onUse, onEdit }) {
+export function Palette({ data, onUse, onEdit }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);

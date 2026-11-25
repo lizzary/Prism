@@ -5,7 +5,8 @@ import { artwork, paletteTone } from './art.js';
 import { seedLibrary, buildFile, groupRecord, ago, isoOf } from './seed.js';
 import { loadConfig, saveConfig, loadDbPrefs, saveDbPrefs, imageIndexReady, DEFAULT_DB_PATH } from './persist.js';
 import { mergeTags, tagLabel, tagKey, norm } from '../domain/tags.js';
-import { searchFiles, searchNames, splitTerms } from '../domain/search.js';
+import { findOnBoard, searchFiles, searchNames, splitTerms } from '../domain/search.js';
+import { cleanBoard } from '../domain/board.js';
 import { hashString } from '../domain/random.js';
 import { kindOfExt } from '../domain/files.js';
 import { keyCatalog } from '../domain/keys.js';
@@ -90,12 +91,17 @@ export { lib as currentLibrary, indexLibrary as reindex };
 const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k]]));
 /** What an edit can change, kept as it was before the first edit since the last snapshot (edits replace these values, never mutate them). */
 export const GROUP_FIELDS = ['name', 'coverFileIds', 'configs', 'activeConfigId', 'fileOrder'];
-export const FILE_FIELDS = ['userTags', 'note', 'colors'];
+/** hiddenTags: the tagger's tags the user took away (by key) — they stay away when the tagger looks again. */
+export const FILE_FIELDS = ['userTags', 'hiddenTags', 'note', 'colors'];
 const noteEdit = (map, item, fields) => { if (!map.has(item.id)) map.set(item.id, pick(item, fields)); };
 
 // ------------------------------------------------------------------ views of the data
 /** What the pages need to show a file (the picture itself comes from mediaUrl). */
 export const fileRef = (f) => ({ id: f.id, kind: f.kind, name: f.name, ext: f.ext, width: f.width, height: f.height, duration: f.duration });
+/** A file's tags as shown: the tagger's (less any the user took away) ∪ the user's own. */
+const tagsOf = (f) => mergeTags(f.hiddenTags?.length ? f.tags.filter((t) => !f.hiddenTags.includes(tagKey(t.name))) : f.tags, f.userTags);
+/** The colour a picture reads as from afar (the Go service keeps it from the import; the mock knows its paints). */
+const toneOf = (f) => (f.art ? `#${paletteTone(f.art.palette).map((v) => v.toString(16).padStart(2, '0')).join('')}` : null);
 const groupChip = (L, id) => { const g = L.groupsById.get(id); return g ? { id: g.id, name: g.name } : null; };
 
 /** Groups in the user's order (set by dragging on the home page); ones never placed come first, newest first. */
@@ -281,7 +287,7 @@ export function sampleFiles(n = 8) {
 
 // ------------------------------------------------------------------ a group's page
 /** What the page lists for each file (the rest comes with getFileDetail). colors: configuration → colour group. */
-const fileRow = (f) => ({ ...fileRef(f), size: f.size, createdAt: f.createdAt, importedAt: f.importedAt, colors: f.colors });
+const fileRow = (f) => ({ ...fileRef(f), size: f.size, createdAt: f.createdAt, importedAt: f.importedAt, colors: f.colors, tone: toneOf(f) });
 /** The pieces the browsing order is made from (domain/arrange.js). */
 const pageData = (L, g) => ({ files: L.filesByGroup.get(g.id) ?? [], configs: g.configs, activeConfigId: g.activeConfigId, order: g.fileOrder ?? [] });
 
@@ -299,6 +305,7 @@ export function getGroupPage(id, since) {
     configs: g.configs, activeConfigId: g.activeConfigId, order: g.fileOrder ?? [],
     files: (L.filesByGroup.get(id) ?? []).map(fileRow),
     view: getGroupView(id),
+    board: getBoard(id),
   };
 }
 
@@ -310,6 +317,16 @@ export function saveGroupView(id, view) {
   L.prefs.views = { ...L.prefs.views, [id]: cleanView(view) };
   savePrefs(L);
   touch(L);                    // the page's next look brings the saved settings along
+}
+
+/** A group's whiteboard settings (where its colour groups were put by hand, its panels), each group its own. */
+export const getBoard = (id) => cleanBoard(lib().prefs.boards?.[id]);
+export function saveBoard(id, board) {
+  const L = lib();
+  if (!L.groupsById.has(id)) return;
+  L.prefs.boards = { ...L.prefs.boards, [id]: cleanBoard(board) };
+  savePrefs(L);
+  touch(L);
 }
 
 /** The file being looked at, for the home page's "last viewed" (not a change a snapshot needs to keep). */
@@ -336,7 +353,7 @@ export function getFileDetail(id) {
     config: cfg ? { id: cfg.id, name: cfg.name, colors: cfg.groups } : null,
     color: color ? { id: color.id, name: color.name, color: color.color } : null,
     size: f.size, createdAt: f.createdAt, importedAt: f.importedAt,
-    tags: mergeTags(f.tags, f.userTags).map((t) => ({ key: t.key, label: tagLabel(t.name), source: t.source, score: t.score ?? null })),
+    tags: tagsOf(f).map((t) => ({ key: t.key, label: tagLabel(t.name), source: t.source, score: t.score ?? null })),
     note: f.note, comfy: f.comfy,
     cover: at < 0 ? null : { index: at, count: covers.files.length, auto: covers.auto },
   };
@@ -355,26 +372,121 @@ function setColor(L, f, colorId) {
   f.colors = next;
 }
 
-/** patch: any of { userTags: [name], note, color: colour group id | null }. A tag the tagger already gave is not kept twice. */
+/**
+ * patch: any of { userTags: [name], note, color: colour group id | null }. A tag the tagger already gave is not kept
+ * twice; one of its tags the user had taken away and now adds again simply comes back.
+ */
 export function updateFile(id, patch) {
   const L = lib();
   const f = L.filesById.get(id);
   if (!f) return null;
   if ('userTags' in patch || 'note' in patch) noteEdit(L.edits.files, f, FILE_FIELDS);
   if ('userTags' in patch) {
-    const seen = new Set(f.tags.map((t) => tagKey(t.name)));
-    f.userTags = (patch.userTags ?? []).map((x) => String(x).trim().slice(0, 60)).filter((x) => {
-      const k = tagKey(x);
-      if (!k || seen.has(k)) return false;
+    const hidden = new Set(f.hiddenTags ?? []);
+    const seen = new Set(f.tags.map((t) => tagKey(t.name)).filter((k) => !hidden.has(k)));
+    const mine = [];
+    for (const x of patch.userTags ?? []) {
+      const v = String(x).trim().slice(0, 60), k = tagKey(v);
+      if (!k || seen.has(k)) continue;
       seen.add(k);
-      return true;
-    });
+      if (hidden.has(k)) hidden.delete(k); else mine.push(v);
+    }
+    f.userTags = mine;
+    f.hiddenTags = [...hidden];
   }
   if ('note' in patch) f.note = String(patch.note ?? '').slice(0, 4000);
   if ('color' in patch) setColor(L, f, patch.color);
   indexLibrary(L);
   emit('library');
   return getFileDetail(id);
+}
+
+// ------------------------------------------------------------------ several files at once (the whiteboard)
+/**
+ * What a batch of files carries: every tag any of them has, once — on how many and which of them, and whether the
+ * tagger or the user gave it ('mixed': the tagger on some, the user on others) — and how their notes stand.
+ */
+export function filesSummary(ids) {
+  const L = lib();
+  const files = ids.map((id) => L.filesById.get(id)).filter(Boolean);
+  const map = new Map();
+  for (const f of files) {
+    for (const t of tagsOf(f)) {
+      let e = map.get(t.key);
+      if (!e) map.set(t.key, (e = { key: t.key, label: tagLabel(t.name), ids: [], user: 0 }));
+      e.ids.push(f.id);
+      if (t.source === 'user') e.user++;
+    }
+  }
+  const tags = [...map.values()]
+    .map((e) => ({ key: e.key, label: e.label, count: e.ids.length, ids: e.ids, source: e.user === e.ids.length ? 'user' : e.user ? 'mixed' : 'model' }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  const notes = new Set(files.map((f) => f.note ?? ''));
+  const written = files.filter((f) => f.note).length;
+  return { total: files.length, tags, notes: { written, distinct: [...notes].filter(Boolean).length, common: notes.size === 1 ? [...notes][0] : null } };
+}
+
+/**
+ * Tags for many files at once. add: labels — a file that already shows the tag is left as it is (one of the tagger's
+ * that the user took away comes back); remove: tags (keys or labels) — whoever gave it, it is gone from every file
+ * that shows it (the tagger's stay away when it looks again). → { ok, changed: [the files that changed] }
+ */
+export function editFileTags(ids, { add = [], remove = [] } = {}) {
+  const L = lib();
+  const changed = [];
+  for (const id of ids) {
+    const f = L.filesById.get(id);
+    if (!f) continue;
+    const hidden = new Set(f.hiddenTags ?? []);
+    const model = new Set(f.tags.map((t) => tagKey(t.name)));
+    const mine = [...f.userTags];
+    let touched = false;
+    for (const label of add) {
+      const v = String(label ?? '').trim().slice(0, 60), k = tagKey(v);
+      if (!k || (model.has(k) && !hidden.has(k)) || mine.some((x) => tagKey(x) === k)) continue;
+      if (model.has(k)) hidden.delete(k); else mine.push(v);
+      touched = true;
+    }
+    for (const key of remove) {
+      const k = tagKey(key);
+      const at = mine.findIndex((x) => tagKey(x) === k);
+      if (at >= 0) { mine.splice(at, 1); touched = true; }
+      if (model.has(k) && !hidden.has(k)) { hidden.add(k); touched = true; }
+    }
+    if (!touched) continue;
+    noteEdit(L.edits.files, f, FILE_FIELDS);
+    f.userTags = mine;
+    f.hiddenTags = [...hidden];
+    changed.push(f.id);
+  }
+  if (changed.length) { indexLibrary(L); emit('library'); }
+  return { ok: true, changed };
+}
+
+/** Notes for many files: { fileId: note }, each replacing what was there. → { ok, previous: { fileId: the note it replaced } } */
+export function setFileNotes(notes) {
+  const L = lib();
+  const previous = {};
+  for (const [id, note] of Object.entries(notes ?? {})) {
+    const f = L.filesById.get(id);
+    const v = String(note ?? '').trim().slice(0, 4000);
+    if (!f || f.note === v) continue;
+    noteEdit(L.edits.files, f, FILE_FIELDS);
+    previous[id] = f.note;
+    f.note = v;
+  }
+  if (Object.keys(previous).length) { touch(L); emit('library'); }
+  return { ok: true, previous };
+}
+
+/** Find on a group's whiteboard (see domain/search.js findOnBoard): in its files and the colour groups in use. */
+export function findInGroup(groupId, text) {
+  const L = lib();
+  const g = L.groupsById.get(groupId);
+  if (!g) return { files: [], colorGroups: [] };
+  const docs = searchDocs(L).filter((d) => d.groupId === groupId);
+  const names = new Map((L.filesByGroup.get(groupId) ?? []).map((f) => [f.id, `${f.name}.${f.ext}`]));
+  return findOnBoard(docs, names, g.configs.find((c) => c.id === g.activeConfigId)?.groups ?? [], text);
 }
 
 /**
@@ -505,6 +617,85 @@ export function reorderColorGroups(groupId, configId, order) {
   return { ok: true };
 }
 
+/** A configuration of a group and the group itself, or nothing. */
+function configOf(L, groupId, configId) {
+  const g = L.groupsById.get(groupId);
+  const cfg = g?.configs.find((c) => c.id === configId);
+  return cfg ? { g, cfg } : null;
+}
+/** The group's configurations with one of them changed (configurations are replaced, never changed in place). */
+const withConfig = (g, configId, fn) => g.configs.map((c) => (c.id === configId ? fn(c) : c));
+
+/** One colour group's name and colour (edited on the whiteboard). patch: any of { name, color } → { ok, colorGroup } */
+export function updateColorGroup(groupId, configId, colorId, patch) {
+  const L = lib();
+  const at = configOf(L, groupId, configId);
+  const x = at?.cfg.groups.find((c) => c.id === colorId);
+  if (!x) return { ok: false };
+  const next = { ...x };
+  if ('name' in patch) { const n = String(patch.name ?? '').trim().slice(0, 40); if (n) next.name = n; }
+  if ('color' in patch && HEX.test(patch.color ?? '')) next.color = patch.color.toLowerCase();
+  if (next.name === x.name && next.color === x.color) return { ok: true, colorGroup: x };
+  noteEdit(L.edits.groups, at.g, GROUP_FIELDS);
+  at.g.configs = withConfig(at.g, configId, (c) => ({ ...c, groups: c.groups.map((y) => (y.id === colorId ? next : y)) }));
+  touch(L);
+  emit('library');
+  return { ok: true, colorGroup: next };
+}
+
+/**
+ * A new colour group in a configuration (at `index`, else last), with `fileIds` of the group moved into it.
+ * input: { name, color, index } → { ok, colorGroup: { id, name, color } }
+ */
+export function createColorGroup(groupId, configId, input = {}, fileIds = []) {
+  const L = lib();
+  const at = configOf(L, groupId, configId);
+  if (!at) return { ok: false };
+  const x = {
+    id: uid(`${configId}_`),
+    name: String(input.name ?? '').trim().slice(0, 40) || '—',
+    color: HEX.test(input.color ?? '') ? input.color.toLowerCase() : '#8893a5',
+  };
+  noteEdit(L.edits.groups, at.g, GROUP_FIELDS);
+  at.g.configs = withConfig(at.g, configId, (c) => {
+    const groups = [...c.groups];
+    groups.splice(Number.isInteger(input.index) ? Math.max(0, Math.min(groups.length, input.index)) : groups.length, 0, x);
+    return { ...c, groups };
+  });
+  for (const id of fileIds) {
+    const f = L.filesById.get(id);
+    if (f?.groupId !== groupId || f.colors[configId] === x.id) continue;
+    noteEdit(L.edits.files, f, FILE_FIELDS);
+    f.colors = { ...f.colors, [configId]: x.id };
+  }
+  indexLibrary(L);
+  emit('library');
+  return { ok: true, colorGroup: x };
+}
+
+/** A colour group removed; its files belong to no colour group (of that configuration) afterwards. → { ok, colorGroup, index, files: [ids] } */
+export function removeColorGroup(groupId, configId, colorId) {
+  const L = lib();
+  const at = configOf(L, groupId, configId);
+  const index = at?.cfg.groups.findIndex((c) => c.id === colorId) ?? -1;
+  if (index < 0) return { ok: false };
+  const x = at.cfg.groups[index];
+  noteEdit(L.edits.groups, at.g, GROUP_FIELDS);
+  at.g.configs = withConfig(at.g, configId, (c) => ({ ...c, groups: c.groups.filter((y) => y.id !== colorId) }));
+  const files = [];
+  for (const f of L.filesByGroup.get(groupId) ?? []) {
+    if (f.colors[configId] !== colorId) continue;
+    noteEdit(L.edits.files, f, FILE_FIELDS);
+    const colors = { ...f.colors };
+    delete colors[configId];
+    f.colors = colors;
+    files.push(f.id);
+  }
+  indexLibrary(L);
+  emit('library');
+  return { ok: true, colorGroup: x, index, files };
+}
+
 /** Which configuration a group's files are gathered by (null: none). */
 export function setActiveConfig(groupId, configId) {
   const L = lib();
@@ -582,7 +773,7 @@ function searchDocs(L) {
     const positive = f.comfy?.positive ?? '', negative = f.comfy?.negative ?? '';
     return {
       id: f.id, groupId: f.groupId, colorIds: new Set(Object.values(f.colors)), importedAt: f.importedAt, art: f.art,
-      tags: mergeTags(f.tags, f.userTags).map((t) => ({ key: t.key, label: tagLabel(t.name), source: t.source })),
+      tags: tagsOf(f).map((t) => ({ key: t.key, label: tagLabel(t.name), source: t.source })),
       positive, negative, nPositive: norm(positive), nNegative: norm(negative),
     };
   });
@@ -675,7 +866,7 @@ function tagIndexOf(L) {
   if (!L.tags) {
     const map = new Map();
     for (const f of L.files) {
-      for (const t of mergeTags(f.tags, f.userTags)) {
+      for (const t of tagsOf(f)) {
         let e = map.get(t.key);
         if (!e) map.set(t.key, (e = { key: t.key, label: tagLabel(t.name), count: 0, user: 0 }));
         e.count++;
@@ -697,7 +888,7 @@ export function tagSamples(key, n = 6) {
   const L = lib();
   const k = tagKey(key);
   return L.files
-    .filter((f) => f.tags.some((t) => tagKey(t.name) === k) || f.userTags.some((t) => tagKey(t) === k))
+    .filter((f) => tagsOf(f).some((t) => t.key === k))
     .sort((a, b) => b.importedAt.localeCompare(a.importedAt))
     .slice(0, n)
     .map((f) => ({ file: fileRef(f), group: groupChip(L, f.groupId) }));

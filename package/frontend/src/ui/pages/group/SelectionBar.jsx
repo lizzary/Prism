@@ -7,6 +7,7 @@ import { useFormat } from '../../lib/format.js';
 import { Icon } from '../../icons/Icon.jsx';
 import { IconButton } from '../../components/controls.jsx';
 import { Portal, usePresence } from '../../components/overlay.jsx';
+import { useToastLift } from '../../components/feedback.jsx';
 import s from './SelectionBar.module.css';
 
 export function SelectionBar({ files, onDownload, onReindex, onDelete, onSelectAll, onClear, allSelected }) {
@@ -14,6 +15,7 @@ export function SelectionBar({ files, onDownload, onReindex, onDelete, onSelectA
   const fmt = useFormat();
   const open = files.length > 0;
   const { mounted, state } = usePresence(open, 260);
+  useToastLift(open);
   // while it leaves, it keeps showing what it showed
   const last = useRef(files);
   if (open) last.current = files;

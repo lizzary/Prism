@@ -1,0 +1,135 @@
+/* The board's drawing: one layer the camera transforms, regions placed in it by the stage, cards inside them. Nothing
+   here takes the pointer — the board hit-tests its scene. */
+.world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ a colour group */
+.region {
+  --c: var(--ink-3);
+  position: absolute;
+  top: 0;
+  left: 0;
+  contain: layout style;
+}
+/* a region's paint comes in under its cards (which may be flying in from the page, see gather.js), and goes with the board */
+.body, .drop { animation: bodyIn 520ms var(--ease-out) both; }
+:global([data-board-phase='enter']) .body { animation-delay: 140ms; }
+:global([data-board-phase='leave']) .body, :global([data-board-phase='leave']) .drop { animation: bodyOut 380ms var(--ease-in-out) forwards; }
+@keyframes bodyIn { from { opacity: 0; } }
+@keyframes bodyOut { to { opacity: 0; } }
+.body {
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--c) 13%, transparent), transparent 52px),
+    color-mix(in srgb, var(--c) 8%, var(--bg-raised));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 26%, transparent) inset, 0 1px 2px rgba(40, 32, 20, 0.04);
+  transition: box-shadow 260ms var(--ease-out), background-color 260ms, opacity 260ms;
+}
+:global(:root[data-theme='dark']) .body {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--c) 15%, transparent), transparent 52px),
+    color-mix(in srgb, var(--c) 7%, var(--bg-raised));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 24%, transparent) inset;
+}
+/* a group that uses no colour groups: one quiet region, all of it */
+.region[data-plain] .body { background: color-mix(in srgb, var(--ink) 2%, var(--bg-raised)); box-shadow: 0 0 0 1px var(--line) inset, var(--shadow-1); }
+/* the files in no colour group: an unpainted region with a dashed edge */
+.region[data-none] .body { background: color-mix(in srgb, var(--ink) 2.5%, var(--bg-raised)); box-shadow: none; outline: 1.5px dashed var(--line-2); outline-offset: -1.5px; }
+.region[data-hot] .body { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--c) 52%, transparent) inset, 0 0 0 6px color-mix(in srgb, var(--c) 9%, transparent); }
+.region[data-none][data-hot] .body { outline-color: var(--ink-4); box-shadow: none; }
+/* files would land here: it opens to them */
+.region[data-target] .body {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--c) 22%, transparent), transparent 52px),
+    color-mix(in srgb, var(--c) 16%, var(--bg-raised));
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--c) 80%, transparent) inset, 0 0 0 10px color-mix(in srgb, var(--c) 14%, transparent), 0 18px 40px -18px color-mix(in srgb, var(--c) 60%, transparent);
+}
+.region[data-none][data-target] .body { outline: 2px dashed var(--star); background: color-mix(in srgb, var(--star) 9%, var(--bg-raised)); }
+/* found by name: its edge lit; when a search is on, the regions it did not find step back */
+.region[data-lit] .body { box-shadow: 0 0 0 2px var(--star) inset, 0 0 0 7px var(--star-soft); }
+.region[data-dim] .body { opacity: 0.55; }
+/* lifted by its heading: it floats above the rest while it is carried */
+.region[data-lifted] { z-index: 5; }
+.region[data-lifted] .body { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--c) 60%, transparent) inset, 0 30px 60px -18px rgba(30, 24, 14, 0.38), 0 10px 22px -10px rgba(30, 24, 14, 0.28); }
+:global(:root[data-theme='dark']) .region[data-lifted] .body { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--c) 60%, transparent) inset, 0 30px 70px -18px rgba(0, 0, 0, 0.8); }
+.drop {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: 52px;
+  bottom: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  border: 1.5px dashed color-mix(in srgb, var(--c) 44%, var(--line-2));
+  color: color-mix(in srgb, var(--c) 60%, var(--ink-3));
+}
+
+/* ------------------------------------------------------------------ a file: a square card */
+.card { position: absolute; top: 0; left: 0; width: 76px; height: 76px; transition: transform 420ms var(--ease-out), opacity 220ms; }
+.face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--tone, color-mix(in srgb, var(--bg-sunken) 85%, var(--ink) 5%));
+  box-shadow: 0 0 0 1px rgba(30, 26, 20, 0.06), 0 1px 2px rgba(30, 26, 20, 0.08);
+  transition: transform 260ms var(--ease-out), border-radius 260ms var(--ease-out), box-shadow 220ms var(--ease-out), filter 260ms, opacity 260ms;
+}
+:global(:root[data-theme='dark']) .face { box-shadow: 0 0 0 1px rgba(232, 227, 214, 0.06); }
+.img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 360ms var(--ease-out); }
+.img[data-ready] { opacity: 1; }
+/* far out a card is the colour its picture reads as (the picture, if it was fetched, waits hidden) */
+.world[data-tier='far'] .img { visibility: hidden; }
+.play, .cover {
+  position: absolute;
+  bottom: 4px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  color: #fbf7ee;
+  background: rgba(12, 18, 38, 0.5);
+}
+.play { left: 4px; }
+.cover { right: 4px; color: #f3d77e; }
+.cover[data-main] { color: #2a2418; background: rgba(240, 208, 120, 0.94); }
+
+/* under the pointer: it comes forward a little */
+.card[data-hot] .face { transform: translateY(-2px) scale(1.04); box-shadow: 0 0 0 1px rgba(30, 26, 20, 0.08), 0 10px 20px -8px rgba(30, 24, 14, 0.4); }
+/* chosen: the picture steps back into a starlit well, as on the page */
+.card[data-sel]::before, .card[data-pre]::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 10px;
+  background: var(--star-soft);
+  box-shadow: 0 0 0 2px var(--star);
+}
+.card[data-sel] .face { transform: scale(0.84); border-radius: 6px; }
+/* inside the marquee as it is drawn: a lighter ring, the picture stays where it is */
+.card[data-pre]:not([data-sel])::before { background: transparent; box-shadow: 0 0 0 2px color-mix(in srgb, var(--star) 70%, transparent); }
+.card[data-pre][data-sel]::before { box-shadow: 0 0 0 2px color-mix(in srgb, var(--star) 50%, transparent); }
+/* far away a card is a small swatch: the ring is all that says it is chosen */
+.world[data-tier='far'] .card[data-sel]::before { inset: -5px; border-radius: 9px; }
+.world[data-tier='far'] .card[data-sel] .face { transform: none; }
+/* being carried elsewhere */
+.card[data-carried] { opacity: 0.28; }
+.card[data-carried] .face { filter: saturate(0.3); }
+/* a search (or a tag pointed at) lights some cards: the rest step back */
+.card[data-dim] .face { opacity: 0.3; filter: saturate(0.45); }
+.card[data-lit] .face { box-shadow: 0 0 0 2.5px var(--star), 0 0 16px 2px color-mix(in srgb, var(--star) 55%, transparent); }
+/* just arrived: it glows once, so the eye finds it */
+.card[data-fresh] .face { animation: fresh 2s var(--ease-out); }
+@keyframes fresh { 30% { box-shadow: 0 0 0 3px var(--star), 0 0 0 10px var(--star-soft); } }
+/* being deleted: gone in a breath */
+.card[data-leaving] .face { animation: leave 240ms var(--ease-in-out) forwards; }
+@keyframes leave { to { opacity: 0; transform: scale(0.55); } }

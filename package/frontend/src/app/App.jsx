@@ -75,7 +75,7 @@ function Pages({ route }) {
         <ViewTransition key={route.key} default="none" enter="page-in" exit="page-out">
           <main>
             {route.name === 'home' && <HomePage />}
-            {route.name === 'group' && <GroupPage id={route.id} fileId={route.fileId} />}
+            {route.name === 'group' && <GroupPage id={route.id} fileId={route.fileId} board={route.board} />}
           </main>
         </ViewTransition>
       </Suspense>

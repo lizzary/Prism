@@ -4,7 +4,7 @@
 import { ViewTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { browsing, coverRules, fileActions, groupActions, holdGroupPage, mediaUrl, refreshGroupPage, useGroupPage, useOptimisticView, useTasks } from '../../../bridge/index.js';
 import { useOverlays, usePageMeta } from '../../../app/shell.jsx';
-import { cameBack, closeFile, navigate, paths } from '../../../app/router.jsx';
+import { cameBack, closeBoard, closeFile, navigate, paths } from '../../../app/router.jsx';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
 import { saveFile } from '../../lib/download.js';
@@ -24,6 +24,7 @@ import { DropUpload } from './DropUpload.jsx';
 import { DeleteFiles, MoveFiles, Reindex } from './dialogs.jsx';
 import { Lightbox } from './lightbox/Lightbox.jsx';
 import { Outline } from './Outline.jsx';
+import { Board } from './board/Board.jsx';
 import { colorArrival } from '../../lib/arrival.js';
 import { coverOnShow } from '../../lib/coverOnShow.js';
 import s from './GroupPage.module.css';
@@ -35,7 +36,7 @@ const lastPage = new Map();
 const REPAGE = ['sort', 'dir', 'pageSize', 'limited', 'limit'];
 const typing = (el) => /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable;
 
-export function GroupPage({ id, fileId }) {
+export function GroupPage({ id, fileId, board = false }) {
   const t = useT();
   const { data, clock, arrived } = useGroupPage(id);
   const banner = useRef(null);
@@ -47,15 +48,16 @@ export function GroupPage({ id, fileId }) {
     return () => ro.disconnect();
   }, [data.group?.id]);
   const group = data.group;
-  // the page uses the whole width (the files want all the room they can get); the top bar spans it with them
-  usePageMeta(group
-    ? { scope: 'group', groupId: id, overArt: !!group.cover, artHeight, wide: true, crumbs: [{ label: group.name }] }
-    : { scope: 'group', groupId: id, overArt: false, artHeight: 0, wide: true });
+  // the page uses the whole width (the files want all the room they can get); the top bar spans it with them.
+  // Over the whiteboard the bar is glass over the board, and its crumbs lead back to the files.
+  usePageMeta(!group ? { scope: 'group', groupId: id, overArt: false, artHeight: 0, wide: true }
+    : board ? { scope: 'group', groupId: id, overArt: false, artHeight: 0, wide: true, crumbs: [{ label: group.name, to: paths.group(id) }, { label: t('board.title') }] }
+      : { scope: 'group', groupId: id, overArt: !!group.cover, artHeight, wide: true, crumbs: [{ label: group.name }] });
   if (!group) return <NotFound title={t('group.notFound')} />;
-  return <GroupView key={id} id={id} fileId={fileId} data={data} clock={clock} arrived={arrived} bannerRef={banner} />;
+  return <GroupView key={id} id={id} fileId={fileId} board={board} data={data} clock={clock} arrived={arrived} bannerRef={banner} />;
 }
 
-function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
+function GroupView({ id, fileId, board, data, clock, arrived, bannerRef }) {
   const t = useT();
   const fmt = useFormat();
   const { open } = useOverlays();
@@ -103,6 +105,8 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
   // colour group, past a colour group's limit or on another page — so the page decides what plays, and in what order.
   const shownFiles = useMemo(() => arranged.page.sections.flatMap((x) => x.files), [arranged.page.sections]);
   const lightboxFiles = useMemo(() => {
+    // over the whiteboard every file is on show: the lightbox walks the board, colour group by colour group
+    if (board) return arranged.sequence;
     if (!fileId || shownFiles.some((f) => f.id === fileId)) return shownFiles;
     // a file opened from elsewhere (the home page's last viewed, a random one) that the page does not show: it is
     // looked at in its place in the group's order, among the files on show; stepping away from it leaves it behind
@@ -111,11 +115,26 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
     const before = new Set(arranged.sequence.slice(0, at).map((f) => f.id));
     const k = shownFiles.filter((f) => before.has(f.id)).length;
     return [...shownFiles.slice(0, k), arranged.sequence[at], ...shownFiles.slice(k)];
-  }, [shownFiles, fileId, arranged.sequence]);
+  }, [shownFiles, fileId, arranged.sequence, board]);
   // A file open as the page arrives came with it (from another page, or a link straight to it): the page change brings
   // its lightbox in. Once that one closes, files open over the page as usual.
   const [withPage, setWithPage] = useState(!!fileId);
   if (withPage && !fileId) setWithPage(false);
+
+  // ------------------------------------------------------------------ the whiteboard, over the page
+  // It stays on until it has gone (its cards fly back to their tiles), also when Back took the address away first.
+  // One that came with the page (a link straight to it, a reload) is simply there.
+  const boardRef = useRef(null);
+  const [boardOn, setBoardOn] = useState(board);
+  const [boardWithPage] = useState(board);
+  const boardFrom = useRef([]);
+  if (board && !boardOn) setBoardOn(true);
+  useEffect(() => {
+    if (board || !boardOn) return;
+    let alive = true;
+    (boardRef.current?.leave?.() ?? Promise.resolve()).then(() => { if (alive) { boardFrom.current = []; setBoardOn(false); } });
+    return () => { alive = false; };
+  }, [board, boardOn]);
   // opened from elsewhere on another page of this one: the page turns to it, so it is among the files on show
   useLayoutEffect(() => {
     if (!fileId || shownFiles.some((f) => f.id === fileId)) return;
@@ -153,7 +172,7 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
   const [reveal, setReveal] = useState(null);         // a colour group to bring into view: { key, at }
   const picker = useRef(null);
 
-  const openFile = (fid) => navigate(paths.file(id, fid));
+  const openFile = (fid) => navigate(board ? paths.boardFile(id, fid) : paths.file(id, fid));
   const download = async (ids) => {
     const r = await fileActions.download(ids);
     if (!r.ok) return;
@@ -292,11 +311,11 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
 
   // ------------------------------------------------------------------ keys: Ctrl A chooses the page, Escape lets go, Delete deletes
   const keys = useRef(null);
-  keys.current = { selection, selectPage, clear, ask: (ids) => setAsk({ kind: 'delete', ids }), outline: arranged.grouped ? showOutline : null };
+  keys.current = { selection, selectPage, clear, ask: (ids) => setAsk({ kind: 'delete', ids }), outline: arranged.grouped ? showOutline : null, board: boardOn };
   useEffect(() => {
     const onKey = (e) => {
-      // a menu or popover open over the page has the keys first (Escape closes it, and only it)
-      if (fileId || pageCover.active() || typing(e.target) || document.querySelector('[role="dialog"]')) return;
+      // a menu or popover open over the page has the keys first (Escape closes it, and only it); the whiteboard has its own
+      if (fileId || keys.current.board || pageCover.active() || typing(e.target) || document.querySelector('[role="dialog"]')) return;
       const k = keys.current;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') { e.preventDefault(); k.selectPage(); }
       else if (e.key === 'Escape' && k.selection.size) k.clear();
@@ -353,11 +372,13 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
     setReveal({ key, at: Date.now() });
   };
   const closeLightbox = (lastId) => {
+    if (board) { closeFile(id, { board: true }); return; }
     const p = browsing.pageOf(arranged, view, lastId);
     if (p && p !== arranged.page.index) setPage(p);
     setFocus({ id: lastId, at: Date.now() });
     closeFile(id);
   };
+  const openBoard = () => { boardFrom.current = [...selection]; navigate(paths.board(id)); };
 
   const selected = useMemo(() => [...selection].map((x) => byId.get(x)).filter(Boolean), [selection, byId]);
   const shownAsk = ask ?? asked.current;
@@ -397,7 +418,7 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
           <div className={s.toolbar} data-stuck={stuck || undefined}>
             <Toolbar data={data} arranged={arranged} view={view} setView={setView} clock={clock} arrived={arrived} stuck={stuck} seen={seen} onJump={jumpTo}
               outline={outlineOpen} onOutline={() => (outlineOpen ? setView({ outline: false }) : showOutline())}
-              onRefresh={() => refreshGroupPage(id)} onUpload={() => picker.current?.click()} onWhiteboard={() => toast(t('common.notYet'), { icon: 'whiteboard' })}
+              onRefresh={() => refreshGroupPage(id)} onUpload={() => picker.current?.click()} onWhiteboard={openBoard}
               onEditColors={() => open('colorGroups', { groupId: id })} onUseConfig={(cfg) => groupActions.setActiveConfig(id, cfg)} />
           </div>
           {paged && (
@@ -425,8 +446,16 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
 
       <input ref={picker} type="file" multiple accept="image/*,video/*" hidden onChange={(e) => { const list = [...e.target.files]; e.target.value = ''; if (list.length) upload(list); }} />
       <DropUpload enabled={!fileId} group={group} onFiles={upload} />
-      <SelectionBar files={selected} allSelected={pageIds.every((x) => selection.has(x))} onSelectAll={selectPage} onClear={clear}
+      <SelectionBar files={boardOn ? [] : selected} allSelected={pageIds.every((x) => selection.has(x))} onSelectAll={selectPage} onClear={clear}
         onDownload={() => download([...selection])} onReindex={() => setAsk({ kind: 'reindex', ids: [...selection] })} onDelete={() => setAsk({ kind: 'delete', ids: [...selection] })} />
+      {boardOn && (
+        <Board ref={boardRef} id={id} data={data} arranged={arranged} view={view} group={group} covering={covering} withPage={boardWithPage}
+          fileId={fileId} arrived={arrived} initialSelection={boardFrom.current}
+          on={{
+            open: openFile, close: () => closeBoard(id), download, remove, reindex: (ids, kinds) => reindex(ids, kinds),
+            editColors: (focus) => open('colorGroups', { groupId: id, focus }), useConfig: (cfg) => groupActions.setActiveConfig(id, cfg),
+          }} />
+      )}
       <Menu open={!!menu} onClose={() => setMenu(null)} anchor={menu?.anchor} at={menu?.at} items={menu ? menuItems(menu.id) : []} label={t('group.tile.more')} />
 
       <DeleteFiles open={ask?.kind === 'delete'} files={shownAsk?.kind === 'delete' ? shownAsk.ids.map((x) => byId.get(x)).filter(Boolean) : []}
@@ -438,7 +467,9 @@ function GroupView({ id, fileId, data, clock, arrived, bannerRef }) {
 
       {fileId && (
         <Lightbox key={id} groupId={id} fileId={fileId} group={group} sequence={lightboxFiles} quality={view.quality} withPage={withPage}
-          slide={view.slide} onSlide={(sec) => setView({ slide: sec })} onClose={closeLightbox} onReveal={(fid, o) => grid.current?.revealFile(fid, o) ?? null}
+          slide={view.slide} onSlide={(sec) => setView({ slide: sec })} onClose={closeLightbox}
+          onReveal={(fid, o) => (board ? boardRef.current?.revealFile(fid, o) : grid.current?.revealFile(fid, o)) ?? null}
+          {...(board ? { fileUrl: (fid) => paths.boardFile(id, fid), rectOf: (fid) => boardRef.current?.rectOf(fid) ?? null } : {})}
           covering={covering} onDownload={(fid) => download([fid])} onDelete={(fid) => remove([fid])} />
       )}
     </div>

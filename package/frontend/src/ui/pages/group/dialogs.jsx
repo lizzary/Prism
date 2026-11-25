@@ -47,24 +47,23 @@ export function DeleteFiles({ open, files, onCancel, onConfirm }) {
 
 const KINDS = [['tagging', 'tag'], ['embedding', 'image-search'], ['metadata', 'info']];
 
-/** Which indexes to build again for the chosen files (at least one). Tags need a downloaded tagging model. */
-export function Reindex({ open, count, onCancel, onConfirm }) {
+/**
+ * What a re-index builds again, chosen together (at least one): the kinds, and the way to the tagging models when
+ * none is downloaded (tags need one). → { kinds (in their order), view } — the dialog below and the whiteboard's dock
+ * both ask with it. `onLeave`: called before going to Settings.
+ */
+export function useReindexKinds(open, onLeave) {
   const t = useT();
-  const fmt = useFormat();
   const { open: openOverlay } = useOverlays();
   const models = useModels();
   const tagger = models.list.some((m) => m.inUse);
   const [kinds, setKinds] = useState([]);
-  const [busy, setBusy] = useState(false);
   useEffect(() => { if (open) setKinds(tagger ? ['tagging', 'metadata'] : ['metadata']); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const flip = (k) => setKinds((cur) => (cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]));
-  return (
-    <Dialog open={open} onClose={onCancel} title={t('group.reindex.title', { n: fmt.number(count), count })} size="md"
-      footer={<>
-        <Button variant="ghost" onClick={onCancel}>{t('common.cancel')}</Button>
-        <Button variant="primary" icon="reindex" loading={busy} disabled={!kinds.length} onClick={run(setBusy, () => onConfirm(KINDS.map(([k]) => k).filter((k) => kinds.includes(k))))}>{t('group.reindex.start')}</Button>
-      </>}>
-      <div className={s.kinds} role="group" aria-label={t('group.reindex.title', { n: count, count })}>
+  const chosen = KINDS.map(([k]) => k).filter((k) => kinds.includes(k) && (k !== 'tagging' || tagger));
+  const view = (
+    <>
+      <div className={s.kinds} role="group" aria-label={t('group.reindex.label')}>
         {KINDS.map(([k, icon], i) => {
           const locked = k === 'tagging' && !tagger;
           const on = kinds.includes(k) && !locked;
@@ -81,10 +80,28 @@ export function Reindex({ open, count, onCancel, onConfirm }) {
         })}
       </div>
       {!tagger && (
-        <button type="button" className={s.link} onClick={() => { onCancel(); openOverlay('settings', { section: 'models' }); }}>
+        <button type="button" className={s.link} onClick={() => { onLeave?.(); openOverlay('settings', { section: 'models' }); }}>
           <Icon name="chip" size={15} />{t('group.reindex.openModels')}<Icon name="arrow-right" size={14} />
         </button>
       )}
+    </>
+  );
+  return { kinds: chosen, view };
+}
+
+/** Which indexes to build again for the chosen files (at least one). Tags need a downloaded tagging model. */
+export function Reindex({ open, count, onCancel, onConfirm }) {
+  const t = useT();
+  const fmt = useFormat();
+  const { kinds, view } = useReindexKinds(open, onCancel);
+  const [busy, setBusy] = useState(false);
+  return (
+    <Dialog open={open} onClose={onCancel} title={t('group.reindex.title', { n: fmt.number(count), count })} size="md"
+      footer={<>
+        <Button variant="ghost" onClick={onCancel}>{t('common.cancel')}</Button>
+        <Button variant="primary" icon="reindex" loading={busy} disabled={!kinds.length} onClick={run(setBusy, () => onConfirm(kinds))}>{t('group.reindex.start')}</Button>
+      </>}>
+      {view}
     </Dialog>
   );
 }

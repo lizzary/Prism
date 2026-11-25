@@ -1,6 +1,6 @@
 export default {
   common: {
-    cancel: '取消', save: '保存', close: '关闭', clear: '清除', remove: '移除', notYet: '这部分还在制作中',
+    cancel: '取消', save: '保存', close: '关闭', clear: '清除', remove: '移除',
     create: '创建', edit: '编辑', done: '完成', open: '打开', change: '更换', reset: '恢复默认', delete: '删除', undo: '撤销',
     selectAll: '全选', selectNone: '全不选', copy: '复制', copied: '已复制', and: '、', more: '更多',
     prev: '上一个', next: '下一个', stepNext: '下一步', stepBack: '上一步', manage: '管理',
@@ -252,7 +252,7 @@ export default {
     covers: { label: '封面', nth: '第 {n} 张封面，共 {total} 张', edit: '编辑封面' },
     delete: { title: '删除 {n} 个文件？', body: '文件将被移到回收站。', confirm: '删除' },
     reindex: {
-      title: '重新索引 {n} 个文件', start: '开始索引', started: '正在重新索引 {n} 个文件',
+      label: '要重新建立的内容', title: '重新索引 {n} 个文件', start: '开始索引', started: '正在重新索引 {n} 个文件',
       noModel: '需要先下载标签模型', openModels: '前往设置中的标签模型',
       kinds: {
         tagging: { title: '标签', body: '用标签模型重新打标签，你添加的标签会保留' },
@@ -261,6 +261,30 @@ export default {
       },
     },
     move: { title: '将 {n} 个文件移到「{name}」？', confirm: '移动', files: '{n} 个文件' },
+  },
+  board: {
+    title: '白板', label: '「{name}」的白板', back: '返回文件',
+    find: '在白板中查找', findNone: '没有找到', findPrev: '上一个', findNext: '下一个',
+    found: { files: '{n} 个文件', colors: '{n} 个颜色组' },
+    selectFound: '选中找到的 {n} 个文件',
+    newColor: '新建颜色组', newColorHere: '在这里新建颜色组', newFrom: '用这些文件新建颜色组',
+    arrange: '整理', arrangeTip: '按颜色组的顺序重新排好所有颜色组', arranged: '已按颜色组的顺序整理',
+    outOfColors: '移出颜色组',
+    movedOut: '已将 {n} 个文件移出颜色组',
+    zoomIn: '放大', zoomOut: '缩小', zoom100: '实际大小', centre: '回到中心',
+    minimap: '白板的小地图', mapHint: '点击任意位置即可前往', hideMap: '收起小地图', showMap: '显示小地图',
+    index: { title: '颜色组', open: '在白板旁列出颜色组（G）', close: '收起颜色组' },
+    region: { rename: '重命名', recolor: '更换颜色', select: '选中其中的 {n} 个文件', frame: '放大到这个颜色组', remove: '删除颜色组', removed: '已删除「{name}」' },
+    dock: { tags: '标签', note: '备注', move: '移到' },
+    tags: {
+      title: '{n} 个文件的标签', add: '为它们都加上一个标签', none: '还没有标签', noMatch: '它们都没有这样的标签',
+      all: '全部', addAll: '为它们都加上', onlyThese: '只选中带有它的 {n} 个文件', removeAll: '从带有它的 {n} 个文件中移除',
+      added: '已为 {n} 个文件加上「{tag}」', already: '它们都已经有「{tag}」了', removed: '已从 {n} 个文件中移除「{tag}」',
+    },
+    note: {
+      title: '{n} 个文件的备注', differ: '它们现在有 {n} 种不同的备注', some: '{total} 个文件中有 {n} 个写了备注',
+      save: '保存到 {n} 个文件', clear: '清空 {n} 条备注', saved: '已为 {n} 个文件保存备注', cleared: '已清空 {n} 条备注',
+    },
   },
   lightbox: {
     close: '关闭', prev: '上一个', next: '下一个', details: '详情', position: '{n} / {total}',

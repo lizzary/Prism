@@ -84,9 +84,10 @@ input::placeholder, textarea::placeholder { color: var(--ink-3); opacity: 1; }
    search result, Back / Forward) or a page left from a file is the lightbox's own change (router.jsx): no part of a
    page may be lifted above it — the page itself, the top bar, a cover. Only the picture travels, between the thumbnail
    it is opened from (data-vt-travel) and the lightbox; the rest changes as one, the room darkening over the page being
-   left or lifting off the page arriving. While a file is open, any other change keeps the page under it as well.
+   left or lifting off the page arriving. While a file is open, any other change keeps the page under it as well — and
+   so does any change while the whiteboard is open over the page (data-board).
    (Two rules: a browser without transition types drops only the first.) */
-:root[data-lightbox] #root * { view-transition-name: none !important; }
+:root[data-lightbox] #root *, :root[data-board] #root * { view-transition-name: none !important; }
 :root:active-view-transition-type(file-open, file-close) #root *:not([data-vt-travel]) { view-transition-name: none !important; }
 ::view-transition-group(.modal) { z-index: 1; animation: none; }
 ::view-transition-old(.modal) { animation: none; opacity: 0; }

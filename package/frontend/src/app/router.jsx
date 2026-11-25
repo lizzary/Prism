@@ -1,11 +1,17 @@
-// Hash routing: #/ · #/group/:id · #/group/:id/file/:fileId (a file open in its group)
+// Hash routing: #/ · #/group/:id · #/group/:id/file/:fileId (a file open in its group) · #/group/:id/board (the group's
+// whiteboard) · #/group/:id/board/file/:fileId (a file open over the whiteboard)
 // Works from any folder the Go service serves the build from, and keeps back/forward native.
 import { addTransitionType, startTransition, useEffect, useState } from 'react';
 import { afterViewTransition } from '../ui/lib/viewTransition.js';
 
 function parse(hash) {
-  const [a, b, c, d] = hash.replace(/^#\/?/, '').split('/');
-  if (a === 'group' && b) return { name: 'group', id: decodeURIComponent(b), fileId: c === 'file' && d ? decodeURIComponent(d) : null };
+  const parts = hash.replace(/^#\/?/, '').split('/');
+  const [a, b] = parts;
+  if (a === 'group' && b) {
+    const board = parts[2] === 'board';
+    const [c, d] = parts.slice(board ? 3 : 2);
+    return { name: 'group', id: decodeURIComponent(b), board, fileId: c === 'file' && d ? decodeURIComponent(d) : null };
+  }
   return { name: 'home' };
 }
 // a file opened in its group stays on the group's page: the key names the page, not the file
@@ -51,18 +57,31 @@ function useReleaseRoot(route) {
 export function navigate(path, { replace = false } = {}) {
   const next = `#${path}`;
   if (next === current) { if (!replace) window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  // up from the whiteboard (the bar's crumb) to the page it was opened from: back to it, not a new entry
+  if (!replace && next === boardFrom && parse(current).board && !parse(current).fileId) { history.back(); return; }
   scrolls.set(current, window.scrollY);
   pushing = true;
   if (replace) location.replace(next); else location.hash = path;
 }
 
-/** Leave a file for its group's page: back where the page was when the file was opened from it, else in place. */
-export function closeFile(groupId) {
-  if (openedFrom === `#${paths.group(groupId)}`) history.back();
+/**
+ * Leave a file for what it was opened over — its group's page, or the group's whiteboard (`board`): back to it when the
+ * file was opened from there, else in its place.
+ */
+export function closeFile(groupId, { board = false } = {}) {
+  const base = board ? paths.board(groupId) : paths.group(groupId);
+  if (openedFrom === `#${base}`) history.back();
+  else navigate(base, { replace: true });
+}
+/** Leave a group's whiteboard for its page: back to the page when the board was opened from it, else in its place. */
+export function closeBoard(groupId) {
+  if (boardFrom === `#${paths.group(groupId)}`) history.back();
   else navigate(paths.group(groupId), { replace: true });
 }
 /** The page a file was opened from (a file opened from its own group's page goes back to it on close). */
 let openedFrom = null;
+/** The page the whiteboard was opened from. */
+let boardFrom = null;
 
 export function useRoute() {
   const [route, setRoute] = useState(() => ({ ...parse(location.hash), key: keyOf(parse(location.hash)), scroll: 0 }));
@@ -77,6 +96,8 @@ export function useRoute() {
       const r = parse(location.hash);
       if (r.fileId && !parse(from).fileId) openedFrom = from;
       if (!r.fileId) openedFrom = null;
+      if (r.board && !parse(from).board) boardFrom = from;
+      if (!r.board) boardFrom = null;
       // within one page (its lightbox opening, stepping, closing) the page stays where it is
       const update = () => setRoute((prev) => (keyOf(r) === prev.key ? { ...r, key: prev.key, scroll: prev.scroll } : { ...r, key: keyOf(r), scroll }));
       // A new page is a transition: the old one stays until the new one is ready, and the two cross-fade. Within a
@@ -107,6 +128,8 @@ export const paths = {
   home: () => '/',
   group: (id) => `/group/${encodeURIComponent(id)}`,
   file: (groupId, fileId) => `/group/${encodeURIComponent(groupId)}/file/${encodeURIComponent(fileId)}`,
+  board: (id) => `/group/${encodeURIComponent(id)}/board`,
+  boardFile: (groupId, fileId) => `/group/${encodeURIComponent(groupId)}/board/file/${encodeURIComponent(fileId)}`,
 };
 
 /** An in-app link. Modified clicks fall through to the browser. */

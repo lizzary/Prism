@@ -1,0 +1,7 @@
+.palette { display: grid; grid-template-columns: repeat(7, 26px); gap: 8px; padding: 12px; }
+.paint { position: relative; width: 26px; height: 26px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06) inset; transition: transform 220ms var(--ease-back), box-shadow var(--dur-2); cursor: pointer; }
+.paint:hover { transform: scale(1.14); }
+.paint[data-on] { box-shadow: 0 0 0 2px var(--bg-raised), 0 0 0 4px var(--c); }
+.custom { display: grid; place-items: center; color: var(--ink-2); background: conic-gradient(from 0deg, #d4878a, #d9a54e, #8eab73, #5f9e9a, #6c88c8, #9a8ac6, #b07aa6, #d4878a); }
+.custom svg { color: #fff; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4)); }
+.custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }

@@ -19,6 +19,8 @@
 @keyframes tileIn { from { opacity: 0; } }
 /* tiles drawn the moment the lightbox closes onto them are simply there (see Grid: revealFile) */
 .grid[data-quiet] .tile { animation-duration: 0s; }
+/* the whiteboard is open over the page: its cards are these pictures now (they flew there, and fly back) */
+:global(:root[data-board]) .tile { visibility: hidden; }
 .frame {
   position: absolute;
   inset: 0;

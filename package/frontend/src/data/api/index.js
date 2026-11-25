@@ -12,6 +12,7 @@ import {
 } from '../domain/arrange.js';
 import { COLOR_SORTS, findInName, moveTogether, sortColorGroups, stepTogether } from '../domain/colorOrder.js';
 import { autoCovers, coverEdits, MAX_COVERS } from '../domain/covers.js';
+import { PLAIN as PLAIN_BOARD } from '../domain/board.js';
 
 export { FILE_KINDS };
 
@@ -120,6 +121,10 @@ export const homeView = {
  *   2 tiles across the full width of a row), natural (own proportions, or square), quality, layout: 'single' | 'double' |
  *   'mixed', limited, limit, pageSize (0: all), collapsed: [section key], expanded: [section key], slide (whole seconds
  *   per slide, 1–300), outline (the colour-group outline beside the files is open) } — see domain/arrange.js.
+ * Whiteboard settings (board): { layouts: { configuration id (PLAIN_BOARD: no colour groups): { colour group id
+ *   (NONE: the files in none): [x, y] } } — where the colour groups were put by hand; a configuration without one is
+ *   arranged by Prism —, index (the colour-group index beside the board is open; null: when there are many),
+ *   minimap } — see domain/board.js.
  */
 export const groupPage = {
   /**
@@ -127,11 +132,26 @@ export const groupPage = {
    * already held — while nothing changed the answer is just { rev, unchanged: true }.
    * → { rev, group: a group card | null,
    *     configs, activeConfigId, order: [fileId] (the custom order),
-   *     files: [ref + { size, createdAt, importedAt, colors }], view }
+   *     files: [ref + { size, createdAt, importedAt, colors, tone: '#rrggbb' (the colour it reads as from afar) | null }],
+   *     view, board }
    */
   load: (id, since) => call('read', () => backend.getGroupPage(id, since)),
   /** Saved optimistically: callers never wait for the write. */
   saveView: (id, view) => { call('write', () => backend.saveGroupView(id, view)).catch(() => {}); },
+  /** The whiteboard's settings, saved optimistically too. */
+  saveBoard: (id, board) => { call('write', () => backend.saveBoard(id, board)).catch(() => {}); },
+  PLAIN_BOARD,
+  /**
+   * Find on the group's whiteboard: files whose name, tags or prompts hold every word, and colour groups (of the
+   * configuration in use) whose name does — all of them. → { files: [{ id, matched: ['name' | 'tags' | 'positive' | 'negative'] }], colorGroups: [id] }
+   */
+  find: (id, text) => call('read', () => backend.findInGroup(id, text)),
+  /** One colour group's name or colour. patch: any of { name, color } → { ok, colorGroup } */
+  updateColorGroup: (id, configId, colorId, patch) => call('write', () => backend.updateColorGroup(id, configId, colorId, patch)),
+  /** input: { name, color, index (last when left out) }; fileIds move into it. → { ok, colorGroup: { id, name, color } } */
+  createColorGroup: (id, configId, input, fileIds) => call('write', () => backend.createColorGroup(id, configId, input, fileIds)),
+  /** Its files belong to no colour group afterwards. → { ok, colorGroup, index, files: [ids] } (enough to bring it back) */
+  removeColorGroup: (id, configId, colorId) => call('write', () => backend.removeColorGroup(id, configId, colorId)),
   /** order: the new custom order of every file; colors: { fileId: colour group id | null } for files changing colour group. */
   place: (id, change) => call('write', () => backend.placeFiles(id, change)),
   /** → { configs, activeConfigId, counts: { colourGroupId: files }, total } */
@@ -165,6 +185,19 @@ export const files = {
   detail: (id) => call('read', () => backend.getFileDetail(id)),
   /** patch: any of { userTags: [name], note, color: colour group id | null } → the details */
   update: (id, patch) => call('write', () => backend.updateFile(id, patch)),
+  /**
+   * What several files carry: → { total, tags: [{ key, label, count, ids (the files with it), source: 'model' | 'user' |
+   * 'mixed' }] (on most files first), notes: { written (files with a note), distinct, common (the one note all share) | null } }
+   */
+  summary: (ids) => call('read', () => backend.filesSummary(ids)),
+  /**
+   * Tags for several files at once. add: [label] — files already showing it are left as they are; remove: [key] —
+   * gone from every file showing it, whoever gave it (the tagger's tags stay away when re-indexing).
+   * → { ok, changed: [fileId] } (the inverse edit on these undoes it)
+   */
+  editTags: (ids, change) => call('write', () => backend.editFileTags(ids, change)),
+  /** notes: { fileId: note }, each replacing the one there. → { ok, previous: { fileId: note } } (setting those undoes it) */
+  setNotes: (notes) => call('write', () => backend.setFileNotes(notes)),
   /** Moved to the system's recycle bin. → { ok, count } */
   remove: (ids) => call('write', () => backend.deleteFiles(ids)),
   /** Undo a deletion moments later. → { ok, count } */

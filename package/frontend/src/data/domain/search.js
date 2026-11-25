@@ -84,6 +84,29 @@ export function searchFiles(docs, text, domains, ranked = {}, limit = 180) {
   };
 }
 
+/**
+ * Finding on a group's whiteboard: the files whose name, tags, positive or negative prompt hold every word (each
+ * domain on its own, as above), and the colour groups whose name does — all of them, not a page of results.
+ * docs: as for searchFiles (the group's files only) · names: Map(id → file name with extension) · colors: [{ id, name }]
+ * → { files: [{ id, matched: ['name' | 'tags' | 'positive' | 'negative'] }], colorGroups: [id] }
+ */
+export function findOnBoard(docs, names, colors, text) {
+  const terms = splitTerms(text);
+  if (!terms.length) return { files: [], colorGroups: [] };
+  const all = (hay) => terms.every((t) => hay.includes(t));
+  const files = [];
+  for (const d of docs) {
+    const matched = [];
+    if (all(norm(names.get(d.id) ?? '').replace(/[\s_]+/g, ' '))) matched.push('name');
+    if (terms.every((t) => tagFor(d.tags, t))) matched.push('tags');
+    if (all(d.nPositive)) matched.push('positive');
+    if (all(d.nNegative)) matched.push('negative');
+    if (matched.length) files.push({ id: d.id, matched });
+  }
+  const colorGroups = colors.filter((c) => all(norm(c.name).replace(/[\s_]+/g, ' '))).map((c) => c.id);
+  return { files, colorGroups };
+}
+
 /** Places whose name holds the whole query (groups, colour groups). */
 export function searchNames(items, text, limit = 8) {
   const q = norm(text.trim());

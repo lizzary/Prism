@@ -8,13 +8,14 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { colorOrder, groupActions, useColorConfigs } from '../../../bridge/index.js';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
-import { SWATCHES, nextSwatch } from '../../lib/swatches.js';
+import { nextSwatch } from '../../lib/swatches.js';
 import { useListDrag } from '../../lib/useListDrag.js';
 import { Icon } from '../../icons/Icon.jsx';
 import { Button, IconButton } from '../../components/controls.jsx';
 import { Menu } from '../../components/menu.jsx';
-import { Dialog, Popover, Portal, Tooltip } from '../../components/overlay.jsx';
+import { Dialog, Portal, Tooltip } from '../../components/overlay.jsx';
 import { Spinner, toast } from '../../components/feedback.jsx';
+import { SwatchPopover } from './Swatches.jsx';
 import s from './ColorGroupsDialog.module.css';
 
 let seq = 0;
@@ -274,17 +275,7 @@ function SwatchPicker({ color, onPick }) {
   return (
     <>
       <button ref={ref} type="button" className={s.swatch} style={{ '--c': color }} aria-label={t('colorGroups.color')} aria-expanded={open} onClick={() => setOpen((o) => !o)} />
-      <Popover open={open} onClose={() => setOpen(false)} anchor={ref} placement="bottom-start" label={t('colorGroups.color')}>
-        <div className={s.palette}>
-          {SWATCHES.map((c) => (
-            <button key={c} type="button" className={s.paint} style={{ '--c': c }} data-on={c === color.toLowerCase() || undefined} aria-label={c} onClick={() => { onPick(c); setOpen(false); }} />
-          ))}
-          <label className={`${s.paint} ${s.custom}`} style={{ '--c': SWATCHES.includes(color.toLowerCase()) ? 'transparent' : color }} title={t('colorGroups.custom')}>
-            <Icon name="palette" size={14} />
-            <input type="color" value={color} onChange={(e) => onPick(e.target.value)} aria-label={t('colorGroups.custom')} />
-          </label>
-        </div>
-      </Popover>
+      <SwatchPopover open={open} anchor={ref} color={color} onPick={onPick} onClose={() => setOpen(false)} />
     </>
   );
 }

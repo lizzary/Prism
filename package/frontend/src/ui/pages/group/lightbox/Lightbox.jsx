@@ -61,8 +61,13 @@ const SHOWN = { transform: 'none', clipPath: 'inset(0px 0px round 3px)' };
  * withPage: the file came with its page (opened from another page, or a link straight to it). Then the page change
  * brings the lightbox in — the room darkens over the page being left as the picture travels from where it was opened
  * (router.jsx, base.css) — so the lightbox is there whole from its first frame, and does not come in again itself.
+ * Opened over the whiteboard: fileUrl(id) is where stepping goes (the board's own file addresses), and rectOf(id) says
+ * where a file's card is on screen, to rise from and settle back into (the page's tiles are under the board then).
  */
-export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onSlide, onClose, onReveal, covering, onDownload, onDelete, withPage = false }) {
+export function Lightbox({
+  groupId, fileId, group, sequence, quality, slide, onSlide, onClose, onReveal, covering, onDownload, onDelete, withPage = false,
+  fileUrl = (id) => paths.file(groupId, id), rectOf = tileRect,
+}) {
   const t = useT();
   const fmt = useFormat();
   const index = sequence.findIndex((f) => f.id === fileId);
@@ -97,7 +102,7 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
   useEffect(() => {
     if (index >= 0) return;
     if (!sequence.length || known.current < 0) { onClose(null); return; }
-    navigate(paths.file(groupId, sequence[clamp(known.current, 0, sequence.length - 1)].id), { replace: true });
+    navigate(fileUrl(sequence[clamp(known.current, 0, sequence.length - 1)].id), { replace: true });
   }, [index, sequence]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { detailsOpen = details; }, [details]);
@@ -161,8 +166,8 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
     if (entered.current || !fit || !img.current) return;
     entered.current = true;
     if (withPage) return;
-    // from its tile on the page when it is on screen; otherwise it simply comes forward
-    const from = tileRect(file.id);
+    // from its tile on the page (or its card on the board) when it is on screen; otherwise it simply comes forward
+    const from = rectOf(file.id);
     const ease = 'cubic-bezier(.22,1,.36,1)';
     if (from) img.current.animate([onTile(from, img.current.getBoundingClientRect()), SHOWN], { duration: 460, easing: ease });
     else img.current.animate([{ opacity: 0, transform: 'scale(0.965)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: ease });
@@ -193,7 +198,7 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
     setShow(null);
     const id = file?.id;
     // the page puts the tile in full view if it is not (unseen, under the still-dark room) and says where it is
-    exit(id && zoom.z === 1 ? (onReveal?.(id, { now: true }) ?? tileRect(id)) : null);
+    exit(id && zoom.z === 1 ? (onReveal?.(id, { now: true }) ?? rectOf(id)) : null);
   };
 
   // ------------------------------------------------------------------ stepping
@@ -203,7 +208,7 @@ export function Lightbox({ groupId, fileId, group, sequence, quality, slide, onS
     if (next === index) return;
     setDir(next > index ? 1 : -1);
     if (show) setShow((v) => v && { paused: v.paused, startedAt: Date.now(), left: slide * 1000 });
-    navigate(paths.file(groupId, sequence[next].id), { replace: true });
+    navigate(fileUrl(sequence[next].id), { replace: true });
   };
   const remove = () => {
     const id = file.id;

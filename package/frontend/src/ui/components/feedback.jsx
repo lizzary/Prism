@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { Icon } from '../icons/Icon.jsx';
 import { Portal } from './overlay.jsx';
 import s from './feedback.module.css';
@@ -64,6 +64,21 @@ export function Empty({ title, children, action, compact }) {
 }
 
 // ------------------------------------------------------------------ toasts
+/**
+ * A bar along the bottom of the screen (the page's selection bar, the whiteboard's dock) lifts the toasts above it
+ * while it is up, so a note never lands on the buttons it is about.
+ */
+const lifts = [];
+const applyLift = () => document.documentElement.style.setProperty('--toast-lift', `${Math.max(0, ...lifts)}px`);
+export function useToastLift(on, px = 72) {
+  useEffect(() => {
+    if (!on) return undefined;
+    lifts.push(px);
+    applyLift();
+    return () => { lifts.splice(lifts.indexOf(px), 1); applyLift(); };
+  }, [on, px]);
+}
+
 let toasts = [];
 let seq = 0;
 const subs = new Set();

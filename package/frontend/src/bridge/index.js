@@ -131,13 +131,45 @@ export const groupActions = {
   ),
   saveColorConfigs: thenRefresh(api.groupPage.saveColorConfigs),
   upload: api.groupPage.upload,
+  /** The whiteboard's settings (where colour groups were put, its panels): saved in the background, as page settings are. */
+  saveBoard: api.groupPage.saveBoard,
+  /** A colour group's name or colour, shown at once. patch: any of { name, color } */
+  updateColorGroup: (id, configId, colorId, patch) => feedOf(id).change(
+    (d) => ({ ...d, configs: d.configs.map((c) => (c.id !== configId ? c : { ...c, groups: c.groups.map((x) => (x.id === colorId ? { ...x, ...patch } : x)) })) }),
+    () => api.groupPage.updateColorGroup(id, configId, colorId, patch),
+  ),
+  /** → { ok, colorGroup } once the page has it (a new colour group's id comes from the data layer). */
+  createColorGroup: (id, configId, input, fileIds) => feedOf(id).change((d) => d, () => api.groupPage.createColorGroup(id, configId, input, fileIds)),
+  /** Gone at once; its files belong to no colour group. → { ok, colorGroup, index, files } (enough to bring it back) */
+  removeColorGroup: (id, configId, colorId) => feedOf(id).change(
+    (d) => ({
+      ...d,
+      configs: d.configs.map((c) => (c.id !== configId ? c : { ...c, groups: c.groups.filter((x) => x.id !== colorId) })),
+      files: d.files.map((f) => (f.colors?.[configId] !== colorId ? f : { ...f, colors: withColor(f.colors, configId, null) })),
+    }),
+    () => api.groupPage.removeColorGroup(id, configId, colorId),
+  ),
 };
 export const useColorConfigs = (id) => useQuery(id ? `color-configs:${id}` : null, () => api.groupPage.colorConfigs(id), ['library']);
+/** The layout key of a whiteboard whose group uses no colour groups. */
+export const PLAIN_BOARD = api.groupPage.PLAIN_BOARD;
+/** Find on a group's whiteboard as the words are typed. → { data: { files: [{ id, matched }], colorGroups: [id] }, loading, settled } */
+export function useBoardFind(groupId, text) {
+  const q = useDebounced(text.trim(), 140);
+  const res = useQuery(q ? `board-find:${groupId}:${q}` : null, () => api.groupPage.find(groupId, q), ['library']);
+  return { ...res, settled: q || null };
+}
 
 // ------------------------------------------------------------------ files
 export const useFileDetail = (id) => useQuery(id ? `file:${id}` : null, () => api.files.detail(id), ['library']);
+/** What several files carry (their tags, their notes) — see data/api files.summary. Pass null to skip. */
+export const useFilesSummary = (ids) => useQuery(ids?.length ? `files-summary:${[...ids].sort().join(',')}` : null, () => api.files.summary(ids), ['library']);
 export const fileActions = {
   update: thenRefresh(api.files.update),
+  /** Tags for several files: { add: [label], remove: [key] } → { ok, changed } */
+  editTags: thenRefresh(api.files.editTags),
+  /** { fileId: note } → { ok, previous } */
+  setNotes: thenRefresh(api.files.setNotes),
   remove: thenRefresh(api.files.remove),
   reindex: api.files.reindex,
   download: api.files.download,

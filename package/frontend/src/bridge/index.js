@@ -163,7 +163,11 @@ export function useBoardFind(groupId, text) {
 // ------------------------------------------------------------------ files
 export const useFileDetail = (id) => useQuery(id ? `file:${id}` : null, () => api.files.detail(id), ['library']);
 /** What several files carry (their tags, their notes) — see data/api files.summary. Pass null to skip. */
-export const useFilesSummary = (ids) => useQuery(ids?.length ? `files-summary:${[...ids].sort().join(',')}` : null, () => api.files.summary(ids), ['library']);
+export function useFilesSummary(ids) {
+  const key = ids?.length ? `files-summary:${[...ids].sort().join(',')}` : null;
+  const res = useQuery(key, () => api.files.summary(ids).then((d) => ({ ...d, key })), ['library']);
+  return { ...res, data: res.data?.key === key ? res.data : undefined };
+}
 export const fileActions = {
   update: thenRefresh(api.files.update),
   /** Tags for several files: { add: [label], remove: [key] } → { ok, changed } */

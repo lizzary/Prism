@@ -29,12 +29,16 @@ export function Dock({ ids, files, sections, grouped, noneName, onClear, onTagHo
   if (open) last.current = ids;
   const shown = last.current;
   const [panel, setPanel] = useState(null);
+  // (set at once on closing, before the panel has gone: a row the pointer is still over must not light the board again)
+  const tagsOpen = useRef(false);
+  tagsOpen.current = panel === 'tags' && open;
+  const lightTag = (list) => { if (tagsOpen.current || !list) onTagHover(list); };
   const refs = { tags: useRef(null), note: useRef(null), move: useRef(null), reindex: useRef(null) };
   useEffect(() => { if (!open) setPanel(null); }, [open]);
   useEffect(() => { if (panel !== 'tags') onTagHover(null); }, [panel]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!mounted) return null;
   const toggle = (p) => setPanel((cur) => (cur === p ? null : p));
-  const close = () => setPanel(null);
+  const close = () => { tagsOpen.current = false; onTagHover(null); setPanel(null); };
   const peek = shown.slice(-3).map((x) => files.get(x)).filter(Boolean);
   const n = shown.length;
 
@@ -62,7 +66,7 @@ export function Dock({ ids, files, sections, grouped, noneName, onClear, onTagHo
       <IconButton icon="close" size="sm" label={`${t('group.selection.clear')} · Esc`} className={s.close} onClick={onClear} placement="top" />
 
       <Popover open={panel === 'tags'} onClose={close} anchor={refs.tags} placement="top-start" offset={12} label={t('board.dock.tags')} className={s.pop}>
-        <TagsPanel ids={shown} onHover={onTagHover} onAdd={(label) => onTags({ add: [label] }, label)} onRemove={(x) => onTags({ remove: [x.key] }, x.label)} onSelectOnly={(list) => { close(); onSelectOnly(list); }} />
+        <TagsPanel ids={shown} onHover={lightTag} onAdd={(label) => onTags({ add: [label] }, label)} onRemove={(x) => onTags({ remove: [x.key] }, x.label)} onSelectOnly={(list) => { close(); onSelectOnly(list); }} />
       </Popover>
       <Popover open={panel === 'note'} onClose={close} anchor={refs.note} placement="top-start" offset={12} label={t('board.dock.note')} className={s.pop}>
         <NotePanel ids={shown} onSave={(note) => { close(); onNote(note); }} />

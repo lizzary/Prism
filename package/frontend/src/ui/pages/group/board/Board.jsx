@@ -323,6 +323,7 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
 
   // a tag pointed at in the dock lights the chosen cards that carry it
   const [tagLit, setTagLit] = useState(null);
+  useEffect(() => { setTagLit(null); }, [selection]);
   const lit = useMemo(() => (tagLit ? new Set(tagLit) : finding && found.data ? new Set(foundFiles) : null), [tagLit, finding, found.data, foundFiles]);
 
   // ------------------------------------------------------------------ menus, renaming, colours

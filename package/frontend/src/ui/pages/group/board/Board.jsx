@@ -7,7 +7,7 @@
 // colour. For many of them (a hundred and more): the index beside the board finds any one and flies there, the map
 // shows where everything is, headings stay readable at every zoom and stay in sight while the view is inside one.
 // The board itself (scene.js, stage.js, useBoardInput.js, the headings and every panel) does not care what draws the
-// regions and cards: today the DOM renderer, later a WebGL one.
+// regions and cards.
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { browsing, fileActions, groupActions, holdGroupPage, mediaUrl, PLAIN_BOARD, useBoardFind, useOptimisticView, useSetting } from '../../../../bridge/index.js';
 import { useT } from '../../../../i18n/index.jsx';
@@ -18,12 +18,12 @@ import { Icon } from '../../../icons/Icon.jsx';
 import { Menu } from '../../../components/menu.jsx';
 import { toast } from '../../../components/feedback.jsx';
 import { SwatchPopover } from '../../../features/colors/Swatches.jsx';
-import { buildScene, cardOf, cardsIn, hitTest, inSight, nearestFree, packRegions, placesOf, resizedSize, snap, GAP, HEAD, PAD, PITCH } from './scene.js';
+import { buildScene, cardOf, cardsIn, hitTest, inSight, nearestFree, packRegions, placesOf, resizedSize, sizeAtPointer, snap } from './scene.js';
 import { frame, reveal, toScreen } from './camera.js';
 import { createStage } from './stage.js';
 import { useBoardInput } from './useBoardInput.js';
 import { RENDERERS, pickRenderer } from './renderers.js';
-import { webglAvailable } from '../../../lib/webgl.js';
+import { reportWebGLFailure, useWebGLAvailable } from '../../../lib/webgl.js';
 import { Headings } from './Headings.jsx';
 import { BoardBar } from './BoardBar.jsx';
 import { BoardIndex } from './BoardIndex.jsx';
@@ -66,13 +66,13 @@ function viewShape() {
  * remove(ids) (with its own undo), reindex(ids, kinds), editColors(colorId?), useConfig(id) }
  * ref: { revealFile(id, { now }), rectOf(id) } — for the lightbox opened over the board
  */
-export function Board({ ref, id, data, arranged, view, group, covering, withPage, fileId, arrived, initialSelection, on }) {
+export function Board({ ref, id, data, arranged, view, group, covering, withPage, open, onExited, fileId, arrived, initialSelection, on }) {
   const t = useT();
   const fmt = useFormat();
   useScrollLock(true);
   const viewport = useRef(null);
   const findField = useRef(null);
-  const renderer = pickRenderer(useSetting('whiteboard'), webglAvailable());
+  const renderer = pickRenderer(useSetting('whiteboard'), useWebGLAvailable());
   const Renderer = RENDERERS[renderer];
   const grouped = arranged.grouped;
   const configKey = data.activeConfigId ?? PLAIN_BOARD;
@@ -91,7 +91,7 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
   const [, held] = useReducer((x) => x + 1, 0);
   const layout = saved ?? sessionLayouts.get(sessionKey) ?? null;
   // how each colour group was sized by hand — and, while one is being resized, the size the pointer gives it
-  const [resizing, setResizing] = useState(null);    // { key, edge, origin: [x, y], base: { cols, w, h }, size, alt, x, y }
+  const [resizing, setResizing] = useState(null);    // { key, size, alt, x, y }
   const savedSizes = prefs.sizes?.[configKey] ?? NO_SIZES;
   const sizes = useMemo(() => (resizing ? { ...savedSizes, [resizing.key]: resizing.size } : savedSizes), [savedSizes, resizing?.key, resizing?.size]); // eslint-disable-line react-hooks/exhaustive-deps
   // the shape Prism arranges for: the view's when the board was opened, or when it was last arranged (a resize alone
@@ -496,32 +496,17 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
       if (landing) dropRegion(res.key, landing);
     },
     // resizing a colour group: its files rearrange to the new size; with Alt, the frame alone changes (files past it hide)
-    onResizeStart: (key, edge) => {
-      const r = sceneRef.current.regions.find((q) => q.key === key);
-      if (!r) return;
+    onResizeStart: () => {
       hold.current = holdGroupPage(id);
       setPeek(null);
-      setResizing({ key, edge, origin: [r.x, r.y], n: r.n, base: { cols: r.cols, w: r.size?.w, h: r.size?.h }, size: r.size, alt: false });
     },
-    onResize: ({ key, edge, wx, wy, alt, x, y }) => setResizing((cur) => {
-      if (!cur || cur.key !== key) return cur;
-      const w = wx - cur.origin[0], h = wy - cur.origin[1];
-      let size;
-      if (!alt) {
-        // rearranged: as many across as fit the width (from the bottom edge, as few rows as fit the height); all in sight
-        const cols = edge === 'b'
-          ? Math.max(1, Math.ceil(cur.n / Math.max(1, Math.round((h - HEAD - PAD + GAP) / PITCH))))
-          : Math.max(1, Math.round((w - 2 * PAD + GAP) / PITCH));
-        size = { cols };
-      } else {
-        // framed: the files keep their places, the frame follows the pointer
-        size = { cols: cur.base.cols, ...(edge !== 'b' ? { w } : cur.base.w ? { w: cur.base.w } : {}), ...(edge !== 'r' ? { h } : cur.base.h ? { h: cur.base.h } : {}) };
-      }
-      return { ...cur, size, alt, x, y };
-    }),
-    onResizeEnd: (key) => {
+    onResize: (pointer) => {
+      const { region, alt, x, y } = pointer;
+      setResizing({ key: region.key, size: sizeAtPointer(pointer), alt, x, y });
+    },
+    onResizeEnd: (pointer) => {
       hold.current?.(); hold.current = null;
-      if (key && resizing) sizeRegion(key, resizing.size);
+      if (pointer) sizeRegion(pointer.region.key, sizeAtPointer(pointer));
       setResizing(null);
     },
     onPanChange: () => {},
@@ -608,13 +593,12 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
   }, [stage, scene]);
 
   // ------------------------------------------------------------------ arriving and leaving
-  const layer = useRef(null);
   const world = useRef(null);
-  const gather = useGather({ stage, scene, layer, world, withPage });
+  const phase = useGather({ stage, scene, world, withPage, open, onExited });
 
   // ------------------------------------------------------------------ keys
   const keys = useRef(null);
-  keys.current = { leaving: gather.phase === 'leave', selection, query, clearQuery: () => setQuery(''), ids, clear, selectAll, close: on.close, removeFiles, fitAll, focusFind: () => { findField.current?.focus(); findField.current?.select(); }, toggleIndex: () => setPrefs({ index: !indexOpen }), indexOpen, open: on.open };
+  keys.current = { leaving: phase === 'leave', selection, query, clearQuery: () => setQuery(''), ids, clear, selectAll, close: on.close, removeFiles, fitAll, focusFind: () => { findField.current?.focus(); findField.current?.select(); }, toggleIndex: () => setPrefs({ index: !indexOpen }), indexOpen, open: on.open };
   useEffect(() => {
     const onKey = (e) => {
       const k = keys.current;
@@ -665,9 +649,7 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
       const w = c.w * stage.camera.z;
       return x + w > 0 && y + w > 0 && x < stage.viewport.w && y < stage.viewport.h ? { left: x, top: y, width: w, height: w } : null;
     },
-    /** Leaving: the cards in view fly back to the page's tiles, the board goes. → a promise for when it has gone */
-    leave: () => gather.leave(),
-  }), [stage, gather]);
+  }), [stage]);
 
   // ------------------------------------------------------------------ menus
   const menuItems = () => {
@@ -752,13 +734,18 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
   const targetRegion = carry?.target != null ? scene.regions.find((r) => r.key === carry.target) : null;
   const recolorRegion = recolor && scene.regions.find((r) => r.key === recolor.key);
   const resized = resizing?.x != null ? scene.regions.find((r) => r.key === resizing.key) : null;
+  const drawing = { stage, scene, files, covers, look };
+  const DomRenderer = RENDERERS.dom;
 
   return (
     <Portal>
-      <div ref={layer} className={s.board} data-phase={gather.phase} data-board-phase={gather.phase} data-renderer={renderer} data-carrying={carry ? '' : undefined}>
+      <div className={s.board} data-phase={phase} data-board-phase={phase} data-renderer={renderer} data-carrying={carry ? '' : undefined}>
         <div ref={paper} className={s.paper} aria-hidden="true" />
         <div ref={viewport} className={s.viewport} tabIndex={0} role="application" aria-label={t('board.label', { name: group.name })}>
-          <Renderer stage={stage} scene={scene} files={files} covers={covers} look={look} layerRef={world} />
+          {renderer === 'webgl' && phase !== 'leave' && (
+            <div className={s.gpuLayer}><Renderer {...drawing} onFallback={reportWebGLFailure} /></div>
+          )}
+          {(renderer === 'dom' || phase !== 'open') && <DomRenderer {...drawing} layerRef={world} />}
           <Headings stage={stage} scene={scene} top={insets.top - 6} left={insets.left} look={headLook} on={headOn} noneName={t('group.colors.noColor')} />
           <div ref={landingEl} className={s.landing} data-on={lifted?.landing ? '' : undefined} aria-hidden="true" />
           <div ref={marqueeEl} className={s.marquee} data-on={marquee ? '' : undefined} aria-hidden="true" />

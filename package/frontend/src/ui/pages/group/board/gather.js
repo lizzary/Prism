@@ -34,10 +34,10 @@ function onTile(t, c, z) {
 }
 const ON_CARD = { transform: 'none', clipPath: 'inset(0px 0px round 7px)' };
 
-/** → { phase: 'enter' | 'open' | 'leave', leave() → promise once gone } */
-export function useGather({ stage, scene, layer, world, withPage }) {
-  const [phase, setPhase] = useState(withPage || reduced() ? 'open' : 'enter');
-  const done = useRef(false);
+/** The route drives the exit so going Forward during the animation reopens the same board. */
+export function useGather({ stage, scene, world, withPage, open, onExited }) {
+  const [entered, setEntered] = useState(() => withPage || reduced());
+  const phase = open ? (entered ? 'open' : 'enter') : 'leave';
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
 
@@ -59,7 +59,8 @@ export function useGather({ stage, scene, layer, world, withPage }) {
       if (!w) continue;
       const r = sceneRef.current.regions[w[0]];
       const [dx, dy] = cardOffset(r, w[1]);
-      const x = r.x + dx, y = r.y + dy;
+      const shown = stage.rect(r.key) ?? r;
+      const x = shown.x + dx, y = shown.y + dy;
       const left = vp.w / 2 + (x - c.x) * c.z, top = vp.h / 2 + (y - c.y) * c.z, S = CARD * c.z;
       if (left + S < 0 || top + S < 0 || left > vp.w || top > vp.h) continue;
       out.push({ id, face: el.firstElementChild, rect: { left, top } });
@@ -70,9 +71,8 @@ export function useGather({ stage, scene, layer, world, withPage }) {
   // arriving: the tiles on screen fly to their cards (once), and the board is fully in a moment later
   useLayoutEffect(() => {
     if (phase !== 'enter') return undefined;
-    const id = setTimeout(() => setPhase('open'), 640);
-    if (done.current || !world.current) return () => clearTimeout(id);
-    done.current = true;
+    const timer = setTimeout(() => setEntered(true), 700);
+    const animations = [];
     const tiles = tilesOnScreen();
     const z = stage.camera.z;
     const cards = cardsInView();
@@ -82,27 +82,30 @@ export function useGather({ stage, scene, layer, world, withPage }) {
       if (t) {
         // nearer the middle first, so the board fills from its heart outwards
         const d = Math.hypot(t.left + t.width / 2 - cx, t.top + t.height / 2 - cy) / Math.hypot(cx, cy);
-        face.animate([onTile(t, rect, z), ON_CARD], { duration: 620, delay: d * 70, easing: EASE_OUT, fill: 'backwards' });
+        animations.push(face.animate([onTile(t, rect, z), ON_CARD], { duration: 620, delay: d * 70, easing: EASE_OUT, fill: 'backwards' }));
       } else {
-        face.animate([{ opacity: 0, transform: 'scale(0.86)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: 160, easing: EASE_OUT, fill: 'backwards' });
+        animations.push(face.animate([{ opacity: 0, transform: 'scale(0.86)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: 160, easing: EASE_OUT, fill: 'backwards' }));
       }
     }
-    return () => clearTimeout(id);
-  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { clearTimeout(timer); animations.forEach((a) => a.cancel()); };
+  }, [phase, stage, cardsInView]);
 
-  const leave = useCallback(() => new Promise((resolve) => {
-    if (reduced()) { resolve(); return; }
-    setPhase('leave');
+  // The WebGL board mounts DOM card faces for this transition. Read them after that commit.
+  useLayoutEffect(() => {
+    if (phase !== 'leave') return undefined;
+    if (reduced()) { onExited(); return undefined; }
     const tiles = tilesOnScreen();
     const z = stage.camera.z;
+    const animations = [];
     for (const { id, face, rect } of cardsInView()) {
       const t = tiles.get(id);
-      if (t) face.animate([ON_CARD, onTile(t, rect, z)], { duration: 440, easing: EASE_IN_OUT, fill: 'forwards' });
-      else face.animate([{ opacity: 1 }, { opacity: 0, transform: 'scale(0.9)' }], { duration: 260, easing: EASE_IN_OUT, fill: 'forwards' });
+      if (t) animations.push(face.animate([ON_CARD, onTile(t, rect, z)], { duration: 440, easing: EASE_IN_OUT, fill: 'forwards' }));
+      else animations.push(face.animate([{ opacity: 1 }, { opacity: 0, transform: 'scale(0.9)' }], { duration: 260, easing: EASE_IN_OUT, fill: 'forwards' }));
     }
     // the tiles take over the very moment the pictures arrive on them
-    setTimeout(() => { delete document.documentElement.dataset.board; layer.current?.setAttribute('data-gone', ''); resolve(); }, 450);
-  }), [stage, cardsInView, layer]);
+    const timer = setTimeout(onExited, 450);
+    return () => { clearTimeout(timer); animations.forEach((a) => a.cancel()); };
+  }, [phase, stage, cardsInView, onExited]);
 
-  return { phase, leave };
+  return phase;
 }

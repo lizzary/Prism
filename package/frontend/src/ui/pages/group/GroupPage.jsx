@@ -126,15 +126,14 @@ function GroupView({ id, fileId, board, data, clock, arrived, bannerRef }) {
   // One that came with the page (a link straight to it, a reload) is simply there.
   const boardRef = useRef(null);
   const [boardOn, setBoardOn] = useState(board);
-  const [boardWithPage] = useState(board);
+  const boardWithPage = useRef(board);
   const boardFrom = useRef([]);
   if (board && !boardOn) setBoardOn(true);
-  useEffect(() => {
-    if (board || !boardOn) return;
-    let alive = true;
-    (boardRef.current?.leave?.() ?? Promise.resolve()).then(() => { if (alive) { boardFrom.current = []; setBoardOn(false); } });
-    return () => { alive = false; };
-  }, [board, boardOn]);
+  const boardExited = useCallback(() => {
+    boardFrom.current = [];
+    boardWithPage.current = false;
+    setBoardOn(false);
+  }, []);
   // opened from elsewhere on another page of this one: the page turns to it, so it is among the files on show
   useLayoutEffect(() => {
     if (!fileId || shownFiles.some((f) => f.id === fileId)) return;
@@ -449,7 +448,8 @@ function GroupView({ id, fileId, board, data, clock, arrived, bannerRef }) {
       <SelectionBar files={boardOn ? [] : selected} allSelected={pageIds.every((x) => selection.has(x))} onSelectAll={selectPage} onClear={clear}
         onDownload={() => download([...selection])} onReindex={() => setAsk({ kind: 'reindex', ids: [...selection] })} onDelete={() => setAsk({ kind: 'delete', ids: [...selection] })} />
       {boardOn && (
-        <Board ref={boardRef} id={id} data={data} arranged={arranged} view={view} group={group} covering={covering} withPage={boardWithPage}
+        <Board ref={boardRef} id={id} data={data} arranged={arranged} view={view} group={group} covering={covering} withPage={boardWithPage.current}
+          open={board} onExited={boardExited}
           fileId={fileId} arrived={arrived} initialSelection={boardFrom.current}
           on={{
             open: openFile, close: () => closeBoard(id), download, remove, reindex: (ids, kinds) => reindex(ids, kinds),

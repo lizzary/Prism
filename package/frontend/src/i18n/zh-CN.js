@@ -73,7 +73,7 @@ export default {
     sections: { general: '常规', data: '数据与备份', files: '文件', models: '模型', access: '访问与安全', mcp: 'MCP' },
     language: '语言', theme: '主题', light: '浅色', dark: '深色',
     whiteboard: '白板渲染器', renderers: { auto: '自动选择', webgl: 'WebGL（高性能）', dom: 'DOM（兼容模式）' },
-    rendererNow: '当前设备使用 {name}', noWebgl: '当前设备不支持 WebGL',
+    rendererNow: '当前设备使用 {name}', noWebgl: '当前页面无法使用 WebGL，白板将使用 DOM',
     dbPath: '数据库路径', dbSwitched: '已切换数据库，内容已重新读取',
     backupNone: '还没有快照', backupMeta: '{n} 个快照 · 最近一次在{date}',
     backupPending: '{n} 处更改尚未保存到快照', backupClean: '所有更改都已保存到快照', open: '打开',

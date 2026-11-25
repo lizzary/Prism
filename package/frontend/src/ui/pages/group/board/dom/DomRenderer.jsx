@@ -6,23 +6,12 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'rea
 import { mediaUrl } from '../../../../../bridge/index.js';
 import { Icon } from '../../../../icons/Icon.jsx';
 import { useFormat } from '../../../../lib/format.js';
-import { CARD, cardOffset, cardSpan } from '../scene.js';
+import { cardOffset, cardSpan } from '../scene.js';
+import { tierOf, tiltDegrees } from '../cardAppearance.js';
 import s from './DomRenderer.module.css';
 
 /** Cards are drawn this far beyond the view (in screen px), so a pan never shows them arriving. */
 const MARGIN = 700;
-/** How a card looks at a zoom: a plain swatch of its colour (far), its picture (mid), with its marks (near). */
-const TIERS = [['far', 0], ['mid', 22], ['near', 58]];
-function tierOf(z, was) {
-  const px = z * CARD;
-  let tier = 'far';
-  for (const [name, at] of TIERS) {
-    // a little give either way, so a zoom resting on an edge does not flicker between the two
-    const edge = name === was ? at * 0.92 : at * 1.08;
-    if (px >= edge) tier = name;
-  }
-  return tier;
-}
 
 /**
  * stage: stage.js · scene: scene.js · files: Map(id → file) · covers: Map(id → place among the group's covers)
@@ -149,14 +138,6 @@ const Region = memo(function Region({ r, win, tier, files, covers, look, refEl }
   );
 });
 
-/** A small angle of a card's own (±1.5°, never 0), the same every time: chosen cards tilt by it, like picked-up prints. */
-function tiltOf(id) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
-  const k = (Math.abs(h) % 6) - 3;
-  return `${(k >= 0 ? k + 1 : k) * 0.5}deg`;
-}
-
 /** A picture seen once in this session appears at once after that (no fade). */
 const seen = new Set();
 function CardImage({ src }) {
@@ -184,7 +165,7 @@ const Card = memo(function Card({ file, dx, dy, tier, cover, sel, pre, carried, 
     );
   }, [poured?.[2]]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div className={s.card} style={{ transform: `translate(${dx}px, ${dy}px)`, '--tilt': tiltOf(file.id) }} data-card={file.id}
+    <div className={s.card} style={{ transform: `translate(${dx}px, ${dy}px)`, '--tilt': `${tiltDegrees(file.id)}deg` }} data-card={file.id}
       data-sel={sel || undefined} data-pre={pre || undefined} data-carried={carried || undefined} data-dim={dim || undefined}
       data-lit={lit || undefined} data-hot={hot || undefined} data-fresh={fresh || undefined} data-leaving={leaving || undefined}>
       <div ref={face} className={s.face} style={file.tone ? { '--tone': file.tone } : undefined}>

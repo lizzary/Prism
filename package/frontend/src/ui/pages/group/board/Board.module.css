@@ -1,6 +1,5 @@
 /* The whiteboard: a layer over the group's page, under the app's bar (which stays, glass over the board). */
 .board { position: fixed; inset: 0; z-index: 40; isolation: isolate; color: var(--ink); }
-.board[data-gone] { visibility: hidden; }
 
 /* the paper: the page's own paper, with a dotted grid that keeps its density as the board is zoomed */
 .paper {
@@ -28,6 +27,9 @@
 
 .viewport { position: absolute; inset: 0; overflow: hidden; outline: none; touch-action: none; user-select: none; -webkit-user-select: none; }
 .viewport:focus-visible { box-shadow: none; }
+.gpuLayer { position: absolute; inset: 0; pointer-events: none; }
+/* Warm the GPU thumbnails underneath the tile-to-card animation. */
+.board[data-phase='enter'] .gpuLayer { visibility: hidden; }
 .board[data-carrying] .viewport { cursor: grabbing; }
 .blank { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-3); font-size: 15px; }
 

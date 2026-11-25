@@ -1,6 +1,6 @@
 // The whiteboard's scene: the group's files as square cards, gathered into a region per colour group of the
 // configuration in use (and one for the files in none), and where every region is on the board. Pure and in board
-// pixels: a renderer (the DOM one now, a WebGL one later) draws this scene, and the board's input hit-tests the scene
+// pixels: either renderer draws this scene, and the board's input hit-tests the scene
 // itself — never what was drawn — so every renderer behaves the same.
 //
 // Where the regions go:
@@ -60,6 +60,21 @@ export function sizedRegion(n, size) {
   let shown = 0;
   for (let row = 0; row < visRows; row++) shown += Math.min(visCols, n - row * fit.cols);
   return { cols: fit.cols, rows: fit.rows, fw: fit.w, fh: fit.h, w, h, visCols, visRows, hidden: Math.max(0, n - shown), cropX: w < fit.w, cropY: h < fit.h };
+}
+
+/** Resize from the region where the gesture began. Alt moves its frame while keeping its cell arrangement. */
+export function sizeAtPointer({ region, edge, wx, wy, alt }) {
+  const w = wx - region.x, h = wy - region.y;
+  if (alt) {
+    const size = { ...region.size, cols: region.cols };
+    if (edge !== 'b') size.w = w;
+    if (edge !== 'r') size.h = h;
+    return size;
+  }
+  const cols = edge === 'b'
+    ? Math.ceil(region.n / Math.max(1, Math.round((h - HEAD - PAD + GAP) / PITCH)))
+    : Math.round((w - 2 * PAD + GAP) / PITCH);
+  return { cols: Math.max(1, cols) };
 }
 
 /** A size set by hand, without what is the same as Prism's own (null: nothing left to keep). */

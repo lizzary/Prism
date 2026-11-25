@@ -24,7 +24,7 @@ const RESIZE_CURSOR = { r: 'ew-resize', b: 'ns-resize', rb: 'nwse-resize' };
  *   onMarquee(rect | null, mods), onMarqueeEnd(rect, mods),
  *   onCarryStart(id) → ids | null, onCarry({ ids, x, y (screen), wx, wy }), onCarryEnd({ ids, x, y, wx, wy } | null),
  *   onRegionStart(key), onRegion({ key, x, y } (its top left on the board)), onRegionEnd({ key, x, y } | null),
- *   onResizeStart(key, edge), onResize({ key, edge, wx, wy, alt, x, y }), onResizeEnd(key | null),
+ *   onResizeStart(), onResize({ region, edge, wx, wy, alt, x, y }), onResizeEnd({ region, edge, wx, wy, alt } | null),
  *   onPanChange(bool) }
  * → { press(event, hit): a press that something drawn over the board (a heading) starts, busy() }
  */
@@ -74,7 +74,7 @@ export function useBoardInput(ref, stage, opts) {
       } else if (g.mode === 'region') {
         o.current.onRegion({ key: g.hit.region.key, x: g.origin[0] + wx - g.start[0], y: g.origin[1] + wy - g.start[1] });
       } else if (g.mode === 'resize') {
-        o.current.onResize({ key: g.hit.region.key, edge: g.hit.edge, wx, wy, alt: g.alt, x: g.x, y: g.y });
+        o.current.onResize({ region: g.hit.region, edge: g.hit.edge, wx, wy, alt: g.alt, x: g.x, y: g.y });
       }
     };
     // near the edges of the open part of the view, the board comes along — faster the longer the pointer rests there.
@@ -110,7 +110,7 @@ export function useBoardInput(ref, stage, opts) {
         cursor('grabbing');
       }
       if (mode === 'region') { o.current.onRegionStart(g.hit.region.key); cursor('grabbing'); }
-      if (mode === 'resize') { o.current.onResizeStart(g.hit.region.key, g.hit.edge); cursor(RESIZE_CURSOR[g.hit.edge]); }
+      if (mode === 'resize') { o.current.onResizeStart(); cursor(RESIZE_CURSOR[g.hit.edge]); }
       window.getSelection?.()?.removeAllRanges();
       track(g);
       edgeLoop(g);
@@ -190,7 +190,7 @@ export function useBoardInput(ref, stage, opts) {
           o.current.onRegionEnd({ key: k, x: g.origin[0] + wx - g.start[0], y: g.origin[1] + wy - g.start[1] });
           break;
         }
-        case 'resize': o.current.onResizeEnd(g.hit.region.key); break;
+        case 'resize': o.current.onResizeEnd({ region: g.hit.region, edge: g.hit.edge, wx, wy, alt: e.altKey }); break;
         case 'marquee': {
           const [x0, y0] = g.start;
           o.current.onMarqueeEnd({ x: Math.min(x0, wx), y: Math.min(y0, wy), w: Math.abs(wx - x0), h: Math.abs(wy - y0) }, g.mods);

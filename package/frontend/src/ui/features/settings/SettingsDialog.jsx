@@ -7,7 +7,7 @@ import { useOverlays } from '../../../app/shell.jsx';
 import { navigate, paths } from '../../../app/router.jsx';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
-import { webglAvailable } from '../../lib/webgl.js';
+import { useWebGLAvailable } from '../../lib/webgl.js';
 import { Icon } from '../../icons/Icon.jsx';
 import { Button, IconButton, Segmented } from '../../components/controls.jsx';
 import { Dialog } from '../../components/overlay.jsx';
@@ -126,7 +126,7 @@ function General() {
   const setTheme = (theme) => {
     switchTheme(theme, themeRef.current?.querySelector('[data-selected="false"]'), () => settingsActions.update({ theme }));
   };
-  const gl = webglAvailable();
+  const gl = useWebGLAvailable();
   const renderer = settings.whiteboard === 'auto' ? (gl ? 'WebGL' : 'DOM') : null;
   return (
     <section className={s.group}>

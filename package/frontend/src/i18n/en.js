@@ -73,7 +73,7 @@ export default {
     sections: { general: 'General', data: 'Data and backup', files: 'Files', models: 'Models', access: 'Access and security', mcp: 'MCP' },
     language: 'Language', theme: 'Theme', light: 'Light', dark: 'Dark',
     whiteboard: 'Whiteboard renderer', renderers: { auto: 'Automatic', webgl: 'WebGL (fast)', dom: 'DOM (compatible)' },
-    rendererNow: 'Uses {name} on this device', noWebgl: 'WebGL isn’t available on this device',
+    rendererNow: 'Uses {name} on this device', noWebgl: 'WebGL is unavailable on this page. The whiteboard uses DOM.',
     dbPath: 'Database folder', dbSwitched: 'Switched database and reloaded the gallery',
     backupNone: 'No snapshots yet', backupMeta: { one: '{n} snapshot · last {date}', other: '{n} snapshots · last {date}' },
     backupPending: { one: '{n} change not in a snapshot yet', other: '{n} changes not in a snapshot yet' }, backupClean: 'Every change is saved in a snapshot', open: 'Open',

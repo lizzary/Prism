@@ -2,7 +2,7 @@
 // soon as the pointer heads for one of their entries (any element with `data-overlay="name"`): by the time an
 // overlay is opened it is ready, so even the first opening comes in with its animation.
 import { Component, useEffect, useReducer } from 'react';
-import { prefetchBackup, prefetchExport, prefetchMcp, prefetchSearch, prefetchSettings, prefetchTagIndex } from '../../bridge/index.js';
+import { prefetchBackup, prefetchExport, prefetchIndex, prefetchMcp, prefetchSearch, prefetchSettings, prefetchTagIndex } from '../../bridge/index.js';
 import { useOverlayStack, useOverlays } from '../../app/shell.jsx';
 
 const load = {
@@ -14,9 +14,10 @@ const load = {
   export: () => import('./export/ExportSheet.jsx'),
   backup: () => import('./backup/BackupSheet.jsx'),
   mcp: () => import('./mcp/McpSheet.jsx'),
+  index: () => import('./indexing/IndexSheet.jsx'),
   welcome: () => import('./welcome/WelcomeDialog.jsx'),
 };
-const prefetch = { search: prefetchSearch, tags: prefetchTagIndex, settings: prefetchSettings, export: prefetchExport, backup: prefetchBackup, mcp: prefetchMcp };
+const prefetch = { search: prefetchSearch, tags: prefetchTagIndex, settings: prefetchSettings, export: prefetchExport, backup: prefetchBackup, mcp: prefetchMcp, index: prefetchIndex };
 
 const panels = {};          // name → component, once its code is in
 const pending = {};         // name → promise while it loads

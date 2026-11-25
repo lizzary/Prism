@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { mediaUrl, searchActions, useColorGroupList, useGroupList, useSearch, useSearchCapabilities } from '../../../bridge/index.js';
 import { navigate, paths } from '../../../app/router.jsx';
+import { useOverlays } from '../../../app/shell.jsx';
 import { colorArrival } from '../../lib/arrival.js';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
@@ -40,7 +41,7 @@ function Marked({ text, ranges }) {
  * nonce), so it starts from its page's scope at once — never showing, even for a frame, what the last one left.
  * (The one closing keeps its query on screen as it fades out.)
  */
-export default function SearchPalette({ open, onClose, nonce, ...rest }) {
+export default function SearchPalette({ open, onClose, nonce, handoff, ...rest }) {
   const { mounted, state } = usePresence(open, 220);
   const { data: caps } = useSearchCapabilities();
   const { data: groups } = useGroupList();
@@ -48,12 +49,13 @@ export default function SearchPalette({ open, onClose, nonce, ...rest }) {
   useScrollLock(mounted);
   const modal = useModalLayer(mounted);
   if (!mounted) return null;
-  return <Palette key={nonce} {...rest} state={state} modal={modal} onClose={onClose} caps={caps} groups={groups} colors={colors} />;
+  return <Palette key={nonce} {...rest} state={state} handoff={handoff} modal={modal} onClose={onClose} caps={caps} groups={groups} colors={colors} />;
 }
 
-function Palette({ state, modal, onClose, caps, groups, colors, groupId, text: presetText = '', domains: presetDomains }) {
+function Palette({ state, handoff, modal, onClose, caps, groups, colors, groupId, text: presetText = '', domains: presetDomains }) {
   const t = useT();
   const fmt = useFormat();
+  const { handOff } = useOverlays();
   const [text, setText] = useState(presetText);
   const [domains, setDomains] = useState(() => initialDomains(groupId, presetDomains));
   const [image, setImage] = useState(null);          // { token, url, name }: the picture to find similar ones to
@@ -126,7 +128,7 @@ function Palette({ state, modal, onClose, caps, groups, colors, groupId, text: p
 
   return (
     <Portal>
-      <div className={s.layer} data-state={state}>
+      <div className={s.layer} data-state={state} data-handoff={handoff || undefined}>
         <div className={s.scrim} onPointerDown={onClose} />
         <div {...modal} className={s.palette} role="dialog" aria-modal="true" aria-label={t('bar.search')} onKeyDown={onKey} data-drag={dragOver || undefined}
           onDragOver={(e) => { if (available('similar') && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); setDragOver(true); } }}
@@ -173,6 +175,16 @@ function Palette({ state, modal, onClose, caps, groups, colors, groupId, text: p
                 })}
               </span>
             </div>
+            {/* a locked one pressed: the way to what unlocks it — the image index models, on the index page (search comes back after) */}
+            {nudge && (
+              <p className={s.unlock}>
+                <Icon name="lock" size={13} />
+                <span>{t('search.unlockHint')}</span>
+                <button type="button" data-overlay="index" onClick={() => handOff('search', 'index', { tab: 'models' }, { groupId })}>
+                  {t('search.unlock')}<Icon name="arrow-right" size={13} />
+                </button>
+              </p>
+            )}
             {/* the places to look inside, and what has been chosen there */}
             <div className={s.scopeRow}>
               <button ref={groupsBtn} type="button" className={s.scopeBtn} data-on={domains.groups.length > 0} aria-expanded={picking === 'groups'} onClick={() => setPicking((p) => (p === 'groups' ? null : 'groups'))}>

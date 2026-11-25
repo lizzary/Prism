@@ -139,6 +139,9 @@ const I = {
      sharp, empty ones; nothing like the page's refresh). While it runs, the corners focus in and out round the
      picture instead of the whole icon turning (.pr-focus, see the task lists) */
   reindex: '<g class="pr-focus"><path d="M4 7.6V6a2 2 0 0 1 2-2h1.6"/><path d="M16.4 4h1.6a2 2 0 0 1 2 2v1.6"/><path d="M20 16.4v1.6a2 2 0 0 1-2 2h-1.6"/><path d="M7.6 20H6a2 2 0 0 1-2-2v-1.6"/></g><rect x="8.3" y="8.8" width="7.4" height="6.4" rx="1.2"/><path d="m8.6 14.1 2-2a.85.85 0 0 1 1.2 0l2.8 2.8"/>',
+  /* a reminder: a small bell, its clapper swung · not to be reminded again: the bell struck through */
+  bell: '<path d="M12 4.3v1.4"/><path d="M6.9 16.9v-5.2a5.1 5.1 0 0 1 10.2 0v5.2"/><path d="M5 16.9h14"/><path d="M10.1 19.6a2.1 2.1 0 0 0 3.8 0"/>',
+  'bell-off': '<path d="M12 4.3v1.4"/><path d="M8.2 8a5.1 5.1 0 0 0-1.3 3.7v5.2"/><path d="M10 6.9a5.1 5.1 0 0 1 7.1 4.8v3.4"/><path d="M5 16.9h11.9"/><path d="M10.1 19.6a2.1 2.1 0 0 0 3.8 0"/><path d="m4.6 4.6 14.8 14.8"/>',
   /* a model (the tagger): a chip */
   chip: '<rect x="6.5" y="6.5" width="11" height="11" rx="2"/><rect x="9.6" y="9.6" width="4.8" height="4.8" rx="1"/><path d="M9.5 3.6v2.9M14.5 3.6v2.9M9.5 17.5v2.9M14.5 17.5v2.9M3.6 9.5h2.9M3.6 14.5h2.9M17.5 9.5h2.9M17.5 14.5h2.9"/>',
   'drag-drop': '<path d="M9 4.5H6.5a2 2 0 0 0-2 2V9"/><path d="M4.5 13v2"/><path d="M9 19.5H6.5a2 2 0 0 1-2-2"/><path d="M13 4.5h2"/><path d="M19.5 9V6.5a2 2 0 0 0-2-2"/><path d="m12 12 7.6 2.6-3.3 1.4-1.4 3.3Z"/>',

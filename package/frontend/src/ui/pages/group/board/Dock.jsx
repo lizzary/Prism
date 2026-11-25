@@ -7,7 +7,7 @@
 //   Move to   another colour group (found by name), out of every colour group, or a new colour group with them
 //   and download, re-index (what to build again), delete
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { colorOrder, mediaUrl, useFilesSummary, useTagIndex } from '../../../../bridge/index.js';
+import { colorOrder, mediaUrl, useFilesSummary, useIndexNeeds, useTagIndex } from '../../../../bridge/index.js';
 import { useT } from '../../../../i18n/index.jsx';
 import { useFormat } from '../../../lib/format.js';
 import { Icon } from '../../../icons/Icon.jsx';
@@ -75,7 +75,7 @@ export function Dock({ ids, files, sections, grouped, noneName, onClear, onTagHo
         <MovePanel regions={sections} noneName={noneName} onMove={(key) => { close(); onMove(key); }} onNewColor={onNewColor && (() => { close(); onNewColor(); })} />
       </Popover>
       <Popover open={panel === 'reindex'} onClose={close} anchor={refs.reindex} placement="top-end" offset={12} label={t('group.tile.reindex')} className={s.pop}>
-        <ReindexPanel open={panel === 'reindex'} n={n} onStart={(kinds) => { close(); onReindex(kinds); }} onLeave={close} />
+        <ReindexPanel open={panel === 'reindex'} ids={shown} onStart={(kinds) => { close(); onReindex(kinds); }} onLeave={close} />
       </Popover>
     </div>
   );
@@ -232,11 +232,13 @@ function MovePanel({ regions, noneName, onMove, onNewColor }) {
   );
 }
 
-// ------------------------------------------------------------------ re-index
-function ReindexPanel({ open, n, onStart, onLeave }) {
+// ------------------------------------------------------------------ re-index (what the chosen files still need starts chosen)
+function ReindexPanel({ open, ids, onStart, onLeave }) {
   const t = useT();
   const fmt = useFormat();
-  const { kinds, view } = useReindexKinds(open, onLeave);
+  const n = ids.length;
+  const needs = useIndexNeeds(open ? ids : null);
+  const { kinds, view } = useReindexKinds(open, onLeave, { needs });
   return (
     <div className={s.reindex}>
       <header className={s.head}><span className={s.title}>{t('group.reindex.title', { n: fmt.number(n), count: n })}</span></header>

@@ -1,95 +1,64 @@
-// Models: the tagging models the backend offers (downloaded, in use, or being downloaded), and GPU acceleration.
-import { useState } from 'react';
-import { modelActions, settingsActions, useModels, useSettings } from '../../../bridge/index.js';
+// Models and indexing: indexing files as they are uploaded, the tagging models and the image index models (the very
+// lists of the index page), GPU acceleration — and the way to the index page itself.
+import { useIndexOverview } from '../../../bridge/index.js';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
 import { Icon } from '../../icons/Icon.jsx';
-import { Button, IconButton, Switch } from '../../components/controls.jsx';
-import { Dialog } from '../../components/overlay.jsx';
-import { ProgressBar, toast } from '../../components/feedback.jsx';
-import { Block } from './Block.jsx';
+import { GpuSetting, ModelList } from '../models/ModelLists.jsx';
+import { UploadIndexing } from '../indexing/UploadIndexing.jsx';
+import { KIND_RAY } from '../indexing/kinds.js';
 import s from './SettingsDialog.module.css';
 
-export function ModelSettings() {
-  const t = useT();
-  const models = useModels();
-  const { gpu } = useSettings();
-  const [confirm, setConfirm] = useState(null);
+export function ModelSettings({ onOpenIndex }) {
   return (
     <>
-      <section className={s.block}>
-        <h4 className={s.listTitle}><Icon name="tag" size={16} />{t('models.title')}</h4>
-        <ul className={s.models}>
-          {models.list.map((m) => <ModelRow key={m.id} m={m} onRedownload={() => setConfirm(m)} />)}
-        </ul>
-      </section>
-      <Block icon="gpu" title={t('settings.gpu')} desc={t('settings.gpuDesc')} control={<Switch checked={gpu} label={t('settings.gpu')} onChange={(on) => settingsActions.update({ gpu: on })} />}>
-        <span className={s.device} data-on={gpu} data-none={!models.gpu || undefined}>
-          <i />{models.gpu?.name ?? t('settings.gpuNone')}
-        </span>
-      </Block>
-      <RedownloadDialog model={confirm} onClose={() => setConfirm(null)} />
+      <IndexCard onOpen={onOpenIndex} />
+      <UploadIndexing />
+      <ModelList kind="tagging" className={s.block} />
+      <ModelList kind="embedding" className={s.block} />
+      <GpuSetting />
     </>
   );
 }
 
-function ModelRow({ m, onRedownload }) {
-  const t = useT();
-  const fmt = useFormat();
-  const p = m.progress;
-  const state = m.inUse ? 'inUse' : m.state;
-  const download = async () => {
-    const res = await modelActions.download(m.id);
-    if (res.ok) toast(t('models.started', { name: m.name }), { icon: 'download' });
-  };
-  const use = async () => {
-    const res = await modelActions.use(m.id);
-    if (res.ok) toast(t('models.switched', { name: m.name }), { tone: 'ok', icon: 'chip' });
-  };
-  const status = !p ? null : p.queued ? t('models.waiting') : p.stage === 'connecting' ? t('models.connecting')
-    : `${t('models.progress', { done: fmt.bytes(p.processed), total: fmt.bytes(p.total) })} · ${Math.floor((p.processed / p.total) * 100)}%`;
-  return (
-    <li className={s.model} data-state={state}>
-      <span className={s.modelMark}><Icon name="chip" size={19} /></span>
-      <div className={s.modelText}>
-        <div className={s.modelName}>
-          {m.name}
-          {m.state !== 'downloading' && <span className={s.modelPill} data-state={state} key={state}><i />{t(`models.state.${state}`)}</span>}
-        </div>
-        <span className={`${s.modelMeta} num`}>{status ?? fmt.bytes(m.size)}</span>
-      </div>
-      {p && <ProgressBar value={p.processed} max={p.total || 1} indeterminate={p.queued || p.stage === 'connecting'} className={s.modelBar} />}
-      <div className={s.modelActions}>
-        {m.state === 'missing' && <Button size="sm" icon="download" onClick={download}>{t('models.download')}</Button>}
-        {m.state === 'ready' && !m.inUse && <Button size="sm" icon="check" onClick={use}>{t('models.use')}</Button>}
-        {m.state === 'ready' && <Button variant="ghost" size="sm" icon="refresh" className={s.redownload} onClick={onRedownload}>{t('models.redownload')}</Button>}
-        {m.state === 'downloading' && <IconButton icon="close" size="sm" label={t('models.cancel')} onClick={() => modelActions.cancel(m.taskId)} />}
-      </div>
-    </li>
-  );
-}
+const KINDS = ['tagging', 'embedding', 'metadata'];
+const ROWS = [12, 22, 32];
 
-/** Downloading again deletes the files first — tags can't be made until it is back — so it asks once. */
-function RedownloadDialog({ model, onClose }) {
+/**
+ * The index page's entry: the Prism mark in miniature — its three rays as far as each kind is up to date — and what is
+ * waiting.
+ */
+function IndexCard({ onOpen }) {
   const t = useT();
   const fmt = useFormat();
-  const [shown, setShown] = useState(model);
-  const [busy, setBusy] = useState(false);
-  if (model && model !== shown) setShown(model);
-  const go = async () => {
-    setBusy(true);
-    const res = await modelActions.redownload(shown.id);
-    setBusy(false);
-    onClose();
-    if (res.ok) toast(t('models.started', { name: shown.name }), { icon: 'download' });
-  };
+  const o = useIndexOverview();
   return (
-    <Dialog open={!!model} onClose={onClose} size="sm" title={t('models.redownloadTitle')}
-      footer={<>
-        <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
-        <Button variant="primary" icon="refresh" loading={busy} onClick={go} data-autofocus>{t('models.redownloadConfirm')}</Button>
-      </>}>
-      {shown && <p className={s.confirmText}>{t('models.redownloadBody', { name: shown.name, size: fmt.bytes(shown.size) })}</p>}
-    </Dialog>
+    <button type="button" className={s.indexCard} data-overlay="index" onClick={onOpen}>
+      <svg className={s.mini} viewBox="0 0 140 44" aria-hidden="true">
+        <path d="M2 27 12 24" className={s.miniBeam} />
+        <path d="M17 9 27 34H7Z" className={s.miniPrism} />
+        {KINDS.map((k, i) => {
+          const c = o.kinds[k];
+          const y = ROWS[i];
+          const p = c.available && o.total ? c.done / o.total : 0;
+          return (
+            <g key={k} style={{ '--c': KIND_RAY[k] }} data-off={!c.available || undefined} className={s.miniRay}>
+              <path d={`M${22 + i * 0.8} ${20 + i * 2.6}C30 ${20 + i * 2.6} 32 ${y} 40 ${y}`} />
+              <line x1="40" x2="136" y1={y} y2={y} className={s.miniTrack} />
+              {p > 0 && <line x1="40" x2={40 + 96 * p} y1={y} y2={y} />}
+            </g>
+          );
+        })}
+      </svg>
+      <span className={s.backupText}>
+        <span className={s.backupTitle}><Icon name="reindex" size={16} />{t('settings.indexEntry')}</span>
+        <span className={s.backupMeta}>
+          {o.waiting
+            ? t('settings.indexWaiting', { n: fmt.number(o.waiting), count: o.waiting, when: o.lastIndexedAt ? fmt.relative(o.lastIndexedAt) : t('index.never') })
+            : t('settings.indexClean')}
+        </span>
+      </span>
+      <span className={s.backupGo}>{t('settings.open')}<Icon name="arrow-right" size={15} /></span>
+    </button>
   );
 }

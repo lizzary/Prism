@@ -9,7 +9,7 @@
 // The board itself (scene.js, stage.js, useBoardInput.js, the headings and every panel) does not care what draws the
 // regions and cards.
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { browsing, fileActions, groupActions, holdGroupPage, mediaUrl, PLAIN_BOARD, useBoardFind, useOptimisticView, useSetting } from '../../../../bridge/index.js';
+import { browsing, fileActions, groupActions, holdGroupPage, mediaUrl, PLAIN_BOARD, useBoardFind, useOptimisticView, useSetting, useWaitingFiles } from '../../../../bridge/index.js';
 import { useT } from '../../../../i18n/index.jsx';
 import { useFormat } from '../../../lib/format.js';
 import { nextSwatch } from '../../../lib/swatches.js';
@@ -169,6 +169,9 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
   };
   const clear = () => setSelection(new Set());
   const selectAll = () => setSelection(new Set(data.files.map((f) => f.id)));
+  // the files whose index needs building (again): chosen in one go from the board's menu, or a colour group's
+  const { data: waitingData } = useWaitingFiles(id);
+  const waiting = useMemo(() => (waitingData?.ids ?? []).filter((x) => files.has(x)), [waitingData, files]);
   const selectedByRegion = useMemo(() => {
     const m = new Map();
     for (const fid of selection) { const k = regionOf(fid); if (k) m.set(k, (m.get(k) ?? 0) + 1); }
@@ -682,6 +685,8 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
       const r = scene.regions.find((x) => x.key === menu.key);
       if (!r) return [];
       const own = !r.none && !r.plain;
+      const inRegion = new Set(r.ids);
+      const here = waiting.filter((x) => inRegion.has(x));
       return [
         ...(!own ? [] : [
           { key: 'rename', label: t('board.region.rename'), icon: 'rename', onSelect: () => setRenaming(r.key) },
@@ -689,6 +694,7 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
           '-',
         ]),
         { key: 'select', label: t('board.region.select', { n: fmt.number(r.n), count: r.n }), icon: 'check-square', disabled: !r.n, onSelect: () => setSelection(new Set(r.ids)) },
+        ...(here.length ? [{ key: 'waiting', label: t('board.region.selectWaiting', { n: fmt.number(here.length), count: here.length }), icon: 'reindex', onSelect: () => setSelection(new Set(here)) }] : []),
         { key: 'frame', label: t('board.region.frame'), icon: 'zoom-in', onSelect: () => frameRegion(r.key) },
         ...(r.hidden ? [{ key: 'showAll', label: t('board.region.showAll', { n: fmt.number(r.n), count: r.n }), icon: 'expand', onSelect: () => sizeRegion(r.key, r.size?.cols ? { cols: r.size.cols } : null) }] : []),
         ...(r.size ? [{ key: 'resetSize', label: t('board.region.resetSize'), icon: 'fit', onSelect: () => sizeRegion(r.key, null) }] : []),
@@ -702,6 +708,10 @@ export function Board({ ref, id, data, arranged, view, group, covering, withPage
     return [
       ...(config ? [{ key: 'new', label: t('board.newColorHere'), icon: 'plus', onSelect: () => newColor([], menu.world) }] : []),
       { key: 'all', label: t('common.selectAll'), icon: 'check-square', hint: 'Ctrl A', onSelect: selectAll },
+      {
+        key: 'waiting', icon: 'reindex', disabled: !waiting.length, onSelect: () => setSelection(new Set(waiting)),
+        label: waiting.length ? t('board.selectWaiting', { n: fmt.number(waiting.length), count: waiting.length }) : t('board.noneWaiting'),
+      },
       { key: 'fit', label: t('board.centre'), icon: 'fit', hint: '0', onSelect: fitAll },
       '-',
       { key: 'arrange', label: t('board.arrange'), icon: 'whiteboard', onSelect: arrangeAll },

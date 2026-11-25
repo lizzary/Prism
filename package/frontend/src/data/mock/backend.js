@@ -1,9 +1,11 @@
 // The mock backend: everything the Go service will provide, simulated in memory.
 // Methods return plain data (the API layer copies it and adds latency); changes are announced through onChange().
-// access.js (sign-in, server mode, MCP keys, first run) and snapshots.js (data backup) build on the pieces exported here.
+// access.js (sign-in, server mode, MCP keys, first run), snapshots.js (data backup) and indexing.js (the models, every
+// file's index, indexing by itself) build on the pieces exported here.
 import { artwork, paletteTone } from './art.js';
 import { seedLibrary, buildFile, groupRecord, ago, isoOf } from './seed.js';
-import { loadConfig, saveConfig, loadDbPrefs, saveDbPrefs, imageIndexReady, DEFAULT_DB_PATH } from './persist.js';
+import { loadConfig, saveConfig, loadDbPrefs, saveDbPrefs, DEFAULT_DB_PATH } from './persist.js';
+import { cleanIndexing } from '../domain/indexing.js';
 import { mergeTags, tagLabel, tagKey, norm } from '../domain/tags.js';
 import { findOnBoard, searchFiles, searchNames, splitTerms } from '../domain/search.js';
 import { cleanBoard } from '../domain/board.js';
@@ -21,6 +23,18 @@ export const emit = (topic) => { for (const fn of listeners) fn(topic); };
 export const onChange = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
 let libTimer = null;
 const emitLibrarySoon = () => { if (!libTimer) libTimer = setTimeout(() => { libTimer = null; emit('library'); }, 600); };
+
+// ------------------------------------------------------------------ for the modules built on this one
+// (They import from here; this module never imports them back, so each hooks itself in as it loads.)
+const openers = [];
+/** Prepare each gallery as it is first opened (indexing.js: every file's index, the sample's index task). */
+export const onLibraryOpen = (fn) => { openers.push(fn); };
+const enders = [];
+/** Hear of every task as it stops (indexing.js: uploaded files are indexed, a batch is counted once by the rules). */
+export const onTaskEnd = (fn) => { enders.push(fn); };
+/** The image index model files are indexed with now (null: none in use) — searching with words or a picture needs it. */
+let imageIndexer = () => null;
+export const setImageIndexer = (fn) => { imageIndexer = fn; };
 
 // ------------------------------------------------------------------ config.toml
 let config = loadConfig();
@@ -74,6 +88,7 @@ function openLibrary(path) {
     // the sample gallery remembers a picture you were looking at earlier today
     if (seededLib && !L.prefs.lastViewed) L.prefs.lastViewed = { fileId: L.filesByGroup.get('g_starry')?.[41]?.id, at: ago(0.09) };
     libraries.set(path, L);
+    for (const fn of openers) fn(L);
     if (seededLib) seedTasks(L);
     warmIndexes(L);
   }
@@ -88,6 +103,8 @@ function warmIndexes(L) {
 const lib = () => openLibrary(config.dbPath);
 const savePrefs = (L) => { L.edits.prefs = true; saveDbPrefs(L.path, L.prefs); };
 export { lib as currentLibrary, indexLibrary as reindex };
+/** The gallery in use if it has been opened already (live values read before anything asked for it wait for it). */
+export const openedLibrary = () => libraries.get(config.dbPath) ?? null;
 const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k]]));
 /** What an edit can change, kept as it was before the first edit since the last snapshot (edits replace these values, never mutate them). */
 export const GROUP_FIELDS = ['name', 'coverFileIds', 'configs', 'activeConfigId', 'fileOrder'];
@@ -98,8 +115,10 @@ const noteEdit = (map, item, fields) => { if (!map.has(item.id)) map.set(item.id
 // ------------------------------------------------------------------ views of the data
 /** What the pages need to show a file (the picture itself comes from mediaUrl). */
 export const fileRef = (f) => ({ id: f.id, kind: f.kind, name: f.name, ext: f.ext, width: f.width, height: f.height, duration: f.duration });
+/** The tagger's tags of a file — none until the tagging model has looked at it (its index holds a tagging record). */
+const taggerTags = (f) => (f.index?.tagging && !f.index.tagging.failed ? f.tags : []);
 /** A file's tags as shown: the tagger's (less any the user took away) ∪ the user's own. */
-const tagsOf = (f) => mergeTags(f.hiddenTags?.length ? f.tags.filter((t) => !f.hiddenTags.includes(tagKey(t.name))) : f.tags, f.userTags);
+const tagsOf = (f) => { const model = taggerTags(f); return mergeTags(f.hiddenTags?.length ? model.filter((t) => !f.hiddenTags.includes(tagKey(t.name))) : model, f.userTags); };
 /** The colour a picture reads as from afar (the Go service keeps it from the import; the mock knows its paints). */
 const toneOf = (f) => (f.art ? `#${paletteTone(f.art.palette).map((v) => v.toString(16).padStart(2, '0')).join('')}` : null);
 const groupChip = (L, id) => { const g = L.groupsById.get(id); return g ? { id: g.id, name: g.name } : null; };
@@ -383,7 +402,7 @@ export function updateFile(id, patch) {
   if ('userTags' in patch || 'note' in patch) noteEdit(L.edits.files, f, FILE_FIELDS);
   if ('userTags' in patch) {
     const hidden = new Set(f.hiddenTags ?? []);
-    const seen = new Set(f.tags.map((t) => tagKey(t.name)).filter((k) => !hidden.has(k)));
+    const seen = new Set(taggerTags(f).map((t) => tagKey(t.name)).filter((k) => !hidden.has(k)));
     const mine = [];
     for (const x of patch.userTags ?? []) {
       const v = String(x).trim().slice(0, 60), k = tagKey(v);
@@ -438,7 +457,7 @@ export function editFileTags(ids, { add = [], remove = [] } = {}) {
     const f = L.filesById.get(id);
     if (!f) continue;
     const hidden = new Set(f.hiddenTags ?? []);
-    const model = new Set(f.tags.map((t) => tagKey(t.name)));
+    const model = new Set(taggerTags(f).map((t) => tagKey(t.name)));
     const mine = [...f.userTags];
     let touched = false;
     for (const label of add) {
@@ -708,20 +727,7 @@ export function setActiveConfig(groupId, configId) {
   return { ok: true };
 }
 
-// ------------------------------------------------------------------ re-indexing, downloading, uploading
-/** kinds: any of 'tagging' (the user's own tags stay), 'embedding' (the image index), 'metadata'. */
-export function reindexFiles({ ids, kinds }) {
-  const L = lib();
-  const files = ids.map((id) => L.filesById.get(id)).filter(Boolean);
-  const valid = ['tagging', 'embedding', 'metadata'].filter((k) => kinds.includes(k));
-  if (!files.length || !valid.length) return { ok: false };
-  const st = modelState();
-  if (valid.includes('tagging') && !st.downloaded.includes(st.active)) return { ok: false, error: 'modelMissing' };
-  const groupIds = [...new Set(files.map((f) => f.groupId))];
-  const t = newTask(L, { type: 'reindex', groupId: groupIds.length === 1 ? groupIds[0] : undefined, groupIds, kinds: valid, total: files.length });
-  return { ok: true, taskId: t.id };
-}
-
+// ------------------------------------------------------------------ downloading, uploading (re-indexing: indexing.js)
 /**
  * Files named with the download pattern from Settings. One file comes back to be saved at once
  * ({ file: { url, name, ext, kind, width, height } }); several are packed into one download by a task.
@@ -753,26 +759,32 @@ function uploadedFile(L, g, u) {
   return {
     id: L.nextFileId(), groupId: g.id, name: u.name, ext: u.ext, kind: u.kind, width: u.width, height: u.height, size: u.size, duration: u.duration,
     createdAt: isoOf(new Date(u.createdAt)), importedAt: nowIso(), art: null, tags: [], userTags: [], note: '', comfy: null, colors: {},
-    upload: { url: u.url, poster: u.poster },
+    index: {}, upload: { url: u.url, poster: u.poster },
   };
 }
 
 // ------------------------------------------------------------------ search
-/** Text → pictures and picture → pictures need the image index. */
+/**
+ * Text → pictures and picture → pictures need the image index: an image index model in use, and pictures indexed with
+ * it (the sample starts with one only with `?image-search` in the address — or once one is downloaded and built).
+ */
 export function searchCapabilities() {
-  const ready = imageIndexReady();
+  const ready = !!imageIndexer() && searchDocs(lib()).some((d) => d.embedded);
   return {
     semantic: { available: ready, reason: ready ? null : 'noIndex' },
     similar: { available: ready, reason: ready ? null : 'noIndex' },
   };
 }
 
+/** (Rebuilt lazily after `L.docs = null`: indexing.js drops it as tags and the image index change.) */
 function searchDocs(L) {
   if (L.docs) return L.docs;
+  const by = imageIndexer();
   L.docs = L.files.map((f) => {
     const positive = f.comfy?.positive ?? '', negative = f.comfy?.negative ?? '';
     return {
       id: f.id, groupId: f.groupId, colorIds: new Set(Object.values(f.colors)), importedAt: f.importedAt, art: f.art,
+      embedded: !!by && f.index?.embedding?.by === by,
       tags: tagsOf(f).map((t) => ({ key: t.key, label: tagLabel(t.name), source: t.source })),
       positive, negative, nPositive: norm(positive), nNegative: norm(negative),
     };
@@ -807,7 +819,7 @@ function semanticRank(docs, text) {
   const styles = new Set(hit.flatMap((c) => c.styles ?? [])), palettes = new Set(hit.flatMap((c) => c.palettes ?? []));
   const out = new Map();
   for (const d of docs) {
-    if (!d.art) continue;                                   // uploaded here: the mock's index knows nothing of it
+    if (!d.art || !d.embedded) continue;                    // not in the image index (yet), or uploaded here: the mock can't see it
     const s = (styles.size ? (styles.has(d.art.style) ? 0.62 : 0) : 0.3) + (palettes.size ? (palettes.has(d.art.palette) ? 0.3 : 0) : 0.2);
     const sim = s + (hashString(`${d.id}|${q}`) % 80) / 1000;
     if (sim >= 0.6) out.set(d.id, Math.min(0.99, sim));
@@ -830,7 +842,7 @@ function similarRank(docs, L, token) {
   if (!tone) return new Map();
   const scored = [];
   for (const d of docs) {
-    if (d.id === q.fileId || !d.art) continue;
+    if (d.id === q.fileId || !d.art || !d.embedded) continue;
     const t = paletteTone(d.art.palette);
     const dist = Math.hypot(t[0] - tone[0], t[1] - tone[1], t[2] - tone[2]) / 441;
     scored.push([d.id, Math.min(0.99, (1 - dist) * 0.8 + (src && src.art.style === d.art.style ? 0.18 : 0) + (hashString(`${d.id}|${token}`) % 40) / 1000)]);
@@ -916,6 +928,7 @@ export function newTask(L, t) {
 export function finish(t, state, extra = {}) {
   Object.assign(t, { state, stage: state, finishedAt: nowIso() }, extra);
   RUNNERS[t.type]?.end?.(t);
+  for (const fn of enders) fn(t);
   emit('tasks'); emit('library');
 }
 /** Tasks still to do (or doing), for parts of the mock that show their own progress. */
@@ -940,11 +953,11 @@ registerTaskType('import', {
   lane: 'library', firstStage: 'preparing',
   step(t) {
     if (t.stage === 'preparing') { t.stage = 'importing'; later(t, 300); return; }
-    // each imported file joins its group as it arrives
+    // each imported file joins its group as it arrives (not indexed yet)
     const L = t.lib, g = L.groupsById.get(t.groupId), spec = L.specs[t.groupId];
     if (g && spec) {
       const f = buildFile(spec, g, spec.count + t.processed + 1, L.nextFileId(), false);
-      Object.assign(f, { createdAt: ago(0.02), importedAt: nowIso() });
+      Object.assign(f, { createdAt: ago(0.02), importedAt: nowIso(), index: {} });
       L.files.push(f);
       indexLibrary(L);
       emitLibrarySoon();
@@ -952,19 +965,6 @@ registerTaskType('import', {
     t.processed++;
     if (t.processed >= t.total) finish(t, 'done', { result: { files: t.total } });
     else later(t, 420);
-  },
-});
-registerTaskType('reindex', {
-  lane: 'library', firstStage: 'preparing',
-  step(t) {
-    if (t.stage === 'preparing') { t.stage = t.kinds[0]; later(t, 300); return; }
-    t.processed = Math.min(t.total, t.processed + 1);
-    if (t.processed >= t.total) {
-      const next = t.kinds[t.kinds.indexOf(t.stage) + 1];
-      if (!next) { finish(t, 'done', { result: { files: t.total, kinds: t.kinds } }); return; }
-      Object.assign(t, { stage: next, processed: 0 });
-    }
-    later(t, 180);
   },
 });
 /** Copying files out: a share of the work per step. */
@@ -985,7 +985,9 @@ registerTaskType('upload', {
   step(t) {
     const L = t.lib, g = L.groupsById.get(t.groupId);
     if (!g) { finish(t, 'failed', { error: { code: 'groupMissing' } }); return; }
-    L.files.push(uploadedFile(L, g, t.uploads[t.processed]));
+    const f = uploadedFile(L, g, t.uploads[t.processed]);
+    L.files.push(f);
+    (t.created ??= []).push(f.id);
     indexLibrary(L);
     emitLibrarySoon();
     t.processed++;
@@ -1000,7 +1002,7 @@ function taskView(t) {
   return {
     id: t.id, type: t.type, state: t.state, stage: t.stage, processed: t.processed, total: t.total, unit: t.unit ?? 'files',
     createdAt: t.createdAt, startedAt: t.startedAt ?? null, finishedAt: t.finishedAt ?? null,
-    kinds: t.kinds ?? null, label: t.label ?? null,
+    kinds: t.kinds ?? null, label: t.label ?? null, origin: t.origin ?? null,
     group: t.groupId ? groupChip(L, t.groupId) ?? { id: t.groupId, name: t.groupName } : null,
     groups: ids.map((id) => groupChip(L, id)).filter(Boolean),
     result: t.result ?? null, error: t.error ?? null,
@@ -1021,14 +1023,12 @@ function seedTasks(L) {
     id: `t_${++taskSeq}`, lib: L, type, createdAt: ago(d + 0.02), startedAt: ago(d + 0.018), finishedAt: ago(d), processed: extra.total, ...extra,
   });
   const size = (gid) => (L.filesByGroup.get(gid) ?? []).reduce((s, f) => s + f.size, 0);
-  past('model-download', 5.2, { state: 'done', stage: 'done', total: MODELS[0].size, unit: 'bytes', label: MODELS[0].name, result: { bytes: MODELS[0].size } });
+  past('model-download', 5.2, { state: 'done', stage: 'done', total: 1_265_000_000, unit: 'bytes', label: 'EVA02-Large v3', result: { bytes: 1_265_000_000 } });
   past('reindex', 5.4, { state: 'failed', stage: 'failed', groupId: 'g_land', kinds: ['tagging'], total: 486, processed: 0, error: { code: 'modelMissing' } });
   past('export', 3.1, { state: 'done', stage: 'done', groupId: 'g_kotori', total: 128, result: { files: 128, bytes: size('g_kotori'), dir: 'D:\\Exports\\Prism' } });
   past('download', 1.8, { state: 'canceled', stage: 'canceled', groupId: 'g_wall', total: 94, processed: 41 });
   past('import', 1.1, { state: 'done', stage: 'done', groupId: 'g_winter', total: 64, result: { files: 64 } });
-  // in flight: the night sky is being re-tagged and indexed; a batch for the inbox waits behind it
-  const run = newTask(L, { type: 'reindex', groupId: 'g_starry', kinds: ['tagging', 'embedding'], total: L.filesByGroup.get('g_starry').length });
-  Object.assign(run, { state: 'running', stage: 'tagging', processed: 128, startedAt: ago(0.004), nextAt: Date.now() + 900 });
+  // (in flight before these: the night sky being re-tagged — indexing.js); a batch for the inbox waits behind it
   newTask(L, { type: 'import', groupId: 'g_inbox', total: 24 });
 }
 
@@ -1172,87 +1172,23 @@ export function fsCreateFolder(dir, name) {
   return { ok: true, path: joinPath(dir, clean) };
 }
 
-// ------------------------------------------------------------------ tagging models (kept next to the .exe, not in a database)
-const MODELS = [{ id: 'eva02-large-v3', name: 'EVA02-Large v3', size: 1_265_000_000 }];
-const GPU = { name: 'NVIDIA GeForce RTX 4070' };
-
-/** Which models are on disk and which one tags. The sample gallery was tagged with EVA02, so it starts downloaded and in use. */
-function modelState() {
-  if (!config.models) patchConfig({ models: { downloaded: [MODELS[0].id], active: MODELS[0].id } });
-  return config.models;
-}
-const setModels = (patch) => { patchConfig({ models: { ...modelState(), ...patch } }); emit('models'); };
-
-/**
- * → { gpu: { name } | null, list: [{ id, name, size, state: 'missing' | 'downloading' | 'ready', inUse,
- *       progress: { stage, processed, total, queued } | null, taskId }] }
- */
-export function getModels() {
-  const st = modelState();
-  return {
-    gpu: GPU,
-    list: MODELS.map((m) => {
-      const task = activeTasks().find((t) => t.type === 'model-download' && t.modelId === m.id);
-      const ready = !task && st.downloaded.includes(m.id);
-      return {
-        id: m.id, name: m.name, size: m.size,
-        state: task ? 'downloading' : ready ? 'ready' : 'missing',
-        inUse: ready && st.active === m.id,
-        progress: task ? { stage: task.stage, processed: task.processed, total: task.total, queued: task.state === 'queued' } : null,
-        taskId: task?.id ?? null,
-      };
-    }),
-  };
-}
-export function downloadModel(id) {
-  const m = MODELS.find((x) => x.id === id);
-  if (!m || activeTasks().some((t) => t.modelId === id)) return { ok: false };
-  const t = newTask(lib(), { type: 'model-download', modelId: id, label: m.name, total: m.size, unit: 'bytes' });
-  emit('models');
-  return { ok: true, taskId: t.id };
-}
-/** Delete the model's files, then download it again. */
-export function redownloadModel(id) {
-  const st = modelState();
-  setModels({ downloaded: st.downloaded.filter((x) => x !== id) });
-  return downloadModel(id);
-}
-export function useModel(id) {
-  if (!modelState().downloaded.includes(id)) return { ok: false };
-  setModels({ active: id });
-  return { ok: true };
-}
-registerTaskType('model-download', {
-  lane: 'model', firstStage: 'connecting',
-  step(t) {
-    if (t.stage === 'connecting') { t.stage = 'downloading'; later(t, 300); return; }
-    t.processed = Math.min(t.total, t.processed + Math.round(t.total / (52 + Math.random() * 20)));
-    if (t.processed >= t.total) finish(t, 'done', { result: { bytes: t.total } });
-    else later(t, 140);
-  },
-  end(t) {
-    if (t.state === 'done') {
-      const st = modelState();
-      const downloaded = [...new Set([...st.downloaded, t.modelId])];
-      setModels({ downloaded, active: downloaded.includes(st.active) ? st.active : t.modelId });
-    } else emit('models');
-  },
-});
-
 // ------------------------------------------------------------------ settings (config.toml)
-// Password, server mode and MCP have their own endpoints (access.js).
-const SETTINGS = ['language', 'theme', 'dbPath', 'conflict', 'gpu', 'whiteboard', 'downloadName'];
+// Password, server mode and MCP have their own endpoints (access.js); the models have theirs (indexing.js).
+const SETTINGS = ['language', 'theme', 'dbPath', 'conflict', 'gpu', 'whiteboard', 'downloadName', 'indexing'];
 const CHOICES = { language: ['en', 'zh-CN'], theme: ['light', 'dark'], conflict: ['keep', 'skip', 'overwrite'], whiteboard: ['auto', 'webgl', 'dom'] };
 /** Downloads keep each file's own name unless the user sets a pattern. */
 const DEFAULT_DOWNLOAD_NAME = [{ type: 'key', kind: 'data', id: 'file.name' }];
 
-export const getSettings = () => ({ ...pick(config, SETTINGS), downloadName: config.downloadName ?? DEFAULT_DOWNLOAD_NAME, defaultDbPath: DEFAULT_DB_PATH });
+/** indexing: indexing as files are uploaded, and automatic indexing — see domain/indexing.js. */
+export const getSettings = () => ({
+  ...pick(config, SETTINGS), downloadName: config.downloadName ?? DEFAULT_DOWNLOAD_NAME, indexing: cleanIndexing(config.indexing), defaultDbPath: DEFAULT_DB_PATH,
+});
 export function updateSettings(patch) {
   const prev = config;
   const next = { ...config };
   for (const k of SETTINGS) {
     if (!(k in patch) || (CHOICES[k] && !CHOICES[k].includes(patch[k]))) continue;
-    next[k] = k === 'gpu' ? !!patch[k] : k === 'downloadName' ? (patch[k]?.length ? patch[k] : null) : patch[k];
+    next[k] = k === 'gpu' ? !!patch[k] : k === 'downloadName' ? (patch[k]?.length ? patch[k] : null) : k === 'indexing' ? cleanIndexing(patch[k]) : patch[k];
   }
   config = next;
   saveConfig(config);

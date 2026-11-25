@@ -1,14 +1,16 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { useAccess, useTasks } from '../../bridge/index.js';
+import { useAccess, useIndexBusy, useIndexWaiting, useTasks } from '../../bridge/index.js';
 import { useOverlays, usePageMetaValue } from '../../app/shell.jsx';
 import { Link, paths } from '../../app/router.jsx';
 import { useT } from '../../i18n/index.jsx';
+import { useFormat } from '../lib/format.js';
 import { Icon } from '../icons/Icon.jsx';
 import { LogoMark } from '../icons/Logo.jsx';
 import { IconButton } from '../components/controls.jsx';
 import { Popover, Tooltip } from '../components/overlay.jsx';
 import { TYPE_ICON, TasksPanel } from '../features/tasks/TasksPanel.jsx';
 import { ServerPanel } from '../features/server/ServerPanel.jsx';
+import { IndexReminder } from '../features/indexing/Reminder.jsx';
 import s from './TopBar.module.css';
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -88,6 +90,7 @@ export function TopBar({ route }) {
           <button type="button" className={s.action} data-overlay="export" onClick={() => open('export', scope)}>
             <Icon name="export" size={18} /><span>{t('bar.export')}</span>
           </button>
+          <IndexButton art={art} />
           <span className={s.divider} />
           <ServerButton art={art} />
           <TasksButton art={art} />
@@ -95,6 +98,33 @@ export function TopBar({ route }) {
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * The index page: a quiet star on its viewfinder while files wait to be indexed; the viewfinder focuses while they are
+ * being indexed. The reminders of automatic indexing hang from it.
+ */
+function IndexButton({ art }) {
+  const t = useT();
+  const fmt = useFormat();
+  const waiting = useIndexWaiting();
+  const busy = useIndexBusy();
+  const { open } = useOverlays();
+  const ref = useRef(null);
+  return (
+    <>
+      <Tooltip label={waiting ? t('bar.indexWaiting', { n: fmt.number(waiting), count: waiting }) : t('bar.indexTip')} delay={500}>
+        <button ref={ref} type="button" className={`${s.action} ${s.indexAction}`} data-overlay="index" data-busy={busy || undefined} onClick={() => open('index')}>
+          <span className={s.indexIcon}>
+            <Icon name="reindex" size={18} />
+            {waiting > 0 && <i className={`${s.indexDot} ${art ? s.indexDotArt : ''}`} />}
+          </span>
+          <span>{t('bar.index')}</span>
+        </button>
+      </Tooltip>
+      <IndexReminder anchor={ref} />
+    </>
   );
 }
 

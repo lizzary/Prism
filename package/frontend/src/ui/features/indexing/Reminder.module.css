@@ -1,0 +1,45 @@
+.card {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 95;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 344px;
+  padding: 14px 8px 14px 14px;
+  border-radius: var(--r-4);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-3);
+  transform-origin: var(--origin-x, 85%) 0;
+  transition: opacity 260ms var(--ease-out), transform 420ms var(--ease-out);
+}
+.card[data-state='enter'] { opacity: 0; transform: translateY(-8px) scale(0.96); }
+.card[data-state='exit'] { opacity: 0; transform: translateY(-4px) scale(0.98); transition-duration: 200ms; }
+/* it hangs from the Index above it */
+.notch {
+  position: absolute;
+  top: -6px;
+  left: calc(var(--origin-x, 85%) - 6px);
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--bg-raised);
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  transform: rotate(45deg);
+}
+.icon { position: relative; display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: var(--r-3); background: var(--star-soft); color: var(--star-ink); }
+/* the bell rings once as it arrives; a background run's viewfinder focuses as it works */
+.card[data-state='open'] .icon:not([data-busy]) svg { transform-origin: 12px 4px; animation: ring 900ms var(--ease-out) 260ms both; }
+@keyframes ring { 0% { transform: rotate(0); } 18% { transform: rotate(14deg); } 36% { transform: rotate(-11deg); } 54% { transform: rotate(7deg); } 72% { transform: rotate(-4deg); } 100% { transform: rotate(0); } }
+.icon[data-busy] :global(.pr-focus) { transform-origin: 12px 12px; animation: focus 1.8s var(--ease-in-out) infinite; }
+@keyframes focus { 50% { transform: scale(0.84); } }
+.body { flex: 1; min-width: 0; padding-top: 1px; }
+.title { font-size: 14px; font-weight: 600; line-height: 1.45; color: var(--ink); text-wrap: balance; }
+.sub { margin-top: 1px; font-size: 12.5px; color: var(--ink-3); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 12px; }
+.mute { margin-left: auto; padding: 4px 6px; border-radius: var(--r-1); font-size: 12px; color: var(--ink-3); white-space: nowrap; transition: color var(--dur-1), background-color var(--dur-1); }
+.mute:hover { color: var(--ink); background: var(--hover); }
+.close { margin: -4px 0 0 -2px; color: var(--ink-3); }

@@ -59,6 +59,21 @@
 .edit { margin-top: 4px; }
 .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; margin-top: 10px; font-size: 13.5px; color: var(--ink-3); }
 .meta > span + span::before { content: '·'; margin: 0 9px; color: var(--ink-4); }
+/* files waiting to be indexed: a quiet word that leads to them */
+.indexHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: -2px -5px;
+  padding: 2px 5px;
+  border-radius: var(--r-1);
+  color: var(--star-ink);
+  font-weight: 560;
+  transition: background-color var(--dur-1), color var(--dur-1);
+}
+.indexHint:hover { background: var(--star-soft); }
+.indexHint :global(.pr-focus) { transform-origin: 12px 12px; transition: transform 420ms var(--ease-out); }
+.indexHint:hover :global(.pr-focus) { transform: scale(0.84); }
 
 /* ------------------------------------------------------------------ work under way */
 .tasks { composes: wrapW; display: flex; flex-direction: column; gap: 8px; margin-top: 22px; }

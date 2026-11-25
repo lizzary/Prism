@@ -257,70 +257,27 @@
 .nameTo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 560; color: var(--ink); font-variant-numeric: tabular-nums; animation: nameIn 380ms var(--ease-out) both; }
 @keyframes nameIn { from { opacity: 0; transform: translateX(-5px); } }
 
-/* ------------------------------------------------------------------ models */
-.listTitle { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; font-size: 15px; font-weight: 560; }
-.listTitle svg { color: var(--ink-3); }
-.models { display: flex; flex-direction: column; gap: 8px; }
-.model {
-  position: relative;
+/* ------------------------------------------------------------------ models and indexing (the lists themselves: models/ModelLists) */
+/* the index page's entry: the Prism mark in miniature, its rays as far as each kind is up to date */
+.indexCard {
   display: flex;
   align-items: center;
-  overflow: hidden;
-  gap: 14px;
-  padding: 14px 14px 14px 14px;
+  gap: 18px;
+  width: 100%;
+  margin: 10px 0 6px;
+  padding: 14px 18px 14px 16px;
   border-radius: var(--r-3);
   background: var(--bg-raised);
   box-shadow: 0 0 0 1px var(--line-2) inset, var(--shadow-1);
-  transition: box-shadow var(--dur-3), background-color var(--dur-3);
+  text-align: left;
+  transition: box-shadow var(--dur-2), transform var(--dur-2) var(--ease-out);
 }
-.model[data-state='inUse'] {
-  background: linear-gradient(100deg, var(--star-soft), transparent 62%), var(--bg-raised);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--star) 42%, transparent) inset, var(--shadow-1);
-}
-.modelMark {
-  position: relative;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 42px;
-  height: 42px;
-  overflow: hidden;
-  border-radius: var(--r-3);
-  background: var(--field);
-  color: var(--ink-3);
-  transition: background-color var(--dur-3), color var(--dur-3);
-}
-.model[data-state='inUse'] .modelMark { background: var(--star); color: #1d2030; }
-.model[data-state='ready'] .modelMark { background: var(--ok-soft); color: var(--ok); }
-.model[data-state='downloading'] .modelMark { background: var(--accent-soft); color: var(--accent); }
-/* while it downloads, light passes over the chip */
-.model[data-state='downloading'] .modelMark::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--accent) 28%, transparent) 50%, transparent 100%);
-  animation: scan 1.6s var(--ease-in-out) infinite;
-}
-@keyframes scan { from { transform: translateY(-100%); } to { transform: translateY(100%); } }
-.modelText { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
-.modelName { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 560; letter-spacing: -0.005em; }
-.modelPill { display: inline-flex; align-items: center; gap: 6px; height: 21px; padding: 0 8px; border-radius: var(--r-1); font-size: 12px; font-weight: 500; white-space: nowrap; animation: pop 420ms var(--ease-back) both; }
-@keyframes pop { from { opacity: 0; transform: scale(0.8); } }
-.modelPill i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.modelPill[data-state='inUse'] { background: var(--ok-soft); color: var(--ok); }
-.modelPill[data-state='ready'] { background: var(--field); color: var(--ink-2); }
-.modelPill[data-state='missing'] { color: var(--ink-3); box-shadow: 0 0 0 1px var(--line-2) inset; }
-.modelPill[data-state='missing'] i { background: transparent; box-shadow: 0 0 0 1.4px currentColor inset; }
-.modelMeta { font-size: 12.5px; color: var(--ink-3); }
-/* the download fills the card along its bottom edge */
-.modelBar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; border-radius: 0; background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.modelActions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-.redownload { color: var(--ink-3); }
-.redownload svg { transition: transform 600ms var(--ease-out); }
-.redownload:hover svg { transform: rotate(180deg); }
-
-.device { display: inline-flex; align-items: center; gap: 9px; padding: 7px 12px 7px 11px; border-radius: var(--r-2); background: var(--field); font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.device i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-4); transition: background-color var(--dur-3), box-shadow var(--dur-3); }
-.device[data-on='true'] i { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
-.device[data-none] { color: var(--ink-3); }
-.confirmText { font-size: 14px; line-height: 1.65; color: var(--ink-2); }
+.indexCard:hover { box-shadow: 0 0 0 1px var(--ink-4) inset, var(--shadow-2); transform: translateY(-1px); }
+.indexCard:active { transform: translateY(0); }
+.indexCard:hover .backupGo svg { transform: translateX(3px); }
+.miniBeam { fill: none; stroke: var(--star); stroke-width: 1.4; stroke-linecap: round; }
+.miniPrism { fill: var(--bg-raised); stroke: var(--ink-2); stroke-width: 1.4; stroke-linejoin: round; }
+.miniRay path { fill: none; stroke: var(--c); stroke-width: 1.4; stroke-linecap: round; }
+.miniRay line { stroke: var(--c); stroke-width: 2.4; stroke-linecap: round; transition: x2 600ms var(--ease-out); }
+.miniRay .miniTrack { stroke: var(--line); }
+.miniRay[data-off] path, .miniRay[data-off] .miniTrack { stroke: var(--line-2); stroke-dasharray: 1.6 2.4; }

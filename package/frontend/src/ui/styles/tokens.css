@@ -54,6 +54,11 @@
   --warn-soft: rgba(189, 125, 43, 0.13);
   --danger: #b2564a;
   --danger-soft: rgba(178, 86, 74, 0.11);
+  /* the three rays of the Prism mark, and the three kinds of a file's index they stand for: tags · image index · metadata
+     (on paper a shade deeper than the mark's own, which the night keeps) */
+  --ray-tag: #c99a2e;
+  --ray-look: #c9786b;
+  --ray-meta: #6787c6;
 
   --shadow-1: 0 1px 1px rgba(52, 41, 25, 0.04), 0 2px 6px -2px rgba(52, 41, 25, 0.08);
   --shadow-2: 0 1px 2px rgba(52, 41, 25, 0.05), 0 12px 30px -12px rgba(52, 41, 25, 0.22);
@@ -112,6 +117,9 @@
   --warn-soft: rgba(221, 168, 93, 0.13);
   --danger: #dd8a7d;
   --danger-soft: rgba(221, 138, 125, 0.12);
+  --ray-tag: #e9c460;
+  --ray-look: #dc8f84;
+  --ray-meta: #86a5da;
 
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.32);
   --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 14px 34px -14px rgba(0, 0, 0, 0.7);

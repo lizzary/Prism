@@ -4,6 +4,7 @@
 import * as backend from '../mock/backend.js';
 import * as accessBackend from '../mock/access.js';
 import * as snapshotBackend from '../mock/snapshots.js';
+import * as indexBackend from '../mock/indexing.js';
 import { acceptable, probe, renderDownload } from '../mock/files.js';
 import { QUALITIES, FILE_KINDS } from '../domain/files.js';
 import { stripIllegal, validateTemplate } from '../domain/filename.js';
@@ -13,6 +14,7 @@ import {
 import { COLOR_SORTS, findInName, moveTogether, sortColorGroups, stepTogether } from '../domain/colorOrder.js';
 import { autoCovers, coverEdits, MAX_COVERS } from '../domain/covers.js';
 import { PLAIN as PLAIN_BOARD } from '../domain/board.js';
+import { INDEX_KINDS, RULE_LIMITS, AGE_REMIND_EVERY_H, remindStep, nextReminderAt } from '../domain/indexing.js';
 
 export { FILE_KINDS };
 
@@ -75,7 +77,8 @@ function live(topics, read, { pace = 0, urgent } = {}) {
 }
 
 // ------------------------------------------------------------------ change notifications
-/** Topics: library · viewed (the last viewed file) · tasks · settings · language · access · mcp · snapshots · models · exports */
+/** Topics: library · viewed (the last viewed file) · tasks · settings · language · access · mcp · snapshots · models · exports ·
+ *  index (files' index) · reminder */
 export const events = { subscribe: (fn) => backend.onChange(fn) };
 
 // ------------------------------------------------------------------ gallery
@@ -203,8 +206,11 @@ export const files = {
   remove: (ids) => call('write', () => backend.deleteFiles(ids)),
   /** Undo a deletion moments later. → { ok, count } */
   restore: (ids) => call('write', () => backend.restoreFiles(ids)),
-  /** kinds: any of 'tagging' (the user's own tags stay), 'embedding', 'metadata'. → { ok, taskId } | { ok: false, error: 'modelMissing' } */
-  reindex: (ids, kinds) => call('write', () => backend.reindexFiles({ ids, kinds })),
+  /**
+   * kinds: any of 'tagging' (the user's own tags stay), 'embedding', 'metadata'.
+   * → { ok, taskId } | { ok: false, error: 'modelMissing' (no tagging model) | 'imageModelMissing' }
+   */
+  reindex: (ids, kinds) => call('write', () => indexBackend.reindexFiles({ ids, kinds })),
   /**
    * Named with the download pattern from Settings. One file is handed over at once → { ok, file: { url, name } }
    * (url: revoke once saved); several are packed by a task → { ok, taskId, count }.
@@ -280,9 +286,11 @@ export const tags = {
 
 // ------------------------------------------------------------------ tasks
 /**
- * Live: [{ id, type: 'import' | 'upload' | 'reindex' | 'export' | 'model-download' | 'download' | 'snapshot' | 'snapshot-export' | 'snapshot-import',
+ * Live: [{ id, type: 'import' | 'upload' | 'index' | 'reindex' | 'export' | 'model-download' | 'download' | 'snapshot' | 'snapshot-export' | 'snapshot-import',
  *          state: 'queued' | 'running' | 'done' | 'failed' | 'canceled', stage, processed, total, unit: 'files' | 'bytes', kinds, label,
- *          group: { id, name } | null, groups: [{ id, name }], result, error, createdAt, startedAt, finishedAt }]
+ *          origin (an index task: 'waiting' | 'upload' | 'auto' | null), group: { id, name } | null, groups: [{ id, name }], result, error,
+ *          createdAt, startedAt, finishedAt }]
+ * An index task builds its kinds one after another: `stage` is the kind under way, processed / total count its files.
  */
 const PROGRESS_PACE = 500;
 export const tasks = {
@@ -335,11 +343,13 @@ export const folders = {
 // ------------------------------------------------------------------ settings
 /**
  * Live: { language, theme, dbPath, defaultDbPath, conflict: 'keep' | 'skip' | 'overwrite', gpu, whiteboard: 'auto' | 'webgl' | 'dom',
- *         downloadName: template } (config.toml)
+ *         downloadName: template,
+ *         indexing: { upload: { on, kinds: [kind] }, auto: { on, backlog: { on, count, remind, background }, age: { on, hours, remind, background } } }
+ *       } (config.toml) — indexing: see domain/indexing.js (DEFAULT_INDEXING); it is always given whole.
  */
 const settingsStore = live('settings', backend.getSettings);
 /** Preferences the UI shows changed at once. A new database folder waits for the backend: it reloads the gallery. */
-const INSTANT = new Set(['language', 'theme', 'conflict', 'gpu', 'whiteboard', 'downloadName']);
+const INSTANT = new Set(['language', 'theme', 'conflict', 'gpu', 'whiteboard', 'downloadName', 'indexing']);
 export const settings = {
   subscribe: settingsStore.subscribe,
   getSnapshot: settingsStore.getSnapshot,
@@ -351,21 +361,64 @@ export const settings = {
   },
 };
 
-// ------------------------------------------------------------------ tagging models
+// ------------------------------------------------------------------ models (tagging, image index)
 /**
- * Live: { gpu: { name } | null, list: [{ id, name, size, state: 'missing' | 'downloading' | 'ready', inUse,
- *         progress: { stage, processed, total, queued } | null, taskId }] }
+ * Live: { gpu: { name } | null, list: [{ id, kind: 'tagging' | 'embedding' (the image index), name, size,
+ *         state: 'missing' | 'downloading' | 'ready', inUse, progress: { stage, processed, total, queued } | null, taskId }] }
+ * One model of each kind is in use at a time; using another makes what the one before built outdated.
  */
 export const models = {
-  ...live(['models', 'tasks'], backend.getModels, {
+  ...live(['models', 'tasks'], indexBackend.getModels, {
     pace: PROGRESS_PACE,
     urgent: (a, b) => a.list.some((m, i) => m.state !== b.list[i]?.state || m.inUse !== b.list[i]?.inUse),
   }),
-  download: (id) => call('write', () => backend.downloadModel(id)),
+  download: (id) => call('write', () => indexBackend.downloadModel(id)),
   /** Delete the model's files, then download it again. */
-  redownload: (id) => call('write', () => backend.redownloadModel(id)),
-  use: (id) => call('write', () => backend.useModel(id)),
+  redownload: (id) => call('write', () => indexBackend.redownloadModel(id)),
+  /** → { ok, previous: the model in use before (to undo) } */
+  use: (id) => call('write', () => indexBackend.useModel(id)),
   cancel: (taskId) => call('write', () => backend.cancelTask(taskId)),
+};
+
+// ------------------------------------------------------------------ the index (tags, image index, metadata of every file)
+/**
+ * A file's index of a kind is done · stale · missing · failed · queued · off — the backend says which (domain/indexing.js).
+ * Live: { total, waiting (files with something still to build), needs (files not up to date, those being built too), lastIndexedAt,
+ *         kinds: { tagging | embedding | metadata: { available (something builds it), model: { id, name } | null, done, stale, missing, failed, queued } },
+ *         active: the index task under way { id, type, state, stage (the kind it builds), processed, total, kinds, files, origin, groups: [name] } | null,
+ *         tasks (index tasks running or waiting), groups: [{ id, name, cover, total, waiting, needs, kinds: { kind: counts } }] }
+ */
+export const indexing = {
+  KINDS: INDEX_KINDS,
+  /** How the rules remind (for showing them): the step of the waiting-files rule, the time rule's day, the bounds of their numbers. */
+  rules: { remindStep, nextReminderAt, ageEvery: AGE_REMIND_EVERY_H, limits: RULE_LIMITS },
+  // (not 'tasks': every step of every task would recompute it — an index task announces its own changes as 'index')
+  ...live(['index', 'library', 'models'], indexBackend.getIndexOverview, {
+    pace: PROGRESS_PACE,
+    urgent: (a, b) => a.active?.id !== b.active?.id || a.active?.stage !== b.active?.stage || !a.waiting !== !b.waiting
+      || INDEX_KINDS.some((k) => a.kinds[k].available !== b.kinds[k].available),
+  }),
+  /**
+   * query: { groupId (null: every group), show: 'needs' | 'all', kind, state (with kind: a state, or 'needs'), text }
+   * → { rows: [ref + { groupId, states: { kind: state }, needs: [kind], at }] } (groups in the gallery's order, newest first)
+   */
+  files: (query) => call('read', () => indexBackend.getIndexFiles(query)),
+  /** The waiting files of a group. → { ids } */
+  waitingIn: (groupId) => call('read', () => indexBackend.waitingIn(groupId)),
+  /** How many of these files still need each kind built. → { tagging, embedding, metadata } */
+  needs: (ids) => call('read', () => indexBackend.indexNeeds(ids)),
+  /** Index the waiting files (of a group, or all), each with what it still needs. → { ok, taskId, files } */
+  indexWaiting: (opts) => call('write', () => indexBackend.indexWaiting(opts)),
+};
+
+/**
+ * Live: the reminder of automatic indexing showing now — { id, rule: 'backlog' | 'age', waiting, hours (since the last
+ * indexing), started (files a background run took, 0: none), at } | null.
+ */
+export const reminders = {
+  ...live(['reminder', 'library'], indexBackend.getReminder),
+  /** Seen or put off. `mute`: not again (the rules stop reminding). → { ok, was: { backlog, age } } */
+  dismiss: (id, opts) => call('write', () => indexBackend.dismissReminder(id, opts)),
 };
 
 // ------------------------------------------------------------------ access: sign-in, server mode, MCP service, first run

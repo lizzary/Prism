@@ -1,6 +1,9 @@
 .layer { position: fixed; inset: 0; z-index: 100; display: flex; justify-content: center; padding: 9vh 20px 20px; }
 .scrim { position: absolute; inset: 0; background: var(--scrim); backdrop-filter: blur(3px); transition: opacity 220ms var(--ease-out); }
 .layer[data-state='enter'] .scrim, .layer[data-state='exit'] .scrim { opacity: 0; }
+/* handing over to another modal layer (the index page) and back: the veil stays as it is, only the panels change */
+.layer[data-handoff] .scrim { transition: none; }
+.layer[data-handoff][data-state='enter'] .scrim { opacity: 1; }
 .palette {
   position: relative;
   display: flex;
@@ -54,6 +57,12 @@
 .field[aria-disabled='true'] { color: var(--ink-4); cursor: not-allowed; }
 .field[aria-disabled='true']:hover { color: var(--ink-3); }
 .field[data-nudge] { animation: nudge 360ms var(--ease-out); }
+/* a locked one was pressed: what unlocks it, and the way there */
+.unlock { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12.5px; color: var(--ink-2); animation: unlockIn 360ms var(--ease-out) both; }
+.unlock > svg { flex-shrink: 0; color: var(--ink-3); }
+.unlock button { display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px; margin-left: 2px; border-radius: var(--r-1); font-weight: 600; color: var(--accent); white-space: nowrap; transition: background-color var(--dur-1), gap var(--dur-2) var(--ease-out); }
+.unlock button:hover { background: var(--accent-soft); gap: 7px; }
+@keyframes unlockIn { from { opacity: 0; transform: translateY(-3px); } }
 @keyframes nudge { 20% { transform: translateX(-3px); } 45% { transform: translateX(3px); } 70% { transform: translateX(-1.5px); } }
 .scopeBtn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; max-width: 180px; height: 30px; padding: 0 8px 0 10px; border-radius: var(--r-2); box-shadow: 0 0 0 1px var(--line-2) inset; font-size: 12.5px; color: var(--ink-2); }
 .scopeBtn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

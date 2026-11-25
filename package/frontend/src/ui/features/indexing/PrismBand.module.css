@@ -1,0 +1,129 @@
+/* the band: drawn in the night's colours whatever the theme (it sits in the index page's night sky) */
+.band { position: relative; color: #f6f0de; user-select: none; }
+.sky { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+
+/* ------------------------------------------------------------------ the sky behind (moved by the compositor alone) */
+.swirl { position: absolute; width: 200px; height: 200px; opacity: 0.11; will-change: transform; animation: drift 180s linear infinite; }
+.swirl svg { display: block; overflow: visible; }
+.swirl path { fill: none; stroke: #9fc0dc; stroke-width: 1.6; stroke-linecap: round; }
+.swirl .swirlFine { stroke: #eef3e4; stroke-width: 1; opacity: 0.8; }
+@keyframes drift { to { transform: rotate(360deg); } }
+.spark { position: absolute; border-radius: 50%; background: #f6f0de; opacity: 0.55; animation: twinkle 3.4s ease-in-out var(--d) infinite; }
+@keyframes twinkle { 50% { opacity: 0.12; } }
+
+/* ------------------------------------------------------------------ the prism and the light coming in */
+.prismGlow {
+  position: absolute;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(241, 211, 90, 0.26), rgba(241, 211, 90, 0));
+  opacity: 0.55;
+  transition: opacity 900ms var(--ease-out);
+}
+.band[data-active] .prismGlow { opacity: 1; animation: breathe 2.8s ease-in-out infinite; }
+@keyframes breathe { 50% { transform: scale(1.14); opacity: 0.6; } }
+.beam { fill: none; stroke: #f1d35a; stroke-width: 1.7; stroke-linecap: round; opacity: 0.92; }
+.beamTravel { fill: none; stroke: #fff6d2; stroke-width: 2.6; stroke-linecap: round; stroke-dasharray: 0.1 13; animation: travel 1.6s linear infinite; }
+@keyframes travel { to { stroke-dashoffset: -26.2; } }
+.inner { fill: none; stroke: #fff6d2; stroke-width: 1.2; stroke-linecap: round; opacity: 0.55; }
+.prism { fill: url(#pr-glass); stroke: #f6f0de; stroke-width: 1.8; stroke-linejoin: round; filter: drop-shadow(0 6px 14px rgba(4, 8, 24, 0.45)); }
+.facet { fill: none; stroke: #f6f0de; stroke-width: 1.1; stroke-linecap: round; opacity: 0.4; }
+/* starlight caught at the apex */
+.glint { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #fffbea; box-shadow: 0 0 6px 1px rgba(241, 211, 90, 0.85); opacity: 0.85; animation: glint 4.6s ease-in-out infinite; }
+@keyframes glint { 0%, 100% { opacity: 0.85; } 50% { opacity: 0.35; } }
+
+/* ------------------------------------------------------------------ the rays and their measures */
+.ray { transition: opacity 320ms var(--ease-out); }
+.ray[data-dim] { opacity: 0.42; }
+.track { stroke: rgba(246, 240, 222, 0.13); stroke-width: 3; stroke-linecap: round; }
+.fan { fill: none; stroke: var(--c); stroke-width: 2.1; stroke-linecap: round; opacity: 0.95; }
+.glow { fill: none; stroke: var(--c); stroke-width: 4.5; stroke-linecap: round; opacity: 0.55; }
+.glow line { stroke-width: 5; }
+.part { stroke: var(--c); stroke-width: 3; transition: stroke-width 220ms var(--ease-out), opacity 220ms; }
+.part[data-part='done'] { stroke-linecap: round; }
+.part[data-part='queued'] { opacity: 0.4; }
+/* (the light layer) the waiting part, flowing; and the light running to where the work is */
+.flow { stroke: var(--c); stroke-width: 3; stroke-dasharray: 3 9; opacity: 0.7; animation: flow 1.1s linear infinite; }
+@keyframes flow { to { stroke-dashoffset: -12; } }
+.part[data-part='stale'] { opacity: 0.9; }
+.part[data-part='failed'] { stroke: #f08a76; }
+.part[data-hot] { stroke-width: 5; }
+/* light running down the ray to where the work is */
+.travel, .travelHalo { fill: none; stroke-linecap: round; stroke-dasharray: 0.035 0.965; stroke-dashoffset: 1; animation: run 1.9s linear infinite; }
+.travel { stroke: #fffbea; stroke-width: 2.6; }
+.travelHalo { stroke: var(--c); stroke-width: 8; opacity: 0.35; }
+@keyframes run { to { stroke-dashoffset: 0; } }
+/* a kind no model builds: a faint dashed ray, and nothing to measure */
+.off path, .off line { fill: none; stroke-width: 1.4; stroke-dasharray: 2 5; stroke-linecap: round; opacity: 0.35; }
+.off line { stroke: rgba(246, 240, 222, 0.5); }
+
+/* ------------------------------------------------------------------ the words along the rays */
+.entering { position: absolute; font-size: 11.5px; font-weight: 520; color: rgba(246, 240, 222, 0.56); letter-spacing: 0.02em; }
+.row { position: absolute; height: 36px; container-type: inline-size; }
+/* a short ray (a narrow window): the counts step aside, except the one whose part of the ray is pointed at */
+@container (max-width: 620px) {
+  .count:not([data-hot]) { display: none; }
+}
+.label { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 7px; height: 20px; max-width: 58%; font-size: 13px; }
+.kindIcon { flex-shrink: 0; color: var(--c); }
+.kindName { flex-shrink: 0; font-weight: 600; color: #f6f0de; }
+.model {
+  min-width: 0;
+  padding: 1px 7px;
+  overflow: hidden;
+  border-radius: var(--r-1);
+  font-size: 12px;
+  color: rgba(246, 240, 222, 0.66);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background-color var(--dur-1), color var(--dur-1);
+}
+.model:hover { background: rgba(246, 240, 222, 0.1); color: #fffaf0; }
+.choose { display: inline-flex; align-items: center; gap: 6px; padding: 1px 7px; border-radius: var(--r-1); font-size: 12px; color: rgba(246, 240, 222, 0.5); white-space: nowrap; transition: background-color var(--dur-1), color var(--dur-1), gap var(--dur-2) var(--ease-out); }
+.choose span { font-weight: 600; color: var(--c); }
+.choose:hover { background: rgba(246, 240, 222, 0.08); gap: 8px; }
+.numbers { position: absolute; right: 0; top: 0; display: flex; align-items: center; gap: 2px; height: 20px; font-size: 12px; }
+.count, .of { padding: 1px 6px; border-radius: var(--r-1); white-space: nowrap; transition: background-color var(--dur-1), color var(--dur-1); }
+.count { color: rgba(246, 240, 222, 0.5); }
+.count[data-part='failed'] { color: #f3a594; }
+.count:hover, .count[data-hot] { background: rgba(246, 240, 222, 0.08); color: #fffaf0; }
+.of { margin-left: 4px; font-weight: 620; color: #f6f0de; }
+.of:hover { background: rgba(246, 240, 222, 0.1); }
+.row[data-off] .kindName { color: rgba(246, 240, 222, 0.7); }
+.row[data-off] .kindIcon { opacity: 0.6; }
+/* the parts of the measure, to press */
+.hit { position: absolute; top: 20px; height: 16px; border-radius: 4px; cursor: pointer; }
+.hit:focus-visible { box-shadow: 0 0 0 2px rgba(246, 240, 222, 0.6); }
+
+/* ------------------------------------------------------------------ what is waiting / the work under way */
+.side { position: absolute; right: 22px; top: 0; bottom: 0; display: flex; align-items: center; }
+.summary { display: flex; flex-direction: column; align-items: flex-start; width: 100%; min-width: 0; animation: sideIn 520ms var(--ease-out) both; }
+@keyframes sideIn { from { opacity: 0; transform: translateY(6px); } }
+.big { font-size: 34px; font-weight: 560; line-height: 1; letter-spacing: -0.02em; color: #fffaf0; }
+.bigLabel { margin-top: 5px; font-size: 13px; color: rgba(246, 240, 222, 0.78); }
+.when { display: inline-flex; align-items: center; gap: 8px; margin-top: 2px; font-size: 12px; color: rgba(246, 240, 222, 0.5); }
+.go { margin-top: 12px; }
+.clean { display: grid; place-items: center; width: 30px; height: 30px; margin-bottom: 8px; border-radius: 50%; background: rgba(130, 180, 144, 0.18); color: #9fd1ac; box-shadow: 0 0 0 1px rgba(159, 209, 172, 0.3) inset; animation: settle 700ms var(--ease-back) both; }
+@keyframes settle { from { transform: scale(0.6) rotate(-20deg); opacity: 0; } }
+.cleanTitle { font-size: 15px; font-weight: 600; color: #fffaf0; }
+
+.kicker { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 640; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(246, 240, 222, 0.72); }
+.kicker:lang(zh-CN) { letter-spacing: 0.12em; }
+.pulse { width: 7px; height: 7px; border-radius: 50%; background: #f1d35a; box-shadow: 0 0 0 0 rgba(241, 211, 90, 0.5); animation: beacon 1.8s var(--ease-out) infinite; }
+.pulse[data-wait] { background: transparent; box-shadow: 0 0 0 1.4px rgba(246, 240, 222, 0.7) inset; animation: none; }
+@keyframes beacon { 0% { box-shadow: 0 0 0 0 rgba(241, 211, 90, 0.45); } 100% { box-shadow: 0 0 0 8px rgba(241, 211, 90, 0); } }
+.more { padding: 0 6px; border-radius: 8px; background: rgba(246, 240, 222, 0.1); font-size: 11px; letter-spacing: 0; text-transform: none; }
+.stage { display: flex; align-items: baseline; gap: 8px; width: 100%; margin-top: 6px; font-size: 16px; font-weight: 600; color: #fffaf0; }
+.where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 450; color: rgba(246, 240, 222, 0.55); }
+.progressRow { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 8px; }
+.progress { position: relative; flex: 1; height: 3px; overflow: hidden; border-radius: 2px; background: rgba(246, 240, 222, 0.14); }
+.progress i { position: absolute; inset: 0; border-radius: inherit; background: var(--c); transform-origin: left; transform: scaleX(var(--p)); transition: transform 600ms var(--ease-out); box-shadow: 0 0 8px var(--c); }
+.progress[data-wait] i { transform: scaleX(0.3); animation: slide 1.4s var(--ease-in-out) infinite; }
+@keyframes slide { from { translate: -100% 0; } to { translate: 340% 0; } }
+.progressNum { font-size: 12px; color: rgba(246, 240, 222, 0.78); white-space: nowrap; }
+.alsoWaiting { display: inline-flex; align-items: center; gap: 5px; margin: 6px 0 0 -6px; padding: 2px 7px; border-radius: var(--r-1); font-size: 12px; font-weight: 560; color: #f1d35a; transition: background-color var(--dur-1); }
+.alsoWaiting:hover:not(:disabled) { background: rgba(241, 211, 90, 0.14); }
+.alsoWaiting:disabled { opacity: 0.5; }
+
+@media (prefers-reduced-motion: reduce) { .travel, .travelHalo, .beamTravel, .flow { display: none; } }

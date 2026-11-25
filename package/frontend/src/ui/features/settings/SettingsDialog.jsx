@@ -1,5 +1,5 @@
 // Settings, grouped by what they are about: the interface, where the gallery lives (and its backups), files,
-// the tagging models, who may open the gallery, and MCP.
+// the models and indexing (and the way to the index page), who may open the gallery, and MCP.
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { settingsActions, useAccess, useBackup, useModels, useSettings } from '../../../bridge/index.js';
@@ -67,7 +67,8 @@ export default function SettingsDialog({ open, onClose, section = 'general', foc
 
   const downloading = models.list.some((m) => m.state === 'downloading');
   const status = {
-    models: downloading ? ['busy'] : models.list.some((m) => m.inUse) ? [] : ['warn'],
+    // tags need a tagging model; an image index model is optional (searching with words or a picture)
+    models: downloading ? ['busy'] : models.list.some((m) => m.kind === 'tagging' && m.inUse) ? [] : ['warn'],
     access: [access.password.enabled && 'lock', (access.server.enabled || access.server.running) && 'broadcast'].filter(Boolean),
     mcp: access.mcp.enabled ? ['on'] : [],
   };
@@ -81,7 +82,7 @@ export default function SettingsDialog({ open, onClose, section = 'general', foc
             {SECTIONS.map((x) => (
               <li key={x.id}>
                 <button type="button" className={s.navItem} data-on={current === x.id} aria-current={current === x.id ? 'page' : undefined}
-                  data-overlay={x.id === 'data' ? 'backup' : x.id === 'mcp' ? 'mcp' : undefined} onClick={() => go(x.id)}>
+                  data-overlay={{ data: 'backup', mcp: 'mcp', models: 'index' }[x.id]} onClick={() => go(x.id)}>
                   <Icon name={x.icon} size={17} />
                   <span className={s.navLabel}>{t(`settings.sections.${x.id}`)}</span>
                   {status[x.id]?.length > 0 && (
@@ -104,7 +105,7 @@ export default function SettingsDialog({ open, onClose, section = 'general', foc
             {current === 'general' && <General />}
             {current === 'data' && <Data onOpenBackup={() => handOff('backup')} />}
             {current === 'files' && <FileSettings />}
-            {current === 'models' && <ModelSettings />}
+            {current === 'models' && <ModelSettings onOpenIndex={() => handOff('index')} />}
             {current === 'access' && (
               <>
                 <PasswordSetting highlight={spot?.id === 'password' ? spot.n : 0} />

@@ -218,7 +218,55 @@ export const settingsActions = { update: async (patch) => { const r = await api.
 export const folderActions = { roots: api.folders.roots, list: api.folders.list, create: api.folders.create };
 
 export const useModels = () => useLive(api.models);
-export const modelActions = { download: api.models.download, redownload: api.models.redownload, use: api.models.use, cancel: api.models.cancel };
+export const modelActions = {
+  download: api.models.download, redownload: api.models.redownload, cancel: api.models.cancel,
+  /** → { ok, previous } (the model in use before, to undo) */
+  use: api.models.use,
+};
+
+// ------------------------------------------------------------------ the index (tags, image index, metadata)
+export const INDEX_KINDS = api.indexing.KINDS;
+/** How the rules of automatic indexing remind (to show them): remindStep(count), nextReminderAt(waiting, count), ageEvery, limits. */
+export const indexRules = api.indexing.rules;
+/** The whole gallery's index (see data/api: indexing), live. */
+export const useIndexOverview = () => useLive(api.indexing);
+/** Files waiting to be indexed (of one group, or of the gallery): re-renders only when that number changes. */
+export function useIndexWaiting(groupId) {
+  return useSyncExternalStore(api.indexing.subscribe, () => {
+    const o = api.indexing.getSnapshot();
+    return groupId ? o.groups.find((g) => g.id === groupId)?.waiting ?? 0 : o.waiting;
+  });
+}
+/** Whether an index task is under way (re-renders only when that changes). */
+export const useIndexBusy = () => useSyncExternalStore(api.indexing.subscribe, () => api.indexing.getSnapshot().active?.state === 'running');
+const indexFilesKey = (q) => `index-files:${JSON.stringify(q)}`;
+const INDEX_TOPICS = ['index', 'library', 'models'];
+/** Files and their index for the index page (see data/api: indexing.files). The text is debounced. */
+export function useIndexFiles(query) {
+  const text = useDebounced(query.text ?? '', 160);
+  const q = { ...query, text: text.trim() };
+  return useQuery(indexFilesKey(q), () => api.indexing.files(q), INDEX_TOPICS);
+}
+/** The waiting files of a group (the whiteboard chooses them in one go). → { data: { ids } } */
+export const useWaitingFiles = (groupId) => useQuery(groupId ? `index-waiting:${groupId}` : null, () => api.indexing.waitingIn(groupId), INDEX_TOPICS);
+/** How many of these files still need each kind built: { tagging, embedding, metadata }. Pass null to skip. */
+export function useIndexNeeds(ids) {
+  const key = ids?.length ? `index-needs:${ids.length}:${[...ids].sort().join(',')}` : null;
+  const res = useQuery(key, () => api.indexing.needs(ids), INDEX_TOPICS);
+  return key ? res.data : undefined;
+}
+export const indexActions = {
+  /** Index the waiting files (of a group, or all). → { ok, taskId, files } */
+  indexWaiting: api.indexing.indexWaiting,
+  /** Build these kinds again for the files. → { ok, taskId } | { ok: false, error } */
+  reindex: api.files.reindex,
+};
+/** What the index page shows as it opens: the list of files waiting, in every group. */
+export const prefetchIndex = () => prefetch(indexFilesKey({ groupId: null, show: 'needs', kind: null, state: null, text: '' }), () => api.indexing.files({ show: 'needs' }), INDEX_TOPICS);
+
+/** The reminder of automatic indexing showing now, or null. */
+export const useReminder = () => useLive(api.reminders);
+export const reminderActions = { dismiss: api.reminders.dismiss };
 
 /**
  * A page setting saved optimistically: the page changes at once, the save is fire-and-forget, and the stored value

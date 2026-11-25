@@ -2,7 +2,9 @@
 // sorted, sized and laid out as the page's settings say — under a toolbar that sticks below the top bar. The page
 // looks for changes every few seconds. Opening a file shows it in the lightbox, over the page.
 import { ViewTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { browsing, coverRules, fileActions, groupActions, holdGroupPage, mediaUrl, refreshGroupPage, useGroupPage, useOptimisticView, useTasks } from '../../../bridge/index.js';
+import {
+  browsing, coverRules, fileActions, groupActions, holdGroupPage, mediaUrl, refreshGroupPage, useGroupPage, useIndexNeeds, useIndexWaiting, useOptimisticView, useTasks,
+} from '../../../bridge/index.js';
 import { useOverlays, usePageMeta } from '../../../app/shell.jsx';
 import { cameBack, closeBoard, closeFile, navigate, paths } from '../../../app/router.jsx';
 import { useT } from '../../../i18n/index.jsx';
@@ -400,6 +402,7 @@ function GroupView({ id, fileId, board, data, clock, arrived, bannerRef }) {
           {group.videoCount > 0 && <span className="num">{t('group.videos', { n: fmt.number(group.videoCount), count: group.videoCount })}</span>}
           {group.bytes > 0 && <span className="num">{fmt.bytes(group.bytes)}</span>}
           {group.fileCount > 0 && <span>{t('home.updated', { date: fmt.relative(group.updatedAt) })}</span>}
+          <IndexHint groupId={id} />
         </p>
       </header>
       <ActiveTasks groupId={id} />
@@ -460,8 +463,7 @@ function GroupView({ id, fileId, board, data, clock, arrived, bannerRef }) {
 
       <DeleteFiles open={ask?.kind === 'delete'} files={shownAsk?.kind === 'delete' ? shownAsk.ids.map((x) => byId.get(x)).filter(Boolean) : []}
         onCancel={() => setAsk(null)} onConfirm={async () => { await remove(shownAsk.ids); setAsk(null); }} />
-      <Reindex open={ask?.kind === 'reindex'} count={shownAsk?.kind === 'reindex' ? shownAsk.ids.length : 0}
-        onCancel={() => setAsk(null)} onConfirm={(kinds) => reindex(shownAsk.ids, kinds)} />
+      <ReindexFiles ask={ask} shownAsk={shownAsk} onCancel={() => setAsk(null)} onConfirm={(kinds) => reindex(shownAsk.ids, kinds)} />
       <MoveFiles open={ask?.kind === 'move'} moves={shownAsk?.kind === 'move' ? shownAsk.moves : []} to={shownAsk?.to} names={sectionInfo}
         onCancel={() => setAsk(null)} onConfirm={() => shownAsk.commit()} />
 
@@ -551,6 +553,30 @@ function CoverTicks({ covers, shown, kept, onPeek, onKeep, onEdit }) {
       </div>
       <IconButton size="sm" icon="cover" label={t('group.covers.edit')} data-overlay="groupEditor" onClick={onEdit} />
     </div>
+  );
+}
+
+/** Re-indexing chosen files: what they still need is asked for as the dialog opens (and those kinds start chosen). */
+function ReindexFiles({ ask, shownAsk, onCancel, onConfirm }) {
+  const open = ask?.kind === 'reindex';
+  const ids = shownAsk?.kind === 'reindex' ? shownAsk.ids : null;
+  const needs = useIndexNeeds(open ? ids : null);
+  return <Reindex open={open} count={ids?.length ?? 0} needs={needs} onCancel={onCancel} onConfirm={onConfirm} />;
+}
+
+/** Files of the group waiting to be indexed: a quiet word beside its size, leading to them on the index page. */
+function IndexHint({ groupId }) {
+  const t = useT();
+  const fmt = useFormat();
+  const { open } = useOverlays();
+  const n = useIndexWaiting(groupId);
+  if (!n) return null;
+  return (
+    <span>
+      <button type="button" className={s.indexHint} data-overlay="index" onClick={() => open('index', { groupId })}>
+        <Icon name="reindex" size={14} />{t('group.waitingIndex', { n: fmt.number(n), count: n })}
+      </button>
+    </span>
   );
 }
 

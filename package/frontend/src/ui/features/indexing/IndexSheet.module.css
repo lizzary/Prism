@@ -1,0 +1,65 @@
+.frame { width: min(1240px, calc(100vw - 48px)); }
+.sheet { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+/* ------------------------------------------------------------------ the night sky: the bar, and the Prism mark drawn large */
+.night {
+  position: relative;
+  flex-shrink: 0;
+  color: #f6f0de;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 248, 228, 0.02) 0 1px, transparent 1px 3px),
+    radial-gradient(42% 120% at 9% 72%, rgba(241, 211, 90, 0.11), transparent 70%),
+    radial-gradient(48% 130% at 100% -10%, rgba(134, 165, 218, 0.18), transparent 70%),
+    linear-gradient(176deg, #1c2d5f 0%, #172553 52%, #111b40 100%);
+  box-shadow: 0 1px 0 rgba(8, 12, 30, 0.35);
+}
+:global(:root[data-theme='dark']) .night {
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 248, 228, 0.018) 0 1px, transparent 1px 3px),
+    radial-gradient(42% 120% at 9% 72%, rgba(241, 211, 90, 0.09), transparent 70%),
+    radial-gradient(48% 130% at 100% -10%, rgba(134, 165, 218, 0.14), transparent 70%),
+    linear-gradient(176deg, #17254f 0%, #121d44 52%, #0d1533 100%);
+  box-shadow: 0 1px 0 rgba(232, 227, 214, 0.06);
+}
+.head { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; padding: 12px 14px 0 22px; }
+.mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-3); background: rgba(246, 240, 222, 0.1); color: #f1d35a; box-shadow: 0 0 0 1px rgba(246, 240, 222, 0.12) inset; }
+.title { font-size: 17px; font-weight: 620; letter-spacing: -0.01em; color: #fffaf0; }
+
+.tabs { position: relative; display: flex; gap: 2px; margin: 0 auto 0 20px; }
+.tab {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--r-2);
+  font-size: 13.5px;
+  font-weight: 560;
+  color: rgba(246, 240, 222, 0.6);
+  white-space: nowrap;
+  transition: color var(--dur-2), background-color var(--dur-1);
+}
+.tab:hover { color: #fffaf0; background: rgba(246, 240, 222, 0.06); }
+.tab[aria-selected='true'] { color: #fffaf0; }
+.tab:focus-visible { box-shadow: 0 0 0 2px rgba(246, 240, 222, 0.5); }
+.tabLine {
+  position: absolute;
+  left: 0;
+  bottom: -3px;
+  height: 2px;
+  border-radius: 1px;
+  background: #f1d35a;
+  box-shadow: 0 0 8px rgba(241, 211, 90, 0.65);
+  transition: transform 380ms var(--ease-out), width 380ms var(--ease-out);
+}
+
+/* ------------------------------------------------------------------ the tabs' contents, on paper */
+.body { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.pane { display: flex; flex-direction: column; flex: 1; min-height: 0; animation: paneIn 360ms var(--ease-out) both; }
+.pane[hidden] { display: none; }
+@keyframes paneIn { from { opacity: 0; transform: translateY(6px); } }
+
+.models { flex: 1; min-height: 0; overflow: auto; padding: 22px 34px 34px; }
+.modelCols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; max-width: 1100px; margin: 0 auto; }
+.gpu { max-width: 1100px; margin: 26px auto 0; border-top: 1px solid var(--line); }
+
+@media (max-width: 1000px) {
+  .modelCols { grid-template-columns: minmax(0, 1fr); }
+}

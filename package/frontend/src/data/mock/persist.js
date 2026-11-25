@@ -23,7 +23,7 @@ export function loadConfig() {
   const sysDark = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
   const cfg = read(CONFIG_KEY, {
     language: 'en', theme: sysDark ? 'dark' : 'light', dbPath: DEFAULT_DB_PATH,
-    conflict: 'keep', gpu: true, whiteboard: 'auto', downloadName: null, models: null,
+    conflict: 'keep', gpu: true, whiteboard: 'auto', downloadName: null, models: null, indexing: null,
     setupDone: false,
     password: { enabled: false, secret: null, changedAt: null },
     server: { enabled: false },
@@ -48,7 +48,10 @@ export function setSession(on) {
   try { if (on) sessionStorage.setItem(SESSION_KEY, '1'); else sessionStorage.removeItem(SESSION_KEY); } catch { /* per page load only */ }
 }
 
-/** What the mock backend can do with its image index (`?image-search` in the address simulates a ready index). */
+/**
+ * `?image-search` in the address: the sample starts with an image index model downloaded and in use, and its pictures
+ * indexed with it — so searching with words or with a picture works at once (see indexing.js).
+ */
 export function imageIndexReady() {
   try { return new URLSearchParams(location.search).has('image-search'); } catch { return false; }
 }

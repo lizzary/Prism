@@ -16,6 +16,7 @@ import { Icon } from '../../icons/Icon.jsx';
 import { Button, IconButton } from '../../components/controls.jsx';
 import { Empty, ProgressBar, toast } from '../../components/feedback.jsx';
 import { Menu } from '../../components/menu.jsx';
+import { Tooltip } from '../../components/overlay.jsx';
 import { CompactPager, Pagination } from '../../components/pager.jsx';
 import { NotFound } from '../../layout/PageStates.jsx';
 import { TYPE_ICON, useTaskText } from '../../features/tasks/TasksPanel.jsx';
@@ -400,7 +401,7 @@ function GroupView({ id, fileId, board, data, clock, arrived, bannerRef }) {
         <p className={s.meta}>
           <span className="num">{t('home.files', { n: fmt.number(group.fileCount), count: group.fileCount })}</span>
           {group.videoCount > 0 && <span className="num">{t('group.videos', { n: fmt.number(group.videoCount), count: group.videoCount })}</span>}
-          {group.bytes > 0 && <span className="num">{fmt.bytes(group.bytes)}</span>}
+          {group.bytes > 0 && <SizeLink groupId={id} bytes={group.bytes} />}
           {group.fileCount > 0 && <span>{t('home.updated', { date: fmt.relative(group.updatedAt) })}</span>}
           <IndexHint groupId={id} />
         </p>
@@ -576,6 +577,22 @@ function IndexHint({ groupId }) {
       <button type="button" className={s.indexHint} data-overlay="index" onClick={() => open('index', { groupId })}>
         <Icon name="reindex" size={14} />{t('group.waitingIndex', { n: fmt.number(n), count: n })}
       </button>
+    </span>
+  );
+}
+
+/** The group's size: a quiet way to its statistics (where the space goes in it, its colour groups, its largest files). */
+function SizeLink({ groupId, bytes }) {
+  const t = useT();
+  const fmt = useFormat();
+  const { open } = useOverlays();
+  return (
+    <span>
+      <Tooltip label={t('group.sizeTip')}>
+        <button type="button" className={`${s.sizeLink} num`} data-overlay="stats" onClick={() => open('stats', { groupId, tab: 'storage' })}>
+          {fmt.bytes(bytes)}<Icon name="stats" size={13} />
+        </button>
+      </Tooltip>
     </span>
   );
 }

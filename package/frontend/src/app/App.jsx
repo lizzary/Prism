@@ -1,5 +1,5 @@
 import { Suspense, ViewTransition, useEffect, useLayoutEffect, useState } from 'react';
-import { useAccess, useSetting } from '../bridge/index.js';
+import { useAccess, usePresenceClock, useSetting } from '../bridge/index.js';
 import { I18nProvider } from '../i18n/index.jsx';
 import { OverlayProvider, PageMetaProvider, useOverlays } from './shell.jsx';
 import { useRoute } from './router.jsx';
@@ -54,6 +54,8 @@ function Gate() {
 function Gallery() {
   // one route for the bar and the page: they change in the same commit, so the page transition sees both new
   const route = useRoute();
+  // time spent in Prism, for the activity record of the statistics page
+  usePresenceClock();
   return (
     <OverlayProvider>
       <PageMetaProvider>

@@ -2,7 +2,7 @@
 // the models and indexing (and the way to the index page), who may open the gallery, and MCP.
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { settingsActions, useAccess, useBackup, useModels, useSettings } from '../../../bridge/index.js';
+import { settingsActions, useAccess, useBackup, useModels, useSettings, useStorage } from '../../../bridge/index.js';
 import { useOverlays } from '../../../app/shell.jsx';
 import { navigate, paths } from '../../../app/router.jsx';
 import { useT } from '../../../i18n/index.jsx';
@@ -17,6 +17,7 @@ import { PasswordSetting, ServerSetting } from './AccessSettings.jsx';
 import { McpSetting } from './McpSettings.jsx';
 import { FileSettings } from './FileSettings.jsx';
 import { ModelSettings } from './ModelSettings.jsx';
+import { PART_COLOR } from '../stats/look.js';
 import s from './SettingsDialog.module.css';
 
 /**
@@ -103,7 +104,7 @@ export default function SettingsDialog({ open, onClose, section = 'general', foc
           </header>
           <div className={s.paneBody} key={current}>
             {current === 'general' && <General />}
-            {current === 'data' && <Data onOpenBackup={() => handOff('backup')} />}
+            {current === 'data' && <Data onOpenBackup={() => handOff('backup')} onOpenStats={() => handOff('stats')} />}
             {current === 'files' && <FileSettings />}
             {current === 'models' && <ModelSettings onOpenIndex={() => handOff('index')} />}
             {current === 'access' && (
@@ -158,7 +159,7 @@ function General() {
   );
 }
 
-function Data({ onOpenBackup }) {
+function Data({ onOpenBackup, onOpenStats }) {
   const t = useT();
   const settings = useSettings();
   const [picking, setPicking] = useState(false);
@@ -186,8 +187,40 @@ function Data({ onOpenBackup }) {
         )}
       </div>
       <BackupCard onOpen={onOpenBackup} />
+      <StatsCard onOpen={onOpenStats} />
       <FolderPicker open={browsing} onClose={() => setBrowsing(false)} onPick={applyDb} initialPath={settings.dbPath} kind="database" />
     </section>
+  );
+}
+
+/**
+ * The statistics page's entry: the Prism mark in miniature, its light landing on the database folder's spectrum — what
+ * the folder is made of — and the room left on its drive.
+ */
+function StatsCard({ onOpen }) {
+  const t = useT();
+  const fmt = useFormat();
+  const { data } = useStorage();
+  const X0 = 40, X1 = 136, GAP = 1.5;
+  const parts = (data?.parts ?? []).filter((p) => p.bytes > 0);
+  const room = X1 - X0 - GAP * Math.max(0, parts.length - 1);
+  let x = X0;
+  const blocks = parts.map((p) => { const w = Math.max(2, (p.bytes / (data.total || 1)) * room); const b = { ...p, x, w }; x += w + GAP; return b; });
+  return (
+    <button type="button" className={s.statsCard} data-overlay="stats" onClick={onOpen}>
+      <svg className={s.mini} viewBox="0 0 140 44" aria-hidden="true">
+        <path d="M2 27 12 24" className={s.miniBeam} />
+        <path d="M17 9 27 34H7Z" className={s.miniPrism} />
+        {blocks.map((b, i) => <path key={b.id} d={`M24 ${21 + i * 0.8}L${(b.x + b.w / 2).toFixed(1)} 17`} className={s.miniLight} style={{ stroke: PART_COLOR[b.id] }} />)}
+        {blocks.map((b, i) => <rect key={b.id} x={b.x} y={18} width={b.w} height={9} rx={2} fill={PART_COLOR[b.id]} className={s.miniPart} style={{ '--k': i }} />)}
+        {!blocks.length && <rect x={X0} y={18} width={X1 - X0} height={9} rx={2} className={s.miniEmpty} />}
+      </svg>
+      <span className={s.backupText}>
+        <span className={s.backupTitle}><Icon name="stats" size={16} />{t('settings.statsEntry')}</span>
+        <span className={s.backupMeta}>{data ? t('settings.statsMeta', { size: fmt.bytes(data.total), free: fmt.bytes(data.drive.free), drive: data.drive.name }) : ' '}</span>
+      </span>
+      <span className={s.backupGo}>{t('settings.open')}<Icon name="arrow-right" size={15} /></span>
+    </button>
   );
 }
 

@@ -5,6 +5,7 @@ import * as backend from '../mock/backend.js';
 import * as accessBackend from '../mock/access.js';
 import * as snapshotBackend from '../mock/snapshots.js';
 import * as indexBackend from '../mock/indexing.js';
+import * as statsBackend from '../mock/stats.js';
 import { acceptable, probe, renderDownload } from '../mock/files.js';
 import { QUALITIES, FILE_KINDS } from '../domain/files.js';
 import { stripIllegal, validateTemplate } from '../domain/filename.js';
@@ -15,6 +16,10 @@ import { COLOR_SORTS, findInName, moveTogether, sortColorGroups, stepTogether } 
 import { autoCovers, coverEdits, MAX_COVERS } from '../domain/covers.js';
 import { PLAIN as PLAIN_BOARD } from '../domain/board.js';
 import { INDEX_KINDS, RULE_LIMITS, AGE_REMIND_EVERY_H, remindStep, nextReminderAt } from '../domain/indexing.js';
+import {
+  STORAGE_PARTS, SIZE_BUCKETS, FILE_TYPES, OTHER_TYPE, ACTIVITY_METRICS, ACTIVITY_RANGES, DEFAULT_RANGE,
+  typeOf, dayOf, addDays, daysBetween, weekdayOf, streaks, movingAverage, metricOf, usedOn,
+} from '../domain/stats.js';
 
 export { FILE_KINDS };
 
@@ -78,7 +83,7 @@ function live(topics, read, { pace = 0, urgent } = {}) {
 
 // ------------------------------------------------------------------ change notifications
 /** Topics: library · viewed (the last viewed file) · tasks · settings · language · access · mcp · snapshots · models · exports ·
- *  index (files' index) · reminder */
+ *  index (files' index) · reminder · activity (the activity record: time in Prism, files opened) */
 export const events = { subscribe: (fn) => backend.onChange(fn) };
 
 // ------------------------------------------------------------------ gallery
@@ -409,6 +414,65 @@ export const indexing = {
   needs: (ids) => call('read', () => indexBackend.indexNeeds(ids)),
   /** Index the waiting files (of a group, or all), each with what it still needs. → { ok, taskId, files } */
   indexWaiting: (opts) => call('write', () => indexBackend.indexWaiting(opts)),
+};
+
+// ------------------------------------------------------------------ statistics
+/**
+ * The statistics page: what the database folder is made of, every group's and colour group's share, the files by size
+ * and type, and the activity record. The record is the only data kept for this page alone — one row a day: seconds in
+ * Prism, files opened, files added and removed, and the gallery's files and bytes at the end of the day (the backend
+ * fills it in as things happen, and backfills days from before it existed from the files' import dates). The rest is
+ * worked out from what the database holds already. See domain/stats.js for the buckets, types and day arithmetic.
+ *
+ * A scope: { groupId (null: the whole gallery), configId (the configuration a group is split by; its own by default),
+ *   colorId (a colour group of it; NONE: its files in no colour group) }.
+ */
+export const stats = {
+  PARTS: STORAGE_PARTS,
+  BUCKETS: SIZE_BUCKETS,
+  TYPES: [...FILE_TYPES, OTHER_TYPE],
+  METRICS: ACTIVITY_METRICS,
+  RANGES: ACTIVITY_RANGES,
+  DEFAULT_RANGE,
+  NONE,
+  /** The arithmetic the page draws with (pure). */
+  rules: { typeOf, dayOf, addDays, daysBetween, weekdayOf, streaks, movingAverage, metricOf, usedOn },
+  /**
+   * → { path, total, parts: [{ id: 'files' | 'previews' | 'database' | 'index' | 'snapshots', bytes }],
+   *     drive: { name, total, free } (the drive the folder is on), files, videos, groups,
+   *     growth: { days: 30, files, bytes } (how the gallery's files changed over those days) }
+   */
+  storage: () => call('read', statsBackend.getStorage),
+  /**
+   * scope → { scope: { kind: 'all' | 'group' | 'color', group: { id, name, cover } | null, config: { id, name } | null,
+   *             color: { id, name, color } | null } (where it points, made good: a group gone is the whole gallery),
+   *   bytes, files, images, videos, median, mean (file sizes), share: { bytes (the whole it is part of) } | null,
+   *   configs: [{ id, name, colorGroups, active }] (a group's),
+   *   children: the whole gallery — its groups [{ id, kind: 'group', name, cover, bytes, files, videos, config, colorGroups,
+   *               configs, parts: [{ id, kind: 'color' | 'none', name, color, bytes, files }] (the configuration in use) }];
+   *             a group — its colour groups [{ id, kind: 'color' | 'none', name, color, bytes, files, videos, types }]; a colour group — [],
+   *   types: [{ type, kind: 'image' | 'video' | null, files, bytes }],
+   *   buckets: [{ id, min, max (null: no limit), files, bytes, types: { type: { files, bytes } } }],
+   *   tiles: [ref + { size, groupId }] (the largest files, where there is nothing more to split), rest: { files, bytes } }
+   */
+  scope: (scope) => call('read', () => statsBackend.getScope(scope)),
+  /**
+   * A scope's files, the largest first: scope + { bucket (a BUCKETS id), type (one of TYPES), limit }.
+   * → { total, bytes, rows: [ref + { size, groupId, group (its name), color: { id, name, color } | null, importedAt }] }
+   */
+  files: (query) => call('read', () => statsBackend.getScopeFiles(query)),
+  /**
+   * → { first, today, days: [{ day, seconds, opened, added, removed, files, bytes }] (every day from the first, oldest first),
+   *     streak: { current, longest, longestEnd }, snapshots: [{ id, name, at }] }
+   */
+  activity: () => call('read', statsBackend.getActivity),
+  /**
+   * One day: → { day, record, groups: [{ id, name, cover, count, bytes, files: [ref] }] (the files added that day that are
+   * still here, by group), kept (how many of those), snapshots: [{ id, name, at }] (taken that day) }
+   */
+  day: (day) => call('read', () => statsBackend.getDay(day)),
+  /** Time spent in Prism since the last call (the page reports it about once a minute while in use). Fire and forget. */
+  present: (seconds) => { call('write', () => statsBackend.present(seconds)).catch(() => {}); },
 };
 
 /**

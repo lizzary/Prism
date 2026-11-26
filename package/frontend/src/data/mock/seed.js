@@ -25,6 +25,23 @@ const FLUX_SENTENCES = {
   bokeh: 'abstract city lights out of focus, large soft bokeh circles, dark background, dreamy mood',
 };
 
+/**
+ * Files arrive in import sessions — an evening every few days, the same evenings for every group (as days ago). A file
+ * comes in with the first session after it was made; nothing comes into a group after its latest import (`imported`).
+ */
+const SESSIONS = (() => {
+  const q = seeded('imports|sessions');
+  const out = [];
+  for (let d = q.range(0.7, 1.4); d < 820; d += q.range(1.3, 5.6)) out.push(d);
+  return out;
+})();
+function importAge(latest, age) {
+  if (age <= latest) return Math.max(0.005, age - 0.02);          // made after the group's latest import: added on its own
+  let best = latest;
+  for (const s of SESSIONS) if (s >= latest && s <= age - 0.02 && s > best) best = s;
+  return best;
+}
+
 function pickWeighted(r, weights) {
   const x = r();
   let acc = 0;
@@ -88,11 +105,13 @@ export function buildFile(spec, group, i, id, cover) {
   const video = !cover && spec.video ? q.chance(spec.video) : false;
   const [w, h] = cover ? spec.cover : q.pick(spec.dims);
   const art = { seed: `${spec.key}-${i}`, style: cover ? spec.coverStyle : q.pick(spec.styles), palette: q.pick(spec.palettes) };
-  // creation dates spread over the group's age, newest first; imports follow a few days later, in batches
+  // creation dates spread over the group's age, newest first; imports follow with the next import session
   const t = spec.count > 1 ? i / (spec.count - 1) : 0;
   const age = spec.age[0] + (spec.age[1] - spec.age[0]) * Math.pow(t, 1.15) + q.range(0, 0.9);
   const createdAt = ago(age + q.range(0.2, 0.6));
-  const importedAt = ago(Math.max(spec.imported + q.range(0.01, 0.3), age - q.range(0, 3)));
+  const late = q.range(0.01, 0.3);
+  q.range(0, 3);                    // (drawn as before, so every later detail of the file stays as it was)
+  const importedAt = ago(importAge(spec.imported + late, age) - (i % 60) * 0.00004);
   const ext = video ? (q.chance(0.3) ? 'webm' : 'mp4') : spec.kind === 'comfy' ? 'png' : q.pick(['png', 'jpg', 'jpg', 'webp']);
   const name = fileName(q, spec, i, 120 + spec.count - i, ext, createdAt);
   const tags = modelTags(q, art, w, h);

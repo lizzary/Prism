@@ -271,6 +271,39 @@ export const indexActions = {
 /** What the index page shows as it opens: the list of files waiting, in every group. */
 export const prefetchIndex = () => prefetch(indexFilesKey({ groupId: null, show: 'needs', kind: null, state: null, text: '' }), () => api.indexing.files({ show: 'needs' }), INDEX_TOPICS);
 
+// ------------------------------------------------------------------ statistics
+/** What the statistics page draws with: its parts, buckets, types, metrics and ranges, and the day arithmetic (data/domain/stats.js). */
+export const statsRules = api.stats;
+// (the folder's parts change with the image index and the snapshots; a scope's files only with the gallery)
+const STORAGE_TOPICS = ['library', 'snapshots', 'index'];
+const SCOPE_TOPICS = ['library'];
+const ACTIVITY_TOPICS = ['library', 'activity', 'snapshots'];
+const scopeKey = (q) => `stats-scope:${q.groupId ?? ''}|${q.configId ?? ''}|${q.colorId ?? ''}`;
+const fetchScope = (q) => () => api.stats.scope({ groupId: q.groupId ?? null, configId: q.configId ?? null, colorId: q.colorId ?? null });
+/** What the database folder is made of, and its drive (see data/api: stats.storage). */
+export const useStorage = () => useQuery('stats-storage', api.stats.storage, STORAGE_TOPICS);
+/** A scope of the storage tab: the gallery, a group or a colour group (see data/api: stats.scope). */
+export const useStatsScope = (scope) => useQuery(scopeKey(scope), fetchScope(scope), SCOPE_TOPICS);
+/** Get a scope ready before it is opened (the pointer is on its way to it). */
+export const prefetchStatsScope = (scope) => prefetch(scopeKey(scope), fetchScope(scope), SCOPE_TOPICS);
+/** A scope's files, the largest first: scope + { bucket, type }. */
+export function useStatsFiles(query) {
+  const key = `stats-files:${JSON.stringify(query)}`;
+  return useQuery(key, () => api.stats.files(query), SCOPE_TOPICS);
+}
+/** The activity record, every day (see data/api: stats.activity). */
+export const useActivity = () => useQuery('stats-activity', api.stats.activity, ACTIVITY_TOPICS);
+/** One day of it: its row, the files added that day, the snapshots taken. */
+export const useActivityDay = (day) => useQuery(day ? `stats-day:${day}` : null, () => api.stats.day(day), ACTIVITY_TOPICS);
+/** What the statistics page shows as it opens. */
+export const prefetchStats = () => {
+  prefetch('stats-storage', api.stats.storage, STORAGE_TOPICS);
+  prefetch(scopeKey({}), fetchScope({}), SCOPE_TOPICS);
+  prefetch('stats-activity', api.stats.activity, ACTIVITY_TOPICS);
+};
+/** The clock of time spent in Prism (the activity record): started once, by the app shell. */
+export { usePresenceClock } from './presence.js';
+
 /** The reminder of automatic indexing showing now, or null. */
 export const useReminder = () => useLive(api.reminders);
 export const reminderActions = { dismiss: api.reminders.dismiss };

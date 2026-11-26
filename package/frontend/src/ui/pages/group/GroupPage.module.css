@@ -59,6 +59,11 @@
 .edit { margin-top: 4px; }
 .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; margin-top: 10px; font-size: 13.5px; color: var(--ink-3); }
 .meta > span + span::before { content: '·'; margin: 0 9px; color: var(--ink-4); }
+/* the size: a quiet way to the group's statistics */
+.sizeLink { display: inline-flex; align-items: center; gap: 5px; margin: -2px -5px; padding: 2px 5px; border-radius: var(--r-1); color: inherit; transition: background-color var(--dur-1), color var(--dur-1); }
+.sizeLink svg { opacity: 0; transform: translateY(2px); transition: opacity var(--dur-2), transform 320ms var(--ease-out); }
+.sizeLink:hover, .sizeLink:focus-visible { background: var(--hover); color: var(--ink); }
+.sizeLink:hover svg, .sizeLink:focus-visible svg { opacity: 0.8; transform: none; }
 /* files waiting to be indexed: a quiet word that leads to them */
 .indexHint {
   display: inline-flex;

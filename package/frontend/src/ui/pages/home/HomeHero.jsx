@@ -1,5 +1,6 @@
 import { ViewTransition, useEffect, useRef, useState } from 'react';
 import { libraryActions, mediaUrl, useSetting } from '../../../bridge/index.js';
+import { useOverlays } from '../../../app/shell.jsx';
 import { Link, cameBack, navigate, paths } from '../../../app/router.jsx';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
@@ -38,6 +39,7 @@ export function HomeHero({ home, heroRef }) {
   const fontReady = useFontReady('Prism WenKai', greeting);
   const { stats, lastViewed } = home;
   const dbPath = useSetting('dbPath');
+  const { open } = useOverlays();
   // coming back is not arriving: no entrance (Back from a file opened here lands its picture in a pill already there)
   const quiet = useRef(cameBack()).current;
 
@@ -56,8 +58,16 @@ export function HomeHero({ home, heroRef }) {
         </div>
         {stats.files > 0 && (
           <p className={s.stats}>
-            <span>{t('home.stats', { groups: fmt.number(stats.groups), files: fmt.number(stats.files), size: fmt.bytes(stats.bytes) })}</span>
-            {stats.thisWeek > 0 && <span className={s.week}><Icon name="sparkle" size={14} />{t('home.thisWeek', { n: fmt.number(stats.thisWeek) })}</span>}
+            {/* the gallery in one line — and the way to its statistics: where the space goes, and what has been happening */}
+            <button type="button" className={s.statsLink} data-overlay="stats" onClick={() => open('stats', { tab: 'storage' })}>
+              {t('home.stats', { groups: fmt.number(stats.groups), files: fmt.number(stats.files), size: fmt.bytes(stats.bytes) })}
+              <Icon name="stats" size={14} className={s.statsGo} />
+            </button>
+            {stats.thisWeek > 0 && (
+              <button type="button" className={`${s.statsLink} ${s.week}`} data-overlay="stats" onClick={() => open('stats', { tab: 'activity' })}>
+                <Icon name="sparkle" size={14} />{t('home.thisWeek', { n: fmt.number(stats.thisWeek) })}
+              </button>
+            )}
           </p>
         )}
       </div>

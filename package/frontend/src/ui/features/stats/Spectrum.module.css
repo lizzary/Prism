@@ -1,0 +1,102 @@
+/* drawn in the night's colours whatever the theme (it sits in the sheet's night sky) */
+.band { position: relative; color: #f6f0de; user-select: none; }
+.sky { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.spark { position: absolute; border-radius: 50%; background: #f6f0de; opacity: 0.5; pointer-events: none; animation: twinkle 3.6s ease-in-out var(--d) infinite; }
+@keyframes twinkle { 50% { opacity: 0.12; } }
+
+/* ------------------------------------------------------------------ the total */
+.hero { position: absolute; left: 26px; top: 16px; display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.kicker { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: rgba(246, 240, 222, 0.56); letter-spacing: 0.02em; }
+.kicker svg { flex-shrink: 0; opacity: 0.8; }
+.total { margin-top: 8px; font-size: 46px; font-weight: 540; line-height: 1; letter-spacing: -0.025em; color: #fffaf0; text-shadow: 0 2px 24px rgba(241, 211, 90, 0.12); }
+.sub { margin-top: 10px; font-size: 13px; color: rgba(246, 240, 222, 0.78); white-space: nowrap; }
+.growth { display: inline-flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 12px; font-weight: 560; color: rgba(246, 240, 222, 0.56); }
+.growth[data-dir='up'] { color: #f1d78a; }
+.growth[data-dir]::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 6px currentColor; }
+
+/* ------------------------------------------------------------------ the light, the prism */
+.glow { position: absolute; width: 140px; height: 140px; border-radius: 50%; background: radial-gradient(closest-side, rgba(241, 211, 90, 0.22), rgba(241, 211, 90, 0)); opacity: 0.7; pointer-events: none; }
+.beam { fill: none; stroke: #f1d35a; stroke-width: 1.8; stroke-linecap: round; opacity: 0.92; animation: beamIn 700ms var(--ease-out) both; }
+@keyframes beamIn { from { stroke-dasharray: 0 120; } to { stroke-dasharray: 120 0; } }
+.prism { fill: url(#st-glass); stroke: #f6f0de; stroke-width: 1.8; stroke-linejoin: round; filter: drop-shadow(0 6px 14px rgba(4, 8, 24, 0.45)); }
+.facet { fill: none; stroke: #f6f0de; stroke-width: 1.1; stroke-linecap: round; opacity: 0.4; }
+.glint { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #fffbea; box-shadow: 0 0 6px 1px rgba(241, 211, 90, 0.85); opacity: 0.85; animation: glint 4.6s ease-in-out infinite; }
+@keyframes glint { 50% { opacity: 0.35; } }
+.rayGlow line { stroke-width: 4.5; opacity: 0.28; stroke-linecap: round; transition: opacity 260ms var(--ease-out); }
+.rayGlow line[data-dim] { opacity: 0.08; }
+.ray { stroke-width: 1.6; stroke-linecap: round; opacity: 0.95; transition: opacity 260ms var(--ease-out), stroke-width 220ms var(--ease-out); animation: rayIn 760ms var(--ease-out) calc(180ms + var(--k) * 60ms) backwards; }
+.ray[data-dim] { opacity: 0.22; }
+.ray[data-hot] { stroke-width: 2.4; }
+@keyframes rayIn { from { opacity: 0; } }
+
+/* ------------------------------------------------------------------ the spectrum */
+.bar { position: absolute; }
+.block {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  padding: 0 0 0 8px;
+  border-radius: 4px;
+  background: var(--c);
+  box-shadow: 0 0 18px -4px var(--c);
+  transform-origin: left center;
+  cursor: default;
+  transition: left 600ms var(--ease-out), width 600ms var(--ease-out), opacity 260ms var(--ease-out), filter 200ms;
+  animation: blockIn 720ms var(--ease-out) calc(260ms + var(--k) * 70ms) backwards;
+}
+.block[data-go] { cursor: pointer; }
+.block:hover, .block:focus-visible { filter: brightness(1.12); }
+.block[data-dim] { opacity: 0.38; }
+.block:focus-visible { box-shadow: 0 0 0 2px rgba(246, 240, 222, 0.7); }
+@keyframes blockIn { from { transform: scaleX(0.001); opacity: 0; } }
+.share { font-size: 11.5px; font-weight: 680; color: rgba(14, 18, 34, 0.84); letter-spacing: 0.01em; white-space: nowrap; }
+
+.tip {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 170px;
+  max-width: 250px;
+  padding: 9px 12px 10px;
+  border-radius: var(--r-3);
+  background: rgba(10, 15, 36, 0.92);
+  box-shadow: 0 0 0 1px rgba(246, 240, 222, 0.14) inset, 0 16px 34px -14px rgba(0, 0, 0, 0.7);
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  animation: tipIn 180ms var(--ease-out) both;
+}
+@keyframes tipIn { from { opacity: 0; transform: translate(-50%, calc(-100% + 4px)); } }
+.tipHead { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: rgba(246, 240, 222, 0.7); }
+.tipHead i { width: 10px; height: 3px; border-radius: 2px; }
+.tipValue { display: flex; align-items: baseline; gap: 8px; font-size: 18px; font-weight: 600; color: #fffaf0; letter-spacing: -0.01em; }
+.tipValue span { font-size: 12px; font-weight: 500; color: rgba(246, 240, 222, 0.6); }
+.tipDesc { font-size: 12px; line-height: 1.45; color: rgba(246, 240, 222, 0.62); }
+.tipGo { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; font-size: 12px; font-weight: 600; color: #f1d35a; }
+
+.legend { position: absolute; display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.item { display: inline-flex; align-items: center; gap: 7px; height: 22px; padding: 0 7px; margin-left: -7px; border-radius: var(--r-1); font-size: 12px; white-space: nowrap; cursor: default; transition: opacity 260ms var(--ease-out), background-color var(--dur-1); }
+.item + .item, li + li .item { margin-left: 0; }
+.item i { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.itemName { color: rgba(246, 240, 222, 0.86); }
+.itemSize { color: rgba(246, 240, 222, 0.5); }
+.item[data-go] { cursor: pointer; }
+.item[data-go]:hover { background: rgba(246, 240, 222, 0.08); }
+.item[data-dim] { opacity: 0.45; }
+.item[data-empty] { opacity: 0.5; }
+.item[data-empty] i { background: transparent !important; box-shadow: 0 0 0 1px rgba(246, 240, 222, 0.4) inset; }
+
+/* ------------------------------------------------------------------ the drive */
+.drive { position: absolute; right: 26px; top: 26px; display: flex; flex-direction: column; align-items: flex-start; }
+.free { margin-top: 8px; font-size: 22px; font-weight: 560; line-height: 1.1; letter-spacing: -0.015em; color: #fffaf0; }
+.meter { position: relative; display: flex; width: 100%; height: 4px; margin-top: 10px; overflow: hidden; border-radius: 2px; background: rgba(246, 240, 222, 0.13); }
+.meter i { height: 100%; transition: width 600ms var(--ease-out); }
+.meterPrism { background: #f1d35a; box-shadow: 0 0 6px rgba(241, 211, 90, 0.7); }
+.meterOther { margin-left: 1px; background: rgba(246, 240, 222, 0.38); }
+.driveSub { margin-top: 8px; font-size: 12px; color: rgba(246, 240, 222, 0.55); white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) { .spark, .glint { animation: none; } }

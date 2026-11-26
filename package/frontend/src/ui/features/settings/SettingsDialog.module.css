@@ -76,7 +76,7 @@
 .reset { align-self: flex-start; margin-left: -8px; }
 
 /* ------------------------------------------------------------------ entry cards (data backup, MCP keys) */
-.backup, .keysCard {
+.backup, .keysCard, .statsCard {
   display: flex;
   align-items: center;
   gap: 18px;
@@ -89,8 +89,10 @@
   text-align: left;
   transition: box-shadow var(--dur-2), transform var(--dur-2) var(--ease-out);
 }
-.backup:hover, .keysCard:hover { box-shadow: 0 0 0 1px var(--ink-4) inset, var(--shadow-2); transform: translateY(-1px); }
-.backup:active, .keysCard:active { transform: translateY(0); }
+.backup:hover, .keysCard:hover, .statsCard:hover { box-shadow: 0 0 0 1px var(--ink-4) inset, var(--shadow-2); transform: translateY(-1px); }
+.backup:active, .keysCard:active, .statsCard:active { transform: translateY(0); }
+.statsCard { margin-top: 8px; }
+.statsCard:hover .backupGo svg { transform: translateX(3px); }
 .keysCard { margin-top: 6px; }
 .backupText { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
 .backupTitle { display: inline-flex; align-items: center; gap: 7px; font-size: 14.5px; font-weight: 560; color: var(--ink); }
@@ -281,3 +283,9 @@
 .miniRay line { stroke: var(--c); stroke-width: 2.4; stroke-linecap: round; transition: x2 600ms var(--ease-out); }
 .miniRay .miniTrack { stroke: var(--line); }
 .miniRay[data-off] path, .miniRay[data-off] .miniTrack { stroke: var(--line-2); stroke-dasharray: 1.6 2.4; }
+
+/* the statistics page's entry: the mark's light landing on the database folder's spectrum */
+.miniLight { fill: none; stroke-width: 1; stroke-linecap: round; opacity: 0.55; }
+.miniPart { transform-box: fill-box; transform-origin: left center; transition: transform 420ms var(--ease-out); transition-delay: calc(var(--k) * 40ms); }
+.statsCard:hover .miniPart { transform: scaleY(1.25); }
+.miniEmpty { fill: none; stroke: var(--line-2); stroke-dasharray: 2 2; }

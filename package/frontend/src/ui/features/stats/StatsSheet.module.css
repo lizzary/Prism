@@ -1,0 +1,49 @@
+.frame { width: min(1280px, calc(100vw - 48px)); }
+.sheet {
+  /* the series on paper — each set checked against its surface (light: the raised paper; dark: its night) */
+  --st-time: #c19a28; --st-added: #4c7cc4; --st-opened: #dd755f; --st-removed: #c96f4a;
+  --st-png: #6785c7; --st-jpg: #d1a053; --st-webp: #3dbfbb; --st-gif: #a75fa1; --st-mp4: #e48f5f; --st-webm: #588b32; --st-other: #a3a7ae;
+  --st-files: #b38a1f;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+:global(:root[data-theme='dark']) .sheet {
+  --st-time: #be9246; --st-added: #638ccd; --st-opened: #c97367; --st-removed: #d07a56;
+  --st-png: #617ecb; --st-jpg: #c89130; --st-webp: #31a69e; --st-gif: #9d5a9c; --st-mp4: #dc8158; --st-webm: #497e2b; --st-other: #646a74;
+  --st-files: #c9a04a;
+}
+
+/* ------------------------------------------------------------------ the night sky: the bar, and each part's own picture */
+.night {
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+  color: #f6f0de;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 248, 228, 0.02) 0 1px, transparent 1px 3px),
+    radial-gradient(38% 120% at 16% 78%, rgba(241, 211, 90, 0.1), transparent 70%),
+    radial-gradient(46% 130% at 96% -10%, rgba(134, 165, 218, 0.17), transparent 70%),
+    linear-gradient(176deg, #1c2d5f 0%, #172553 52%, #111b40 100%);
+  box-shadow: 0 1px 0 rgba(8, 12, 30, 0.35);
+}
+:global(:root[data-theme='dark']) .night {
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 248, 228, 0.018) 0 1px, transparent 1px 3px),
+    radial-gradient(38% 120% at 16% 78%, rgba(241, 211, 90, 0.08), transparent 70%),
+    radial-gradient(46% 130% at 96% -10%, rgba(134, 165, 218, 0.13), transparent 70%),
+    linear-gradient(176deg, #17254f 0%, #121d44 52%, #0d1533 100%);
+  box-shadow: 0 1px 0 rgba(232, 227, 214, 0.06);
+}
+.head { position: relative; z-index: 2; display: flex; align-items: center; gap: 12px; padding: 12px 14px 0 22px; }
+.mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-3); background: rgba(246, 240, 222, 0.1); color: #f1d35a; box-shadow: 0 0 0 1px rgba(246, 240, 222, 0.12) inset; }
+.title { font-size: 17px; font-weight: 620; letter-spacing: -0.01em; color: #fffaf0; }
+.band { position: relative; height: 176px; animation: bandIn 520ms var(--ease-out) both; }
+@keyframes bandIn { from { opacity: 0; transform: translateY(6px); } }
+
+/* ------------------------------------------------------------------ the parts' contents, on paper */
+.body { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.pane { display: flex; flex-direction: column; flex: 1; min-height: 0; animation: paneIn 360ms var(--ease-out) both; }
+.pane[hidden] { display: none; }
+@keyframes paneIn { from { opacity: 0; transform: translateY(6px); } }

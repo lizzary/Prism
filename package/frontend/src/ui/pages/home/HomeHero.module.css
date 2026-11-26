@@ -126,7 +126,24 @@
   letter-spacing: 0.03em;
   animation: rise 900ms var(--ease-out) 560ms both;
 }
+.stats > * { pointer-events: auto; }
+.statsLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: -3px -7px;
+  padding: 3px 7px;
+  border-radius: var(--r-2);
+  color: inherit;
+  text-shadow: inherit;
+  letter-spacing: inherit;
+  transition: color 240ms, background-color 240ms, box-shadow 240ms;
+}
+.statsLink:hover, .statsLink:focus-visible { color: #fffaf0; background: rgba(11, 17, 40, 0.36); box-shadow: 0 0 0 1px rgba(246, 240, 222, 0.14) inset; }
+.statsGo { opacity: 0; transform: translateX(-4px); transition: opacity 240ms, transform 320ms var(--ease-out); }
+.statsLink:hover .statsGo, .statsLink:focus-visible .statsGo { opacity: 0.85; transform: none; }
 .week { display: inline-flex; align-items: center; gap: 6px; color: #f1d78a; }
+.week.statsLink:hover { color: #fbe6a6; }
 
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
 /* back on the page (Back / Forward): everything is simply there */

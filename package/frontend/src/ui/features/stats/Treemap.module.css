@@ -1,0 +1,89 @@
+.map {
+  --tm-frame: color-mix(in srgb, var(--ink) 6%, var(--bg-raised));
+  --tm-plain: color-mix(in srgb, var(--ink) 9%, var(--bg-raised));
+  --tm-none: color-mix(in srgb, var(--ink) 12%, var(--bg-raised));
+  --tm-mix: 56%;
+  --tm-mix-hot: 74%;
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--r-3);
+  user-select: none;
+}
+:global(:root[data-theme='dark']) .map { --tm-frame: color-mix(in srgb, var(--ink) 7%, var(--bg-raised)); --tm-plain: color-mix(in srgb, var(--ink) 10%, var(--bg-raised)); --tm-none: color-mix(in srgb, var(--ink) 13%, var(--bg-raised)); --tm-mix: 50%; --tm-mix-hot: 66%; }
+
+/* every area glides to its place: zooming in and out, a new measure, a new scope. (Entrances fill `backwards` only:
+   an animation that keeps filling owns opacity, and the fade of an area leaving would snap instead of fading.) */
+.group, .cell, .tile, .rest {
+  position: absolute;
+  transition: left 560ms var(--ease-out), top 560ms var(--ease-out), width 560ms var(--ease-out), height 560ms var(--ease-out),
+    opacity 380ms var(--ease-out), background-color 200ms, box-shadow 200ms;
+}
+.group { overflow: hidden; border-radius: var(--r-2); background: var(--tm-frame); cursor: pointer; animation: fadeIn 420ms var(--ease-out) backwards; }
+.group[data-plain] { background: var(--tm-plain); }
+.group[data-open] { cursor: default; z-index: 1; border-radius: var(--r-3); }
+.group[data-gone], .cell[data-gone] { opacity: 0; pointer-events: none; }
+.group:not([data-open]):hover, .group[data-hot] { box-shadow: 0 0 0 1.5px var(--ink-3) inset; }
+.group[data-plain]:hover, .group[data-plain][data-hot] { background: color-mix(in srgb, var(--ink) 14%, var(--bg-raised)); }
+@keyframes fadeIn { from { opacity: 0; } }
+
+.head { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 7px; height: 24px; padding: 0 8px 0 6px; font-size: 12px; pointer-events: none; }
+.head img { width: 16px; height: 16px; flex-shrink: 0; border-radius: 3px; object-fit: cover; box-shadow: 0 0 0 1px var(--line); }
+.name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--ink); }
+.value { flex-shrink: 0; margin-left: auto; padding-left: 8px; color: var(--ink-3); font-size: 11.5px; white-space: nowrap; }
+.group[data-open] .head { height: 26px; padding: 0 10px 0 8px; font-size: 13px; }
+.small { position: absolute; left: 6px; top: 5px; right: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; font-weight: 560; color: var(--ink-2); pointer-events: none; }
+
+.cell { overflow: hidden; border-radius: 3px; background: color-mix(in srgb, var(--c) var(--tm-mix), var(--bg-raised)); cursor: pointer; animation: fadeIn 420ms var(--ease-out) backwards; }
+.cell[data-kind='none'] { background: var(--tm-none); }
+.cell:not([data-open]):hover, .cell[data-hot] { background: color-mix(in srgb, var(--c) var(--tm-mix-hot), var(--bg-raised)); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--c) 70%, var(--ink)) inset; }
+.cell[data-kind='none']:not([data-open]):hover, .cell[data-kind='none'][data-hot] { background: color-mix(in srgb, var(--ink) 18%, var(--bg-raised)); box-shadow: 0 0 0 1.5px var(--ink-3) inset; }
+.cell[data-open] { cursor: default; background: color-mix(in srgb, var(--c) 22%, var(--bg-raised)); }
+.cell[data-open][data-kind='none'] { background: var(--tm-frame); }
+.cellHead { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; font-size: 12px; font-weight: 600; color: var(--ink); pointer-events: none; white-space: nowrap; overflow: hidden; }
+.cellHead i { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--bg-raised) 70%, transparent); }
+.cell[data-kind='none'] .cellHead i { background: transparent; box-shadow: 0 0 0 1.3px var(--ink-3) inset; }
+
+/* a file, as itself */
+.tile { overflow: hidden; border-radius: 3px; background: var(--bg-sunken); cursor: pointer; animation: fadeIn 520ms var(--ease-out) 120ms backwards; }
+.tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 420ms var(--ease-out), opacity 260ms; }
+.tile:hover img { transform: scale(1.04); }
+.tile:hover { box-shadow: 0 0 0 2px var(--bg-raised), 0 0 0 3.5px var(--ink-2); z-index: 1; }
+.tile[data-dim] img { opacity: 0.28; }
+.play { position: absolute; left: 5px; top: 5px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: rgba(10, 14, 28, 0.55); color: #fff; }
+.tileSize { position: absolute; left: 0; bottom: 0; padding: 3px 7px; border-radius: 0 4px 0 0; background: rgba(12, 16, 30, 0.58); color: #fbf7ee; font-size: 11px; font-weight: 600; backdrop-filter: blur(6px); }
+.rest { display: grid; place-items: center; border-radius: 3px; background: var(--tm-none); color: var(--ink-2); font-size: 12.5px; font-weight: 600; animation: fadeIn 520ms var(--ease-out) 160ms backwards; }
+
+.restNote { position: absolute; right: 8px; bottom: 8px; z-index: 2; padding: 3px 9px; border-radius: var(--r-2); background: color-mix(in srgb, var(--bg-raised) 86%, transparent); box-shadow: 0 0 0 1px var(--line) inset, var(--shadow-1); backdrop-filter: blur(8px); font-size: 12px; color: var(--ink-2); pointer-events: none; animation: fadeIn 520ms var(--ease-out) 300ms both; }
+.empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--ink-3); font-size: 13.5px; background: var(--tm-frame); border-radius: var(--r-3); }
+
+/* the pointer's companion */
+.tip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 240px;
+  padding: 8px 11px 9px;
+  border-radius: var(--r-2);
+  background: var(--ink);
+  color: var(--bg);
+  box-shadow: var(--shadow-2);
+  font-size: 12px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.tip[data-on] { opacity: 1; }
+.tipName { display: flex; align-items: center; gap: 7px; font-weight: 600; overflow-wrap: anywhere; }
+.tipName i { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; }
+.tipName i[data-none] { box-shadow: 0 0 0 1.3px color-mix(in srgb, var(--bg) 60%, transparent) inset; }
+.tipSub { color: color-mix(in srgb, var(--bg) 62%, transparent); }
+.tipValue { display: flex; align-items: baseline; gap: 8px; color: color-mix(in srgb, var(--bg) 70%, transparent); }
+.tipValue strong { font-size: 14px; font-weight: 650; color: var(--bg); }
+
+@media (prefers-reduced-motion: reduce) { .group, .cell, .tile, .rest { transition: none; } }

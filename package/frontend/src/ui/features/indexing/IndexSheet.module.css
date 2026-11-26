@@ -26,31 +26,6 @@
 .mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-3); background: rgba(246, 240, 222, 0.1); color: #f1d35a; box-shadow: 0 0 0 1px rgba(246, 240, 222, 0.12) inset; }
 .title { font-size: 17px; font-weight: 620; letter-spacing: -0.01em; color: #fffaf0; }
 
-.tabs { position: relative; display: flex; gap: 2px; margin: 0 auto 0 20px; }
-.tab {
-  height: 32px;
-  padding: 0 12px;
-  border-radius: var(--r-2);
-  font-size: 13.5px;
-  font-weight: 560;
-  color: rgba(246, 240, 222, 0.6);
-  white-space: nowrap;
-  transition: color var(--dur-2), background-color var(--dur-1);
-}
-.tab:hover { color: #fffaf0; background: rgba(246, 240, 222, 0.06); }
-.tab[aria-selected='true'] { color: #fffaf0; }
-.tab:focus-visible { box-shadow: 0 0 0 2px rgba(246, 240, 222, 0.5); }
-.tabLine {
-  position: absolute;
-  left: 0;
-  bottom: -3px;
-  height: 2px;
-  border-radius: 1px;
-  background: #f1d35a;
-  box-shadow: 0 0 8px rgba(241, 211, 90, 0.65);
-  transition: transform 380ms var(--ease-out), width 380ms var(--ease-out);
-}
-
 /* ------------------------------------------------------------------ the tabs' contents, on paper */
 .body { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .pane { display: flex; flex-direction: column; flex: 1; min-height: 0; animation: paneIn 360ms var(--ease-out) both; }

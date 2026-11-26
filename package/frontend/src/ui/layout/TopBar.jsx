@@ -91,6 +91,11 @@ export function TopBar({ route }) {
             <Icon name="export" size={18} /><span>{t('bar.export')}</span>
           </button>
           <IndexButton art={art} groupId={meta.scope === 'group' ? meta.groupId : null} />
+          <Tooltip label={t('bar.statsTip')} delay={500}>
+            <button type="button" className={`${s.action} ${s.statsAction}`} data-overlay="stats" onClick={() => open('stats', { groupId: meta.scope === 'group' ? meta.groupId : null })}>
+              <Icon name="stats" size={18} /><span>{t('bar.stats')}</span>
+            </button>
+          </Tooltip>
           <span className={s.divider} />
           <ServerButton art={art} />
           <TasksButton art={art} />

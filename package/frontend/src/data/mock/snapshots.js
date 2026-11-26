@@ -152,6 +152,11 @@ function storageOf(L) {
   return Math.round(bytes * 0.97) + ids.size * 2_048 + state(L).snapshots.length * 65_536;
 }
 
+/** For the statistics page: how much the history takes, and the snapshots on its timeline (oldest first). */
+export function historyOf(L) {
+  return { bytes: storageOf(L), snapshots: visible(state(L)).map((s) => ({ id: s.id, name: s.name, at: s.createdAt, source: s.source })) };
+}
+
 /** Only the part of a difference that belongs to the chosen groups; page settings belong to the whole gallery. */
 function scoped(L, d, sel) {
   const mine = (ids) => ids.filter((id) => sel.has(fileOf(L, id)?.groupId));

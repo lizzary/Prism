@@ -1,0 +1,55 @@
+/* a year of nights, in the sheet's night sky whatever the theme */
+.band { position: relative; color: #f6f0de; user-select: none; }
+.month { position: absolute; font-size: 11.5px; color: rgba(246, 240, 222, 0.6); white-space: nowrap; letter-spacing: 0.02em; }
+.month em { margin-left: 5px; font-style: normal; color: rgba(246, 240, 222, 0.38); }
+.weekday { position: absolute; left: 0; display: block; padding-right: 0; text-align: right; font-size: 11px; line-height: 16px; color: rgba(246, 240, 222, 0.42); white-space: nowrap; }
+
+.stars { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+/* the year comes out week by week, from its first to this one */
+.day { animation: dayIn 620ms var(--ease-out) calc(120ms + var(--c) * 9ms) backwards; }
+@keyframes dayIn { from { opacity: 0; } }
+.star {
+  fill: rgba(246, 240, 222, 0.55);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 560ms var(--ease-out) calc(var(--c) * 7ms), opacity 560ms var(--ease-out) calc(var(--c) * 7ms), fill 560ms;
+}
+.star[data-lit] { fill: #f3e2a6; }
+.star[data-warm] { fill: #f1d35a; }
+.halo { transition: opacity 560ms var(--ease-out) calc(var(--c) * 7ms); }
+.sparkle { fill: #fff6d2; opacity: 0.8; animation: sparkleIn 900ms var(--ease-out) calc(300ms + var(--c) * 7ms) both, shine 3.8s ease-in-out calc(1.2s + var(--c) * 40ms) infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes sparkleIn { from { opacity: 0; transform: scale(0.2) rotate(-30deg); } }
+@keyframes shine { 50% { opacity: 0.35; } }
+.void { fill: rgba(246, 240, 222, 0.08); }
+
+.marks { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.ring { fill: none; stroke-width: 1.3; }
+.ring[data-kind='today'] { stroke: rgba(246, 240, 222, 0.55); stroke-dasharray: 2 2.4; }
+.ring[data-kind='chosen'] { stroke: #f1d35a; stroke-width: 1.6; filter: drop-shadow(0 0 4px rgba(241, 211, 90, 0.7)); }
+.ring[data-kind='hover'] { stroke: rgba(255, 250, 240, 0.9); }
+.hit { position: absolute; cursor: pointer; border-radius: var(--r-2); }
+.hit:focus-visible { box-shadow: 0 0 0 2px rgba(246, 240, 222, 0.35); }
+
+.scale { position: absolute; display: inline-flex; align-items: center; gap: 6px; height: 16px; font-size: 11px; color: rgba(246, 240, 222, 0.45); }
+.scale i { border-radius: 50%; background: #f3e2a6; }
+.scale i[data-k='0'] { width: 3px; height: 3px; opacity: 0.35; background: rgba(246, 240, 222, 0.6); }
+.scale i[data-k='1'] { width: 5px; height: 5px; opacity: 0.6; }
+.scale i[data-k='2'] { width: 8px; height: 8px; opacity: 0.85; background: #f1d35a; }
+.scale i[data-k='3'] { width: 11px; height: 11px; background: #f1d35a; box-shadow: 0 0 8px rgba(241, 211, 90, 0.7); }
+
+/* ------------------------------------------------------------------ the year, or the day pointed at */
+.side { position: absolute; right: 22px; top: 6px; bottom: 0; display: flex; flex-direction: column; align-items: flex-start; }
+.metric { align-self: flex-start; }
+.summary { display: flex; flex-direction: column; align-items: flex-start; width: 100%; margin-top: 16px; animation: lineIn 260ms var(--ease-out) both; }
+@keyframes lineIn { from { opacity: 0; transform: translateY(4px); } }
+.kicker { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(246, 240, 222, 0.6); white-space: nowrap; }
+.kicker em { padding: 0 6px; border-radius: 3px; font-style: normal; font-size: 11px; line-height: 17px; background: rgba(241, 211, 90, 0.18); color: #f1d78a; }
+.big { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; font-size: 30px; font-weight: 560; line-height: 1.1; letter-spacing: -0.02em; color: #fffaf0; white-space: nowrap; }
+.big span { font-size: 13px; font-weight: 500; letter-spacing: 0; color: rgba(246, 240, 222, 0.72); }
+.line { display: inline-flex; align-items: center; gap: 0; margin-top: 4px; font-size: 12.5px; color: rgba(246, 240, 222, 0.72); white-space: nowrap; }
+.dim { color: rgba(246, 240, 222, 0.45); white-space: pre; }
+.flame { width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: rgba(246, 240, 222, 0.25); }
+.flame[data-on] { background: #f1d35a; box-shadow: 0 0 0 0 rgba(241, 211, 90, 0.5); animation: beacon 2.2s var(--ease-out) infinite; }
+@keyframes beacon { 0% { box-shadow: 0 0 0 0 rgba(241, 211, 90, 0.45); } 100% { box-shadow: 0 0 0 7px rgba(241, 211, 90, 0); } }
+
+@media (prefers-reduced-motion: reduce) { .sparkle, .flame { animation: none; } }

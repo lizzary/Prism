@@ -2,13 +2,14 @@
 // indexing what waits, or whatever is chosen; indexing by itself (as files are uploaded, by rules); and the models that
 // do the work. Its night sky holds the Prism mark, whose three rays are the three kinds of index (PrismBand).
 // Opened from the top bar, a group's page (`groupId`), Settings, the reminders, and the re-index choice (`tab`).
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { indexActions, reminderActions, taskActions, useIndexOverview, useReminder } from '../../../bridge/index.js';
-import { useLang, useT } from '../../../i18n/index.jsx';
+import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
 import { Icon } from '../../icons/Icon.jsx';
 import { IconButton } from '../../components/controls.jsx';
 import { Sheet } from '../../components/overlay.jsx';
+import { NightTabs } from '../../components/NightTabs.jsx';
 import { toast } from '../../components/feedback.jsx';
 import { GpuSetting, ModelPicker } from '../models/ModelPicker.jsx';
 import { PrismBand } from './PrismBand.jsx';
@@ -51,7 +52,7 @@ export default function IndexSheet({ open, onClose, onLeave, nonce, handoff, tab
           <header className={s.head}>
             <span className={s.mark}><Icon name="reindex" size={18} /></span>
             <h2 className={s.title}>{t('index.title')}</h2>
-            <Tabs value={tab} onChange={setTab} />
+            <NightTabs tabs={TABS.map((id) => ({ id, label: t(`index.tabs.${id}`) }))} value={tab} onChange={setTab} label={t('index.title')} />
             <IconButton icon="close" tone="art" label={t('common.close')} onClick={onClose} />
           </header>
           <PrismBand overview={overview} focus={tab === 'files' ? focus : null} onFocus={focusOn}
@@ -78,35 +79,5 @@ export default function IndexSheet({ open, onClose, onLeave, nonce, handoff, tab
         </div>
       </div>
     </Sheet>
-  );
-}
-
-/** The page's three parts, on the night sky; a line of starlight under the one open. */
-function Tabs({ value, onChange }) {
-  const t = useT();
-  const lang = useLang();
-  const box = useRef(null);
-  const [ind, setInd] = useState(null);
-  useLayoutEffect(() => {
-    const el = box.current?.querySelector('[aria-selected="true"]');
-    if (el) setInd({ x: el.offsetLeft + 12, w: el.offsetWidth - 24 });
-  }, [value, lang]);
-  const onKey = (e) => {
-    const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
-    if (!d) return;
-    e.preventDefault();
-    const next = TABS[(TABS.indexOf(value) + d + TABS.length) % TABS.length];
-    onChange(next);
-    box.current?.querySelector(`[data-tab="${next}"]`)?.focus();
-  };
-  return (
-    <div ref={box} className={s.tabs} role="tablist" aria-label={t('index.title')} onKeyDown={onKey}>
-      {TABS.map((id) => (
-        <button key={id} type="button" role="tab" data-tab={id} aria-selected={value === id} tabIndex={value === id ? 0 : -1} className={s.tab} onClick={() => onChange(id)}>
-          {t(`index.tabs.${id}`)}
-        </button>
-      ))}
-      {ind && <span className={s.tabLine} style={{ transform: `translateX(${ind.x}px)`, width: ind.w }} />}
-    </div>
   );
 }

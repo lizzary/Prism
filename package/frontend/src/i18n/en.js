@@ -88,8 +88,12 @@ export default {
     indexWaiting: { one: '{n} file waiting · last indexed {when}', other: '{n} files waiting · last indexed {when}' },
   },
   models: {
+    kind: { tagging: 'Tagging model', embedding: 'Image index model' },
     kinds: { tagging: 'Tagging models', embedding: 'Image index models' },
-    desc: { tagging: 'Give files their tags', embedding: 'Let you search with words or with a picture' },
+    desc: { tagging: 'Gives files their tags', embedding: 'Lets you search with words or with a picture' },
+    choose: 'Choose a model',
+    downloadingNow: 'Downloading {name} · {p}%', section: { downloaded: 'Downloaded', available: 'Available to download' },
+    find: 'Find a model', noMatch: 'No model matches',
     state: { missing: 'Not downloaded', downloading: 'Downloading', ready: 'Downloaded', inUse: 'In use' },
     download: 'Download', redownload: 'Download again', use: 'Use', cancel: 'Cancel download', waiting: 'Waiting', connecting: 'Connecting',
     progress: '{done} of {total}', redownloadTitle: 'Download the model again?',

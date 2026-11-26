@@ -29,7 +29,8 @@ function useStable(fn) {
 export function IndexFiles({ overview, groupId, onGroup, focus, onFocus, onLeave, onModels }) {
   const t = useT();
   const fmt = useFormat();
-  const [show, setShow] = useState(() => (overview.needs > 0 ? 'needs' : 'all'));
+  // what needs indexing first — unless there is none (in the group it opened at): then every file, with its index
+  const [show, setShow] = useState(() => ((groupId ? overview.groups.find((g) => g.id === groupId)?.needs : overview.needs) > 0 ? 'needs' : 'all'));
   const [text, setText] = useState('');
   const [selection, setSelection] = useState(() => new Set());
   const [asking, setAsking] = useState(false);

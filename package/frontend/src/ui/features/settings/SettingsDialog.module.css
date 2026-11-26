@@ -257,7 +257,7 @@
 .nameTo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 560; color: var(--ink); font-variant-numeric: tabular-nums; animation: nameIn 380ms var(--ease-out) both; }
 @keyframes nameIn { from { opacity: 0; transform: translateX(-5px); } }
 
-/* ------------------------------------------------------------------ models and indexing (the lists themselves: models/ModelLists) */
+/* ------------------------------------------------------------------ models and indexing (the model pickers themselves: models/ModelPicker) */
 /* the index page's entry: the Prism mark in miniature, its rays as far as each kind is up to date */
 .indexCard {
   display: flex;

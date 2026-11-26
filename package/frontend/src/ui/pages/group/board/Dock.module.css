@@ -124,7 +124,9 @@
 .moveName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .moveCount { font-size: 11.5px; color: var(--ink-3); }
 
-/* re-index */
-.reindex { width: 380px; padding: 0 4px; }
-.reindex > div[role='group'] { padding: 0 10px; }
-.reindex > button { margin-left: 4px; }
+/* re-index: its own width (the choices need it), and one inset for the heading, the choices, the link and the button */
+.popReindex { width: 380px; }
+.reindex { padding: 0 16px; }
+.reindex > .head { padding: 15px 0 12px; }
+.reindex > div[role='group'] { padding: 0; }
+.reindex > .foot { padding: 14px 0 16px; }

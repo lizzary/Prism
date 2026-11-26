@@ -90,7 +90,7 @@ export function TopBar({ route }) {
           <button type="button" className={s.action} data-overlay="export" onClick={() => open('export', scope)}>
             <Icon name="export" size={18} /><span>{t('bar.export')}</span>
           </button>
-          <IndexButton art={art} />
+          <IndexButton art={art} groupId={meta.scope === 'group' ? meta.groupId : null} />
           <span className={s.divider} />
           <ServerButton art={art} />
           <TasksButton art={art} />
@@ -103,9 +103,10 @@ export function TopBar({ route }) {
 
 /**
  * The index page: a quiet star on its viewfinder while files wait to be indexed; the viewfinder focuses while they are
- * being indexed. The reminders of automatic indexing hang from it.
+ * being indexed. Like search, on a group's page (and its whiteboard) it opens at that group. The reminders of automatic
+ * indexing hang from it.
  */
-function IndexButton({ art }) {
+function IndexButton({ art, groupId }) {
   const t = useT();
   const fmt = useFormat();
   const waiting = useIndexWaiting();
@@ -115,7 +116,7 @@ function IndexButton({ art }) {
   return (
     <>
       <Tooltip label={waiting ? t('bar.indexWaiting', { n: fmt.number(waiting), count: waiting }) : t('bar.indexTip')} delay={500}>
-        <button ref={ref} type="button" className={`${s.action} ${s.indexAction}`} data-overlay="index" data-busy={busy || undefined} onClick={() => open('index')}>
+        <button ref={ref} type="button" className={`${s.action} ${s.indexAction}`} data-overlay="index" data-busy={busy || undefined} onClick={() => open('index', { groupId })}>
           <span className={s.indexIcon}>
             <Icon name="reindex" size={18} />
             {waiting > 0 && <i className={`${s.indexDot} ${art ? s.indexDotArt : ''}`} />}

@@ -1,5 +1,5 @@
 // The short decisions of a group's page: deleting files, re-indexing them, and moving files into another colour group.
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { mediaUrl, useModels } from '../../../bridge/index.js';
 import { useOverlays } from '../../../app/shell.jsx';
 import { useT } from '../../../i18n/index.jsx';
@@ -53,23 +53,33 @@ const LOCKED = { tagging: 'group.reindex.noModel', embedding: 'group.reindex.noI
  * none in use (tags need a tagging model, the image index an image index model). → { kinds (in their order), view } —
  * the dialog below, the whiteboard's dock and the index page all ask with it.
  * `onLeave`: called before going to the models in Settings — or `onModels` goes there instead (the index page has its own).
- * `needs`: how many of the files still need each kind built ({ kind: n }, when known): shown, and those kinds start chosen.
+ * `needs`: how many of the files still need each kind built ({ kind: n }; undefined while it is being found out): shown,
+ * and those kinds start chosen. When given, nothing is chosen until it is known — then the choice is made once per
+ * opening, before it is painted, and stays the user's (later changes to what the files need don't redo it).
  */
-export function useReindexKinds(open, onLeave, { needs, onModels } = {}) {
+export function useReindexKinds(open, onLeave, options = {}) {
+  const { needs, onModels } = options;
   const t = useT();
   const fmt = useFormat();
   const { open: openOverlay } = useOverlays();
   const models = useModels();
   const ready = { tagging: models.list.some((m) => m.kind === 'tagging' && m.inUse), embedding: models.list.some((m) => m.kind === 'embedding' && m.inUse), metadata: true };
-  const [kinds, setKinds] = useState([]);
-  // as it opens (and once it knows what the files need): the kinds still needed, else tags and metadata
-  const needed = needs ? KINDS.map(([k]) => k).filter((k) => needs[k] > 0 && ready[k]) : [];
-  const neededKey = needs ? needed.join() : null;
-  useEffect(() => {
-    if (!open) return;
-    setKinds(needed.length ? needed : ready.tagging ? ['tagging', 'metadata'] : ['metadata']);
-  }, [open, neededKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const flip = (k) => setKinds((cur) => (cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]));
+  // the choice of this opening (null: not made yet). Made during render, so no frame shows the last opening's choice
+  // or a guess made before the needs were known: the kinds still needed, else tags and metadata.
+  const known = !('needs' in options) || needs !== undefined;
+  const [pick, setPick] = useState({ open, kinds: null });
+  let next = pick;
+  if (open !== next.open) next = { open, kinds: open ? null : next.kinds };
+  if (open && next.kinds == null && known) {
+    const needed = needs ? KINDS.map(([k]) => k).filter((k) => needs[k] > 0 && ready[k]) : [];
+    next = { open, kinds: needed.length ? needed : ready.tagging ? ['tagging', 'metadata'] : ['metadata'] };
+  }
+  if (next !== pick) setPick(next);
+  const kinds = next.kinds ?? [];
+  const flip = (k) => setPick((p) => {
+    const cur = p.kinds ?? [];
+    return { ...p, kinds: cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k] };
+  });
   const chosen = KINDS.map(([k]) => k).filter((k) => kinds.includes(k) && ready[k]);
   const missing = !ready.tagging || !ready.embedding;
   const view = (

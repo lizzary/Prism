@@ -82,7 +82,7 @@
 
 /* the columns: tick · picture · name · tags · image index · metadata · indexed · open */
 .table { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.head, .row, .groupHead { display: grid; grid-template-columns: 34px 40px minmax(0, 1fr) repeat(3, 96px) 112px 40px; align-items: center; }
+.head, .row { display: grid; grid-template-columns: 34px 40px minmax(0, 1fr) repeat(3, 96px) 112px 40px; align-items: center; }
 .head { height: 32px; margin: 0 0 0 10px; border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 560; color: var(--ink-3); }
 .headFile { grid-column: 2 / span 2; padding-left: 2px; }
 .headKind { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
@@ -94,7 +94,7 @@
 .canvas { position: relative; }
 /* each row sits in a slot at its place (moving a slot redraws nothing inside it) */
 .slot { position: absolute; left: 0; right: 0; top: 0; height: 44px; }
-.row, .groupHead { position: relative; height: 44px; }
+.row { position: relative; height: 44px; }
 .row { border-radius: var(--r-2); cursor: default; transition: background-color var(--dur-1); }
 .row:hover { background: var(--hover); }
 .row[data-on] { background: var(--star-soft); }
@@ -111,13 +111,23 @@
 .openCell { display: grid; place-items: center; }
 .open { opacity: 0; transition: opacity var(--dur-1), background-color var(--dur-1), color var(--dur-1); }
 .row:hover .open, .open:focus-visible { opacity: 1; }
-.groupHead { gap: 0; }
-.groupHead > * { min-width: 0; }
-.headCover { width: 24px !important; height: 24px !important; margin-left: 4px; border-radius: 4px !important; }
-.headName { justify-self: start; max-width: 100%; padding: 2px 6px; margin-left: 4px; overflow: hidden; border-radius: var(--r-1); font-size: 13px; font-weight: 640; text-align: left; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+/* a group's heading: a section of the list, not a row of it — a soft band set apart from the files above it */
+.groupHead {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 34px;
+  margin-top: 10px;
+  padding-right: 12px;
+  border-radius: var(--r-2);
+  background: var(--bg-sunken);
+  box-shadow: 0 0 0 1px var(--line) inset;
+}
+.groupHead > .tickCell { flex-shrink: 0; width: 34px; }
+.headCover { flex-shrink: 0; width: 20px !important; height: 20px !important; margin: 0 8px 0 3px; border-radius: 4px !important; }
+.headName { min-width: 0; padding: 2px 6px; margin-left: -6px; overflow: hidden; border-radius: var(--r-1); font-size: 12.5px; font-weight: 680; letter-spacing: 0.01em; text-align: left; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .headName:hover { background: var(--hover); }
-.headCount { grid-column: 4 / span 2; font-size: 12px; color: var(--ink-3); white-space: nowrap; }
-.groupHead::after { content: ''; position: absolute; left: 40px; right: 8px; bottom: 6px; height: 1px; background: var(--line); }
+.headCount { flex-shrink: 0; margin-left: 8px; padding: 0 7px; border-radius: 9px; background: var(--bg-raised); box-shadow: 0 0 0 1px var(--line) inset; font-size: 11.5px; line-height: 18px; color: var(--ink-3); white-space: nowrap; }
 
 /* ------------------------------------------------------------------ a file's index of one kind */
 .mark { display: block; overflow: visible; }
@@ -180,7 +190,7 @@
 
 @media (max-width: 1100px) {
   .files { grid-template-columns: 220px minmax(0, 1fr); }
-  .head, .row, .groupHead { grid-template-columns: 34px 40px minmax(0, 1fr) repeat(3, 76px) 92px 36px; }
+  .head, .row { grid-template-columns: 34px 40px minmax(0, 1fr) repeat(3, 76px) 92px 36px; }
   .headKind { font-size: 0; }
   .headKind i { width: 8px; height: 8px; }
 }

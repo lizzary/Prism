@@ -9,6 +9,7 @@ import { useFormat } from '../../lib/format.js';
 import { useNow } from '../../lib/useNow.js';
 import { Icon } from '../../icons/Icon.jsx';
 import { Button, IconButton } from '../../components/controls.jsx';
+import { ModelCatalog } from '../models/ModelPicker.jsx';
 import { KIND_ICON, NIGHT_RAY } from './kinds.js';
 import s from './PrismBand.module.css';
 
@@ -34,16 +35,44 @@ const rayPath = (k) => {
   const [ex, ey] = EXITS[k];
   return `M${f1(ex)} ${f1(ey)}C${f1(ex + 46)} ${f1(ey + BEND[k])} ${X0 - 56} ${ROWS[k]} ${X0} ${ROWS[k]}`;
 };
-/** A spiral arm, like the sky of the home painting (a faint one turns behind the summary). */
-function swirl(cx, cy, r0, r1, turns, phase = 0) {
-  const pts = [];
-  for (let i = 0; i <= 40; i++) {
-    const t = i / 40, a = phase + t * turns * Math.PI * 2, r = r0 + (r1 - r0) * t;
-    pts.push(`${f1(cx + r * Math.cos(a))} ${f1(cy + r * Math.sin(a) * 0.78)}`);
+/** Catmull-Rom → cubic Bézier through the points: smooth, never a chain of corners. */
+function smooth(pts, start = 'M') {
+  let d = `${start}${f1(pts[0][0])} ${f1(pts[0][1])}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+    d += `C${f1(p1[0] + (p2[0] - p0[0]) / 6)} ${f1(p1[1] + (p2[1] - p0[1]) / 6)} ${f1(p2[0] - (p3[0] - p1[0]) / 6)} ${f1(p2[1] - (p3[1] - p1[1]) / 6)} ${f1(p2[0])} ${f1(p2[1])}`;
   }
-  return `M${pts.join('L')}`;
+  return d;
 }
-const SWIRL_R = 100;
+/**
+ * One arm of the swirl as a brushstroke, the way the home painting's sky is laid on: a shape either side of a spiral
+ * that swells in its middle and tapers to a point at both ends.
+ */
+function swirlArm(c, { r0, r1, turns, phase, width, squash = 0.8, steps = 56 }) {
+  const spine = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps, a = phase + t * turns * Math.PI * 2, r = r0 + (r1 - r0) * Math.pow(t, 0.85);
+    spine.push([c + r * Math.cos(a), c + r * Math.sin(a) * squash]);
+  }
+  const left = [], right = [];
+  spine.forEach(([x, y], i) => {
+    const [ax, ay] = spine[Math.max(0, i - 1)], [bx, by] = spine[Math.min(steps, i + 1)];
+    const len = Math.hypot(bx - ax, by - ay) || 1;
+    const w = width * Math.pow(Math.sin(Math.PI * (i / steps)), 0.9);
+    const nx = (-(by - ay) / len) * w, ny = ((bx - ax) / len) * w;
+    left.push([x + nx, y + ny]);
+    right.push([x - nx, y - ny]);
+  });
+  return `${smooth(left)}${smooth(right.reverse(), 'L')}Z`;
+}
+/** The swirl turning in the corner of the sky: its arms (cream and the pale blue of the painting), widest near the eye. */
+const SWIRL_R = 120;
+const SWIRL_ARMS = [
+  { r0: 5, r1: 96, turns: 1.18, phase: 0.2, width: 4.6, tone: 'cream' },
+  { r0: 9, r1: 82, turns: 1.08, phase: 2.3, width: 3.6, tone: 'blue' },
+  { r0: 14, r1: 108, turns: 0.96, phase: 4.4, width: 3, tone: 'blue' },
+  { r0: 34, r1: 116, turns: 0.62, phase: 1.25, width: 1.7, tone: 'cream' },
+].map((a) => ({ ...a, d: swirlArm(SWIRL_R, a) }));
 const SPARKS = [[0.3, 12, 1.1], [0.43, 160, 0.9], [0.55, 10, 1.2], [0.64, 161, 1], [0.79, 14, 0.9], [0.9, 158, 1.2], [0.07, 30, 0.8], [0.18, 160, 1]];
 
 /**
@@ -59,7 +88,7 @@ function partsOf(c, total, width) {
   return raw.map((v, i) => { const len = small[i] || v * k; const part = { part: PARTS[i], x, len }; x += len; return part; });
 }
 
-export function PrismBand({ overview, focus, onFocus, onModels, onIndexWaiting, onCancel, starting }) {
+export function PrismBand({ overview, focus, onFocus, onIndexWaiting, onCancel, starting }) {
   const t = useT();
   const fmt = useFormat();
   useNow();
@@ -83,10 +112,20 @@ export function PrismBand({ overview, focus, onFocus, onModels, onIndexWaiting, 
   // filters, so its every frame is cheap).
   return (
     <div ref={box} className={s.band} data-active={glow || undefined} style={{ height: BAND_H }}>
-      <div className={s.swirl} style={{ left: w - 120 - SWIRL_R, top: 70 - SWIRL_R }} aria-hidden="true">
+      <div className={s.swirl} style={{ left: w - 58 - SWIRL_R, top: 64 - SWIRL_R }} aria-hidden="true">
         <svg width={SWIRL_R * 2} height={SWIRL_R * 2} viewBox={`0 0 ${SWIRL_R * 2} ${SWIRL_R * 2}`}>
-          <path d={swirl(SWIRL_R, SWIRL_R, 12, 92, 1.6)} />
-          <path d={swirl(SWIRL_R, SWIRL_R, 22, 70, 1.2, 2.6)} className={s.swirlFine} />
+          <defs>
+            {/* each arm fades as it leaves the eye of the swirl */}
+            <radialGradient id="pr-swirl-cream" gradientUnits="userSpaceOnUse" cx={SWIRL_R} cy={SWIRL_R} r={SWIRL_R}>
+              <stop offset="0" stopColor="#fff6dc" stopOpacity=".62" /><stop offset=".5" stopColor="#fff6dc" stopOpacity=".26" /><stop offset="1" stopColor="#fff6dc" stopOpacity="0" />
+            </radialGradient>
+            <radialGradient id="pr-swirl-blue" gradientUnits="userSpaceOnUse" cx={SWIRL_R} cy={SWIRL_R} r={SWIRL_R}>
+              <stop offset="0" stopColor="#b4d0ea" stopOpacity=".6" /><stop offset=".55" stopColor="#b4d0ea" stopOpacity=".22" /><stop offset="1" stopColor="#b4d0ea" stopOpacity="0" />
+            </radialGradient>
+            <radialGradient id="pr-swirl-eye"><stop offset="0" stopColor="#fff6dc" stopOpacity=".5" /><stop offset="1" stopColor="#fff6dc" stopOpacity="0" /></radialGradient>
+          </defs>
+          <circle cx={SWIRL_R} cy={SWIRL_R} r="20" fill="url(#pr-swirl-eye)" />
+          {SWIRL_ARMS.map((a) => <path key={a.phase} d={a.d} fill={`url(#pr-swirl-${a.tone})`} />)}
         </svg>
       </div>
       {SPARKS.map(([fx, y, r], i) => (
@@ -186,9 +225,7 @@ export function PrismBand({ overview, focus, onFocus, onModels, onIndexWaiting, 
             <span className={s.label}>
               <Icon name={KIND_ICON[kind]} size={14} className={s.kindIcon} />
               <span className={s.kindName}>{t(`index.kinds.${kind}`)}</span>
-              {kind !== 'metadata' && (c.model
-                ? <button type="button" className={s.model} onClick={() => onModels(kind)}>{c.model.name}</button>
-                : <button type="button" className={s.choose} onClick={() => onModels(kind)}>{t('index.noModel')}<span>{t('index.chooseModel')}</span><Icon name="arrow-right" size={12} /></button>)}
+              {kind !== 'metadata' && <ModelChip kind={kind} model={c.model} />}
             </span>
             {c.available && (
               <span className={`${s.numbers} num`}>
@@ -232,6 +269,27 @@ export function PrismBand({ overview, focus, onFocus, onModels, onIndexWaiting, 
           )}
       </div>
     </div>
+  );
+}
+
+/** The model building a kind, named on its ray: pressing it opens that kind's catalog right there (or offers one). */
+function ModelChip({ kind, model }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  return (
+    <>
+      {model ? (
+        <button ref={ref} type="button" className={s.model} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          <span className={s.modelName}>{model.name}</span><Icon name="chevron-down" size={11} />
+        </button>
+      ) : (
+        <button ref={ref} type="button" className={s.choose} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          {t('index.noModel')}<span>{t('index.chooseModel')}</span><Icon name="chevron-down" size={12} />
+        </button>
+      )}
+      <ModelCatalog kind={kind} open={open} onClose={() => setOpen(false)} anchor={ref} />
+    </>
   );
 }
 

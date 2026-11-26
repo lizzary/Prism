@@ -7,7 +7,7 @@
 //   Move to   another colour group (found by name), out of every colour group, or a new colour group with them
 //   and download, re-index (what to build again), delete
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { colorOrder, mediaUrl, useFilesSummary, useIndexNeeds, useTagIndex } from '../../../../bridge/index.js';
+import { colorOrder, mediaUrl, useFilesSummary, prefetchIndexNeeds, useIndexNeeds, useTagIndex } from '../../../../bridge/index.js';
 import { useT } from '../../../../i18n/index.jsx';
 import { useFormat } from '../../../lib/format.js';
 import { Icon } from '../../../icons/Icon.jsx';
@@ -44,7 +44,7 @@ export function Dock({ ids, files, sections, grouped, noneName, onClear, onTagHo
 
   const button = (key, icon, label, onClick, extra = {}) => (
     <button ref={refs[key]} type="button" className={`${s.action} ${extra.danger ? s.danger : ''}`} aria-expanded={refs[key] ? panel === key : undefined}
-      data-on={panel === key || undefined} onClick={onClick ?? (() => toggle(key))}>
+      data-on={panel === key || undefined} onClick={onClick ?? (() => toggle(key))} onPointerEnter={extra.onPoint} onFocus={extra.onPoint}>
       <Icon name={icon} size={17} /><span>{label}</span>
     </button>
   );
@@ -60,7 +60,7 @@ export function Dock({ ids, files, sections, grouped, noneName, onClear, onTagHo
       {grouped && button('move', 'swatches', t('board.dock.move'))}
       <span className={s.sep} />
       {button('download', 'download', t('group.tile.download'), () => { close(); onDownload(); })}
-      {button('reindex', 'reindex', t('group.tile.reindex'))}
+      {button('reindex', 'reindex', t('group.tile.reindex'), undefined, { onPoint: () => prefetchIndexNeeds(shown) })}
       {button('delete', 'trash', t('group.tile.delete'), () => { close(); onDelete(); }, { danger: true })}
       <span className={s.sep} />
       <IconButton icon="close" size="sm" label={`${t('group.selection.clear')} · Esc`} className={s.close} onClick={onClear} placement="top" />
@@ -74,7 +74,7 @@ export function Dock({ ids, files, sections, grouped, noneName, onClear, onTagHo
       <Popover open={panel === 'move'} onClose={close} anchor={refs.move} placement="top-start" offset={12} label={t('board.dock.move')} className={s.pop}>
         <MovePanel regions={sections} noneName={noneName} onMove={(key) => { close(); onMove(key); }} onNewColor={onNewColor && (() => { close(); onNewColor(); })} />
       </Popover>
-      <Popover open={panel === 'reindex'} onClose={close} anchor={refs.reindex} placement="top-end" offset={12} label={t('group.tile.reindex')} className={s.pop}>
+      <Popover open={panel === 'reindex'} onClose={close} anchor={refs.reindex} placement="top-end" offset={12} label={t('group.tile.reindex')} className={`${s.pop} ${s.popReindex}`}>
         <ReindexPanel open={panel === 'reindex'} ids={shown} onStart={(kinds) => { close(); onReindex(kinds); }} onLeave={close} />
       </Popover>
     </div>

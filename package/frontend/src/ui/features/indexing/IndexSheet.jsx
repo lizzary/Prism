@@ -10,7 +10,7 @@ import { Icon } from '../../icons/Icon.jsx';
 import { IconButton } from '../../components/controls.jsx';
 import { Sheet } from '../../components/overlay.jsx';
 import { toast } from '../../components/feedback.jsx';
-import { GpuSetting, ModelList } from '../models/ModelLists.jsx';
+import { GpuSetting, ModelPicker } from '../models/ModelPicker.jsx';
 import { PrismBand } from './PrismBand.jsx';
 import { IndexFiles } from './IndexFiles.jsx';
 import { AutoIndexing } from './AutoIndexing.jsx';
@@ -54,7 +54,7 @@ export default function IndexSheet({ open, onClose, onLeave, nonce, handoff, tab
             <Tabs value={tab} onChange={setTab} />
             <IconButton icon="close" tone="art" label={t('common.close')} onClick={onClose} />
           </header>
-          <PrismBand overview={overview} focus={tab === 'files' ? focus : null} onFocus={focusOn} onModels={() => setTab('models')}
+          <PrismBand overview={overview} focus={tab === 'files' ? focus : null} onFocus={focusOn}
             onIndexWaiting={indexWaiting} onCancel={(id) => taskActions.cancel(id)} starting={starting} />
         </div>
         <div className={s.body}>
@@ -68,8 +68,8 @@ export default function IndexSheet({ open, onClose, onLeave, nonce, handoff, tab
             <div className={s.pane} key="models">
               <div className={s.models}>
                 <div className={s.modelCols}>
-                  <ModelList kind="tagging" />
-                  <ModelList kind="embedding" />
+                  <div><ModelPicker kind="tagging" /></div>
+                  <div><ModelPicker kind="embedding" /></div>
                 </div>
                 <div className={s.gpu}><GpuSetting /></div>
               </div>

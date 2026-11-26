@@ -1,0 +1,97 @@
+/* --ray: the colour of the kind's ray in the Prism mark (tags gold, image index rose) */
+
+/* ------------------------------------------------------------------ the field: the model in use, at rest */
+.field {
+  --ray: var(--star);
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+  width: 220px;
+  height: 34px;
+  margin-top: 2px;
+  padding: 0 9px 0 11px;
+  overflow: hidden;
+  border-radius: var(--r-2);
+  background: var(--bg-raised);
+  box-shadow: 0 0 0 1px var(--line-2) inset;
+  text-align: left;
+  transition: box-shadow var(--dur-2), background-color var(--dur-2);
+}
+.field:hover { box-shadow: 0 0 0 1px var(--ink-4) inset; }
+.field[aria-expanded='true'] { box-shadow: 0 0 0 1px var(--accent) inset, 0 0 0 3px var(--accent-soft); }
+/* the kind's colour: full while a model is in use, a dashed ring while none is */
+.fieldDot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--ray); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ray) 22%, transparent); }
+.field[data-none] .fieldDot { background: none; box-shadow: none; border: 1.4px dashed var(--ink-4); }
+.fieldName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 540; color: var(--ink); }
+.field[data-none] .fieldName { font-weight: 500; color: var(--accent); }
+.fieldPct { flex-shrink: 0; font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.chev { flex-shrink: 0; color: var(--ink-3); transition: transform var(--dur-2) var(--ease-out); }
+.field[aria-expanded='true'] .chev { transform: rotate(180deg); }
+/* a download under way for this kind fills the field along its bottom edge */
+.fieldBar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 0; background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+.pill { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; height: 19px; padding: 0 7px; border-radius: var(--r-1); font-size: 11.5px; font-weight: 520; white-space: nowrap; }
+.pill i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.pill[data-state='inUse'] { background: var(--ok-soft); color: var(--ok); }
+.pill[data-state='ready'] { background: var(--field); color: var(--ink-3); }
+
+/* ------------------------------------------------------------------ the catalog */
+.catalog { width: 420px; display: flex; flex-direction: column; max-height: min(460px, 72vh); overflow: hidden; }
+.catHead { display: flex; align-items: center; gap: 9px; padding: 12px 14px 6px; }
+.catMark { display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-2); background: color-mix(in srgb, var(--ray) 16%, transparent); color: color-mix(in srgb, var(--ray) 70%, var(--ink)); }
+.catTitle { flex: 1; font-size: 13.5px; font-weight: 600; }
+.catCount { font-size: 12px; color: var(--ink-3); }
+.find { display: flex; align-items: center; gap: 8px; height: 30px; margin: 4px 12px 2px; padding: 0 10px; border-radius: var(--r-2); background: var(--field); color: var(--ink-3); box-shadow: 0 0 0 1px var(--line) inset; }
+.find:focus-within { background: var(--bg-raised); box-shadow: 0 0 0 1px var(--accent) inset, 0 0 0 3px var(--accent-soft); }
+.find input { flex: 1; min-width: 0; border: 0; background: none; font-size: 13px; color: var(--ink); }
+.find input:focus-visible { box-shadow: none; }
+.catList { flex: 1; min-height: 0; overflow: auto; padding: 0 6px 8px; }
+.section + .section { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--line); }
+.sectionTitle { margin: 0; padding: 8px 8px 4px; font-size: 11px; font-weight: 640; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.sectionTitle:lang(zh-CN) { letter-spacing: 0.12em; }
+.none { padding: 22px 10px; text-align: center; font-size: 13px; color: var(--ink-3); }
+
+/* a model: dot · name · size · where it stands · (download again / cancel) */
+.row { position: relative; display: flex; align-items: center; border-radius: var(--r-2); animation: rowIn 300ms var(--ease-out) both; animation-delay: calc(min(var(--i), 12) * 22ms); }
+@keyframes rowIn { from { opacity: 0; transform: translateY(3px); } }
+.row:hover { background: var(--hover); }
+.row[data-state='inUse'] { background: color-mix(in srgb, var(--ray) 10%, transparent); }
+.rowMain { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; height: 40px; padding: 0 6px 0 8px; border-radius: var(--r-2); text-align: left; }
+button.rowMain { cursor: pointer; }
+.dot { display: grid; place-items: center; flex-shrink: 0; width: 16px; height: 16px; border-radius: 50%; color: var(--ink-3); }
+.dot[data-state='inUse'] { background: var(--ray); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ray) 22%, transparent); }
+.dot[data-state='ready'] { box-shadow: 0 0 0 1.6px var(--ray) inset; }
+/* not downloaded: a dashed ring, waiting */
+.dot[data-state='missing'] { border: 1.4px dashed var(--ink-4); }
+.dot[data-state='downloading'] { color: var(--ray); }
+.dot[data-state='downloading'] circle:last-child { stroke: var(--ray); }
+.rowName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; color: var(--ink); }
+.row[data-state='inUse'] .rowName { font-weight: 600; }
+.row[data-state='missing'] .rowName { color: var(--ink-2); }
+.rowSize { flex-shrink: 0; font-size: 12px; color: var(--ink-3); }
+.rowState { display: grid; flex-shrink: 0; justify-items: end; min-width: 78px; }
+.rowState > * { grid-area: 1 / 1; }
+/* a downloaded one: pressing it puts it to use (its "Downloaded" gives way to "Use" under the pointer) */
+.useHint { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--accent); opacity: 0; transform: translateX(-3px); transition: opacity var(--dur-2), transform var(--dur-2) var(--ease-out); }
+.rowMain:hover .useHint, .rowMain:focus-visible .useHint { opacity: 1; transform: none; }
+.rowMain:hover .pill[data-state='ready'], .rowMain:focus-visible .pill[data-state='ready'] { opacity: 0; }
+.pill[data-state='ready'] { transition: opacity var(--dur-2); }
+.pct { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.get { height: 28px; padding: 0 9px; color: var(--ink-2); }
+.rowEnd { display: grid; place-items: center; flex-shrink: 0; width: 34px; }
+.again { display: grid; place-items: center; width: 26px; height: 26px; border-radius: var(--r-2); color: var(--ink-3); opacity: 0; transition: opacity var(--dur-2), background-color var(--dur-1), color var(--dur-1); }
+.row:hover .again, .again:focus-visible { opacity: 1; }
+.again:hover { background: var(--hover); color: var(--ink); }
+.again svg { transition: transform 600ms var(--ease-out); }
+.again:hover svg { transform: rotate(180deg); }
+@media (hover: none) { .again { opacity: 1; } }
+
+.confirm { font-size: 14px; line-height: 1.65; color: var(--ink-2); }
+
+/* ------------------------------------------------------------------ GPU */
+.device { display: inline-flex; align-items: center; gap: 9px; padding: 7px 12px 7px 11px; border-radius: var(--r-2); background: var(--field); font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.device i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-4); transition: background-color var(--dur-3), box-shadow var(--dur-3); }
+.device[data-on='true'] i { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+.device[data-none] { color: var(--ink-3); }

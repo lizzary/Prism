@@ -250,10 +250,17 @@ export function useIndexFiles(query) {
 /** The waiting files of a group (the whiteboard chooses them in one go). → { data: { ids } } */
 export const useWaitingFiles = (groupId) => useQuery(groupId ? `index-waiting:${groupId}` : null, () => api.indexing.waitingIn(groupId), INDEX_TOPICS);
 /** How many of these files still need each kind built: { tagging, embedding, metadata }. Pass null to skip. */
+const needsKey = (ids) => (ids?.length ? `index-needs:${ids.length}:${[...ids].sort().join(',')}` : null);
+const fetchNeeds = (key, ids) => () => api.indexing.needs(ids).then((data) => ({ key, data }));
 export function useIndexNeeds(ids) {
-  const key = ids?.length ? `index-needs:${ids.length}:${[...ids].sort().join(',')}` : null;
-  const res = useQuery(key, () => api.indexing.needs(ids), INDEX_TOPICS);
-  return key ? res.data : undefined;
+  const key = needsKey(ids);
+  const res = useQuery(key, fetchNeeds(key, ids), INDEX_TOPICS);
+  return key && res.data?.key === key ? res.data.data : undefined;
+}
+/** Find out what these files need before a re-index choice opens (on pointing at its button), so it opens decided. */
+export function prefetchIndexNeeds(ids) {
+  const key = needsKey(ids);
+  if (key) prefetch(key, fetchNeeds(key, ids), INDEX_TOPICS);
 }
 export const indexActions = {
   /** Index the waiting files (of a group, or all). → { ok, taskId, files } */

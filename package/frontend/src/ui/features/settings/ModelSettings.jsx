@@ -1,10 +1,10 @@
-// Models and indexing: indexing files as they are uploaded, the tagging models and the image index models (the very
-// lists of the index page), GPU acceleration — and the way to the index page itself.
+// Models and indexing: indexing files as they are uploaded, the tagging model and the image index model (the very
+// pickers of the index page), GPU acceleration — and the way to the index page itself.
 import { useIndexOverview } from '../../../bridge/index.js';
 import { useT } from '../../../i18n/index.jsx';
 import { useFormat } from '../../lib/format.js';
 import { Icon } from '../../icons/Icon.jsx';
-import { GpuSetting, ModelList } from '../models/ModelLists.jsx';
+import { GpuSetting, ModelPicker } from '../models/ModelPicker.jsx';
 import { UploadIndexing } from '../indexing/UploadIndexing.jsx';
 import { KIND_RAY } from '../indexing/kinds.js';
 import s from './SettingsDialog.module.css';
@@ -14,8 +14,8 @@ export function ModelSettings({ onOpenIndex }) {
     <>
       <IndexCard onOpen={onOpenIndex} />
       <UploadIndexing />
-      <ModelList kind="tagging" className={s.block} />
-      <ModelList kind="embedding" className={s.block} />
+      <ModelPicker kind="tagging" />
+      <ModelPicker kind="embedding" />
       <GpuSetting />
     </>
   );

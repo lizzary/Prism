@@ -88,8 +88,12 @@ export default {
     indexWaiting: '{n} 个文件等待索引 · 上次索引在{when}',
   },
   models: {
+    kind: { tagging: '标签模型', embedding: '图像索引模型' },
     kinds: { tagging: '标签模型', embedding: '图像索引模型' },
     desc: { tagging: '为文件生成标签', embedding: '用于以文搜图和以图搜图' },
+    choose: '选择模型',
+    downloadingNow: '正在下载 {name} · {p}%', section: { downloaded: '已下载', available: '可下载' },
+    find: '查找模型', noMatch: '没有匹配的模型',
     state: { missing: '未下载', downloading: '下载中', ready: '已下载', inUse: '使用中' },
     download: '下载', redownload: '重新下载', use: '使用', cancel: '取消下载', waiting: '等待中', connecting: '连接中',
     progress: '{done} / {total}', redownloadTitle: '重新下载模型',

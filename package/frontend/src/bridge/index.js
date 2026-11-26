@@ -286,10 +286,12 @@ export const useStorage = () => useQuery('stats-storage', api.stats.storage, STO
 export const useStatsScope = (scope) => useQuery(scopeKey(scope), fetchScope(scope), SCOPE_TOPICS);
 /** Get a scope ready before it is opened (the pointer is on its way to it). */
 export const prefetchStatsScope = (scope) => prefetch(scopeKey(scope), fetchScope(scope), SCOPE_TOPICS);
-/** A scope's files, the largest first: scope + { bucket, type }. */
+/** A scope's files, the largest first: scope + { bucket, type, text }. The text is debounced. */
 export function useStatsFiles(query) {
-  const key = `stats-files:${JSON.stringify(query)}`;
-  return useQuery(key, () => api.stats.files(query), SCOPE_TOPICS);
+  const text = useDebounced((query.text ?? '').trim(), 160);
+  const q = { ...query, text };
+  const key = `stats-files:${JSON.stringify(q)}`;
+  return useQuery(key, () => api.stats.files(q), SCOPE_TOPICS);
 }
 /** The activity record, every day (see data/api: stats.activity). */
 export const useActivity = () => useQuery('stats-activity', api.stats.activity, ACTIVITY_TOPICS);

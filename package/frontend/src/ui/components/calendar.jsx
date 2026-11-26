@@ -13,8 +13,10 @@ const parseDay = (k) => (k ? new Date(`${k}T00:00`) : null);
  *   mode 'single': value = 'YYYY-MM-DD'
  *   mode 'range' : value = { from, to } — the first click picks a day, the second extends it to a range
  *   marks        : { 'YYYY-MM-DD': count } drawn as small dots (activity)
+ *   minDay, maxDay: the first and last days that can be picked
+ *   onRangeDone  : (range mode) hears the range once its second day is picked
  */
-export function Calendar({ mode = 'single', value, onChange, marks, month: monthProp, onMonthChange, maxDay }) {
+export function Calendar({ mode = 'single', value, onChange, onRangeDone, marks, month: monthProp, onMonthChange, minDay, maxDay }) {
   const lang = useLang();
   const t = useT();
   const fmt = useFormat();
@@ -43,13 +45,15 @@ export function Calendar({ mode = 'single', value, onChange, marks, month: month
     else if (value?.from) { from = value.from; to = value.to ?? value.from; }
   } else if (value) { from = to = value; }
 
+  const outside = (k) => (!!maxDay && k > maxDay) || (!!minDay && k < minDay);
   const pick = (k) => {
-    if (maxDay && k > maxDay) return;
+    if (outside(k)) return;
     if (mode === 'single') { onChange(k); return; }
     if (!anchor) { setAnchor(k); onChange({ from: k, to: k }); return; }
     const [a, b] = anchor <= k ? [anchor, k] : [k, anchor];
     setAnchor(null); setHover(null);
     onChange({ from: a, to: b });
+    onRangeDone?.({ from: a, to: b });
   };
 
   const maxMark = marks ? Math.max(1, ...Object.values(marks)) : 1;
@@ -70,7 +74,7 @@ export function Calendar({ mode = 'single', value, onChange, marks, month: month
           return (
             <button key={k} type="button" role="gridcell" aria-selected={!!inRange}
               className={s.day} data-out={out} data-today={k === today} data-range={inRange ? (from === to ? 'single' : k === from ? 'start' : k === to ? 'end' : 'mid') : undefined}
-              disabled={!!maxDay && k > maxDay}
+              disabled={outside(k)}
               onClick={() => pick(k)} onPointerEnter={() => setHover(k)}>
               <span className={`${s.num} num`}>{d.getDate()}</span>
               {n > 0 && <span className={s.mark} style={{ opacity: 0.35 + 0.65 * (n / maxMark) }} />}

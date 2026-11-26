@@ -58,12 +58,12 @@
 .restNote { position: absolute; right: 8px; bottom: 8px; z-index: 2; padding: 3px 9px; border-radius: var(--r-2); background: color-mix(in srgb, var(--bg-raised) 86%, transparent); box-shadow: 0 0 0 1px var(--line) inset, var(--shadow-1); backdrop-filter: blur(8px); font-size: 12px; color: var(--ink-2); pointer-events: none; animation: fadeIn 520ms var(--ease-out) 300ms both; }
 .empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--ink-3); font-size: 13.5px; background: var(--tm-frame); border-radius: var(--r-3); }
 
-/* the pointer's companion */
+/* the pointer's companion (at the top of the document, so nothing in the sheet can cover or clip it) */
 .tip {
-  position: absolute;
+  position: fixed;
   left: 0;
   top: 0;
-  z-index: 5;
+  z-index: 140;
   display: flex;
   flex-direction: column;
   gap: 2px;

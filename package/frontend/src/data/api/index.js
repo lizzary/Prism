@@ -457,7 +457,7 @@ export const stats = {
    */
   scope: (scope) => call('read', () => statsBackend.getScope(scope)),
   /**
-   * A scope's files, the largest first: scope + { bucket (a BUCKETS id), type (one of TYPES), limit }.
+   * A scope's files, the largest first: scope + { bucket (a BUCKETS id), type (one of TYPES), text (words all in the file's name), limit }.
    * → { total, bytes, rows: [ref + { size, groupId, group (its name), color: { id, name, color } | null, importedAt }] }
    */
   files: (query) => call('read', () => statsBackend.getScopeFiles(query)),

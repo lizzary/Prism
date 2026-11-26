@@ -6,9 +6,11 @@ import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { mediaUrl, statsRules } from '../../../bridge/index.js';
 import { useT } from '../../../i18n/index.jsx';
 import { EmptyArt } from '../../components/feedback.jsx';
+import { Portal } from '../../components/overlay.jsx';
 import { Icon } from '../../icons/Icon.jsx';
 import { HEAD, hasHead, inset, squarify } from './treemap.js';
 import { useStatsFormat } from './look.js';
+import { boundsOf, placeTip } from './floatTip.js';
 import s from './Treemap.module.css';
 
 const { NONE } = statsRules;
@@ -110,14 +112,12 @@ export const Treemap = memo(function Treemap({ data, measure, hot, onHot, onGrou
   }, [layout, data]);
 
   const scopeOf = (g, c) => ({ groupId: g.id, configId: g.configId, colorId: c?.id ?? null });
-  const point = (e) => {
-    const r = box.current.getBoundingClientRect();
-    const x = e.clientX - r.left, y = e.clientY - r.top;
-    if (tip.current) {
-      const flip = x > r.width - 230;
-      tip.current.style.transform = `translate(${Math.round(flip ? x - 14 : x + 14)}px, ${Math.round(y + 16)}px) translateX(${flip ? '-100%' : '0'})`;
-    }
-  };
+  // the tip follows the pointer, whole inside the sheet: by an area at the map's foot or its right edge it turns up or left
+  const pointer = useRef({ x: 0, y: 0 });
+  const moveTip = () => placeTip(tip.current, pointer.current, { bounds: boundsOf(box.current) });
+  const point = (e) => { pointer.current = { x: e.clientX, y: e.clientY }; moveTip(); };
+  // (what it says changes its size: it is placed again once the new words are in)
+  useLayoutEffect(() => { if (info) moveTip(); }, [info]); // eslint-disable-line react-hooks/exhaustive-deps
   const enter = (e, item) => { onHot?.(item.hot); setInfo(item); point(e); if (item.prefetch) onPrefetch?.(item.prefetch); };
   const leave = () => { onHot?.(null); setInfo(null); };
 
@@ -169,9 +169,11 @@ export const Treemap = memo(function Treemap({ data, measure, hot, onHot, onGrou
       {data && data.rest.files > 0 && (data.scope.kind === 'color' || !data.scope.config) && (
         <span className={`${s.restNote} num`}>{t('stats.rest', { n: f.number(data.rest.files), count: data.rest.files, size: f.bytes(data.rest.bytes) })}</span>
       )}
-      <div ref={tip} className={s.tip} data-on={info ? '' : undefined}>
-        {info && <TipBody info={info} measure={measure} />}
-      </div>
+      <Portal>
+        <div ref={tip} className={s.tip} data-on={info ? '' : undefined} aria-hidden="true">
+          {info && <TipBody info={info} measure={measure} />}
+        </div>
+      </Portal>
     </div>
   );
 });

@@ -18,13 +18,12 @@ import { Spectrum } from './Spectrum.jsx';
 import { StarCalendar } from './StarCalendar.jsx';
 import { Storage } from './Storage.jsx';
 import { Activity } from './Activity.jsx';
+import { statsMemory as memory } from './memory.js';
 import s from './StatsSheet.module.css';
 
 const TABS = ['storage', 'activity'];
 const { dayOf, daysBetween } = statsRules.rules;
 const ALL = { groupId: null, configId: null, colorId: null };
-/** How it was last looked at, this session: the part, the measure, the range and the metric. */
-const memory = { tab: 'storage', measure: 'size', range: statsRules.DEFAULT_RANGE, metric: 'time' };
 
 export default function StatsSheet({ open, onClose, onLeave, nonce, handoff, tab: startTab, groupId, configId, colorId }) {
   const t = useT();
@@ -56,15 +55,20 @@ export default function StatsSheet({ open, onClose, onLeave, nonce, handoff, tab
   const setRange = useCallback((v) => { memory.range = v; setRangeState(v); }, []);
   const setMetric = useCallback((v) => { memory.metric = v; setMetricState(v); }, []);
   const goScope = useCallback((next) => { setScope({ ...ALL, ...next }); setFilter({ bucket: null, type: null }); }, []);
-  // a day chosen beyond the charts' range widens it just enough to show that day
+  // a day chosen beyond the charts' range widens it just enough to show that day (a range chosen by hand stretches to it)
   const chooseDay = useCallback((d) => {
     setDay(d);
     if (!d) return;
-    const back = daysBetween(d, dayOf(Date.now())) + 1;
     setRangeState((r) => {
-      if (back <= statsRules.RANGES[r]) return r;
-      memory.range = Object.keys(statsRules.RANGES).find((k) => statsRules.RANGES[k] >= back) ?? 'all';
-      return memory.range;
+      let next = r;
+      if (typeof r === 'object') {
+        if (d < r.from || d > r.to) next = { from: d < r.from ? d : r.from, to: d > r.to ? d : r.to };
+      } else {
+        const back = daysBetween(d, dayOf(Date.now())) + 1;
+        if (back > statsRules.RANGES[r]) next = Object.keys(statsRules.RANGES).find((k) => statsRules.RANGES[k] >= back) ?? 'all';
+      }
+      memory.range = next;
+      return next;
     });
   }, []);
 

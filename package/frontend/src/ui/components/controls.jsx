@@ -67,9 +67,10 @@ export function Tick({ state = 'off', size = 17 }) {
 export function Segmented({ value, onChange, options, size = 'md', className, label, iconOnly }) {
   const wrap = useRef(null);
   const [ind, setInd] = useState(null);
+  // (a value that is none of the options — a custom range beside its presets — leaves nothing marked)
   useLayoutEffect(() => {
     const el = wrap.current?.querySelector('[data-selected="true"]');
-    if (el) setInd({ left: el.offsetLeft, width: el.offsetWidth });
+    setInd(el ? { left: el.offsetLeft, width: el.offsetWidth } : null);
   }, [value, options]);
   return (
     <div ref={wrap} className={cx(s.seg, s[`seg_${size}`], className)} role="radiogroup" aria-label={label}>

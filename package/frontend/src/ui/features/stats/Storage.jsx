@@ -7,8 +7,12 @@ import { useT } from '../../../i18n/index.jsx';
 import { Icon } from '../../icons/Icon.jsx';
 import { IconButton, Segmented, Select } from '../../components/controls.jsx';
 import { Spinner } from '../../components/feedback.jsx';
+import { Portal } from '../../components/overlay.jsx';
 import { GroupCover } from '../../components/GroupSelector.jsx';
 import { Treemap } from './Treemap.jsx';
+import { Found, ListTools, holds, wordsOf } from './ListTools.jsx';
+import { statsMemory } from './memory.js';
+import { boundsOf, placeTip } from './floatTip.js';
 import { TYPE_COLOR, useStatsFormat } from './look.js';
 import s from './Storage.module.css';
 
@@ -174,13 +178,24 @@ function Parts({ data, measure, hot, onHot, onGroup, onColor, filter, onFilter, 
   const sc = data.scope;
   const byTypes = sc.kind === 'color' || (sc.kind === 'group' && !sc.config);
   const value = (x) => (measure === 'files' ? x.files : x.bytes);
+  const [query, setQuery] = useState('');
+  const [cols, setColsState] = useState(statsMemory.partsCols);
+  const setCols = (n) => { statsMemory.partsCols = n; setColsState(n); };
+  // a new scope is a new list: what was looked for in the last one starts over
+  const scopeKey = `${sc.kind}|${sc.group?.id}|${sc.config?.id}|${sc.color?.id}`;
+  useEffect(() => { setQuery(''); }, [scopeKey]);
   const rows = useMemo(() => {
     const list = byTypes ? data.types.map((x) => ({ ...x, id: x.type, kind: 'type' })) : data.children;
     return [...list].sort((a, b) => value(b) - value(a));
   }, [data, measure]); // eslint-disable-line react-hooks/exhaustive-deps
+  const words = useMemo(() => wordsOf(query), [query]);
+  const nameOf = (x) => (x.kind === 'type' ? f.typeName(x.type) : x.kind === 'none' ? t('stats.noColor') : x.name);
+  const shown = words.length ? rows.filter((x) => holds(nameOf(x), words)) : rows;
+  // (the bars keep the scale of the whole list while it is narrowed)
   const max = Math.max(1, ...rows.map(value));
   const total = measure === 'files' ? data.files : data.bytes;
   const title = byTypes ? t('stats.children.color') : t(`stats.children.${sc.kind}`);
+  const finder = byTypes ? 'color' : sc.kind;
   // what a row does, the same function for every row and every render (rows are drawn again only when they change)
   const press = useStable((x) => {
     if (x.kind === 'group') onGroup(x.id);
@@ -189,22 +204,24 @@ function Parts({ data, measure, hot, onHot, onGroup, onColor, filter, onFilter, 
   });
   const out = useStable((x) => (x.kind === 'group' ? leave.group(x.id) : leave.color(sc.group.id, sc.config.id, x.id)));
   return (
-    <div className={s.panel}>
+    <div className={s.panel} data-list-panel="">
       <div className={s.panelHead}>
         <h3>{title}</h3>
-        <span className={`${s.count} num`}>{f.number(rows.length)}</span>
+        <span className={`${s.count} num`}>{words.length ? `${f.number(shown.length)} / ${f.number(rows.length)}` : f.number(rows.length)}</span>
+        <ListTools query={query} onQuery={setQuery} placeholder={t(`stats.find.${finder}`)} cols={cols} onCols={setCols} />
       </div>
-      <ul className={s.parts} onPointerLeave={() => onHot(null)}>
-        {rows.map((x) => (
+      <ul className={s.parts} data-cols={cols} onPointerLeave={() => onHot(null)}>
+        {shown.map((x) => (
           <PartRow key={x.id} x={x} measure={measure} max={max} total={total} hot={hot === x.id} chosen={x.kind === 'type' && filter.type === x.type}
-            onHot={onHot} onPress={press} onOut={out} />
+            words={words} onHot={onHot} onPress={press} onOut={out} />
         ))}
+        {!shown.length && <li className={s.noMatch}>{t('stats.noMatch', { q: query.trim() })}</li>}
       </ul>
     </div>
   );
 }
 
-const PartRow = memo(function PartRow({ x, measure, max, total, hot, chosen, onHot, onPress, onOut }) {
+const PartRow = memo(function PartRow({ x, measure, max, total, hot, chosen, words, onHot, onPress, onOut }) {
   const t = useT();
   const f = useStatsFormat();
   const v = measure === 'files' ? x.files : x.bytes;
@@ -218,7 +235,7 @@ const PartRow = memo(function PartRow({ x, measure, max, total, hot, chosen, onH
         {x.kind === 'group' ? <GroupCover group={x} className={s.partCover} />
           : <i className={s.partKey} data-kind={x.kind} style={{ background: x.kind === 'none' ? 'transparent' : color }} />}
         <span className={s.partText}>
-          <span className={s.partName}>{name}</span>
+          <span className={s.partName} title={name}><Found text={name} words={words} /></span>
           <span className={s.partMeta}>
             {measure === 'files' ? f.bytes(x.bytes) : t('stats.files', { n: f.number(x.files), count: x.files })}
             {x.kind === 'group' && x.colorGroups > 0 && <> · {t('stats.colorGroups', { n: x.colorGroups, count: x.colorGroups })}</>}
@@ -279,6 +296,15 @@ function Sizes({ data, measure, filter, onFilter }) {
   const slot = (w - 8) / data.buckets.length;
   const barW = Math.min(28, slot * 0.42);
   const y = (v) => BASE - (v / max) * (BASE - TOP);
+  const tipRef = useRef(null);
+  const hotAt = data.buckets.findIndex((b) => b.id === hot);
+  const hotBucket = hotAt >= 0 ? data.buckets[hotAt] : null;
+  useLayoutEffect(() => {
+    if (!hotBucket || !box.current) return;
+    const r = box.current.getBoundingClientRect();
+    const v = value(hotBucket);
+    placeTip(tipRef.current, { x: r.left + 4 + slot * hotAt + slot / 2, y: r.top + (v > 0 ? y(v) : BASE) - 18 }, { above: true, bounds: boundsOf(box.current) });
+  });
   return (
     <div className={s.panel}>
       <div className={s.panelHead}>
@@ -316,19 +342,23 @@ function Sizes({ data, measure, filter, onFilter }) {
           <button key={b.id} type="button" className={s.colHit} style={{ left: 4 + slot * i, width: slot }} aria-pressed={filter.bucket === b.id}
             aria-label={`${f.bucket(b)} · ${t('stats.files', { n: f.number(b.files), count: b.files })} · ${f.bytes(b.bytes)}`}
             onPointerEnter={() => setHot(b.id)} onFocus={() => setHot(b.id)} onBlur={() => setHot(null)}
-            onClick={() => onFilter({ ...filter, bucket: filter.bucket === b.id ? null : b.id })}>
-            {hot === b.id && (
-              <span className={s.colTip} data-edge={i === 0 ? 'start' : i === data.buckets.length - 1 ? 'end' : undefined} style={{ bottom: H - (value(b) > 0 ? y(value(b)) : BASE) + 24 }}>
-                <strong>{measure === 'files' ? t('stats.files', { n: f.number(b.files), count: b.files }) : f.bytes(b.bytes)}</strong>
-                <span>{measure === 'files' ? f.bytes(b.bytes) : t('stats.files', { n: f.number(b.files), count: b.files })} · {f.pct(value(b), total)}</span>
-                {types.filter((ty) => b.types[ty]).map((ty) => (
-                  <span key={ty} className={s.colTipRow}><i style={{ background: TYPE_COLOR[ty] }} />{f.typeName(ty)}<em className="num">{measure === 'files' ? f.number(b.types[ty].files) : f.bytes(b.types[ty].bytes)}</em></span>
-                ))}
-              </span>
-            )}
-          </button>
+            onClick={() => onFilter({ ...filter, bucket: filter.bucket === b.id ? null : b.id })} />
         ))}
       </div>
+      {/* the column pointed at, told in full: over its top, at the top of the document (no sticky bar or edge can cover it) */}
+      <Portal>
+        <span ref={tipRef} className={s.colTip} data-on={hotBucket ? '' : undefined} aria-hidden="true">
+          {hotBucket && (
+            <>
+              <strong>{measure === 'files' ? t('stats.files', { n: f.number(hotBucket.files), count: hotBucket.files }) : f.bytes(hotBucket.bytes)}</strong>
+              <span>{measure === 'files' ? f.bytes(hotBucket.bytes) : t('stats.files', { n: f.number(hotBucket.files), count: hotBucket.files })} · {f.pct(value(hotBucket), total)}</span>
+              {types.filter((ty) => hotBucket.types[ty]).map((ty) => (
+                <span key={ty} className={s.colTipRow}><i style={{ background: TYPE_COLOR[ty] }} />{f.typeName(ty)}<em className="num">{measure === 'files' ? f.number(hotBucket.types[ty].files) : f.bytes(hotBucket.types[ty].bytes)}</em></span>
+              ))}
+            </>
+          )}
+        </span>
+      </Portal>
       <div className={s.types}>
         {data.types.map((x) => (
           <button key={x.type} type="button" className={s.typeChip} data-on={filter.type === x.type || undefined} aria-pressed={filter.type === x.type}
@@ -343,62 +373,80 @@ function Sizes({ data, measure, filter, onFilter }) {
   );
 }
 
-/** The scope's files, the largest first (narrowed to a size or a type): each opens in its group. */
+/**
+ * The scope's files, the largest first (narrowed to a size, a type, or words in their names — found among all of the
+ * scope's files, not only the rows shown): each opens in its group. In one column or two; only the rows in sight are drawn.
+ */
 function Files({ scope, filter, onFilter, onOpen }) {
   const t = useT();
   const f = useStatsFormat();
-  const { data } = useStatsFiles({ ...scope, bucket: filter.bucket, type: filter.type, limit: 400 });
+  const [text, setText] = useState('');
+  const [cols, setColsState] = useState(statsMemory.filesCols);
+  const setCols = (n) => { statsMemory.filesCols = n; setColsState(n); };
+  const scopeKey = `${scope?.groupId}|${scope?.colorId}`;
+  useEffect(() => { setText(''); }, [scopeKey]);
+  const { data } = useStatsFiles({ ...scope, bucket: filter.bucket, type: filter.type, text, limit: 400 });
   const list = useRef(null);
   const [top, setTop] = useState(0);
   const [height, setHeight] = useState(420);
   useLayoutEffect(() => {
     const el = list.current;
     if (!el) return undefined;
-    const ro = new ResizeObserver(([e]) => setHeight(e.contentRect.height));
+    const ro = new ResizeObserver(([e]) => { if (e.contentRect.height > 0) setHeight(e.contentRect.height); });
     ro.observe(el);
     return () => ro.disconnect();
   }, [!!data]); // eslint-disable-line react-hooks/exhaustive-deps
-  const key = `${scope?.groupId}|${scope?.colorId}|${filter.bucket}|${filter.type}`;
+  const key = `${scopeKey}|${filter.bucket}|${filter.type}|${text.trim()}|${cols}`;
   useEffect(() => { if (list.current) list.current.scrollTop = 0; setTop(0); }, [key]);
+  const words = useMemo(() => wordsOf(text), [text]);
   const rows = data?.rows ?? [];
   const max = rows[0]?.size ?? 1;
+  const lines = Math.ceil(rows.length / cols);
   const from = Math.max(0, Math.floor(top / ROW) - 6);
-  const to = Math.min(rows.length, Math.ceil((top + height) / ROW) + 6);
+  const to = Math.min(lines, Math.ceil((top + height) / ROW) + 6);
   const bucket = filter.bucket ? BUCKETS.find((b) => b.id === filter.bucket) : null;
   const onRow = useStable(onOpen);
+  const narrowed = !!(filter.bucket || filter.type || words.length);
   return (
-    <div className={s.panel}>
+    <div className={s.panel} data-list-panel="">
       <div className={s.panelHead}>
-        <h3>{filter.bucket || filter.type ? t('stats.matching') : t('stats.largest')}</h3>
+        <h3>{narrowed ? t('stats.matching') : t('stats.largest')}</h3>
         {bucket && <Chip onClear={() => onFilter({ ...filter, bucket: null })}>{f.bucket({ ...bucket, max: Number.isFinite(bucket.max) ? bucket.max : null })}</Chip>}
         {filter.type && <Chip color={TYPE_COLOR[filter.type]} onClear={() => onFilter({ ...filter, type: null })}>{f.typeName(filter.type)}</Chip>}
         {data && <span className={`${s.count} num`}>{t('stats.files', { n: f.number(data.total), count: data.total })} · {f.bytes(data.bytes)}</span>}
+        <ListTools query={text} onQuery={setText} placeholder={t('stats.find.files')} cols={cols} onCols={setCols} />
       </div>
-      <div ref={list} className={s.files} onScroll={(e) => setTop(e.currentTarget.scrollTop)}>
-        {!data ? <div className={s.wait}><Spinner size={18} /></div> : !rows.length ? <div className={s.none}>{t('stats.emptyScope')}</div> : (
-          <div className={s.filesInner} style={{ height: rows.length * ROW + (data.total > rows.length ? 40 : 0) }}>
-            {rows.slice(from, to).map((r, i) => <FileRow key={r.id} r={r} at={(from + i) * ROW} max={max} onOpen={onRow} />)}
-            {data.total > rows.length && (
-              <div className={s.more} style={{ top: rows.length * ROW }}>{t('stats.moreFiles', { n: f.number(data.total - rows.length), count: data.total - rows.length })}</div>
-            )}
-          </div>
-        )}
+      <div ref={list} className={s.files} data-cols={cols} onScroll={(e) => setTop(e.currentTarget.scrollTop)}>
+        {!data ? <div className={s.wait}><Spinner size={18} /></div>
+          : !rows.length ? <div className={s.none}>{words.length ? t('stats.noMatch', { q: text.trim() }) : t('stats.emptyScope')}</div> : (
+            <div className={s.filesInner} style={{ height: lines * ROW + (data.total > rows.length ? 40 : 0) }}>
+              {Array.from({ length: Math.max(0, to - from) }, (_, k) => from + k).flatMap((line) => Array.from({ length: cols }, (_, c) => {
+                const i = line * cols + c;
+                return i < rows.length ? <FileRow key={rows[i].id} r={rows[i]} at={line * ROW} col={c} cols={cols} max={max} words={words} onOpen={onRow} /> : null;
+              }))}
+              {data.total > rows.length && (
+                <div className={s.more} style={{ top: lines * ROW }}>{t('stats.moreFiles', { n: f.number(data.total - rows.length), count: data.total - rows.length })}</div>
+              )}
+            </div>
+          )}
       </div>
     </div>
   );
 }
 
-const FileRow = memo(function FileRow({ r, at, max, onOpen }) {
+const FileRow = memo(function FileRow({ r, at, col, cols, max, words, onOpen }) {
   const t = useT();
   const f = useStatsFormat();
+  // two columns side by side, 10px apart
+  const place = cols === 1 ? { top: at } : { top: at, left: col ? 'calc(50% + 5px)' : 0, right: col ? 0 : 'calc(50% + 5px)' };
   return (
-    <button type="button" className={s.file} style={{ top: at }} onClick={() => onOpen(r)} title={t('common.open')}>
+    <button type="button" className={s.file} style={place} onClick={() => onOpen(r)} title={t('common.open')}>
       <span className={s.thumb}>
         <img src={mediaUrl(r, 'low')} alt="" loading="lazy" decoding="async" draggable={false} />
         {r.kind === 'video' && <Icon name="play" size={9} className={s.thumbPlay} />}
       </span>
       <span className={s.fileText}>
-        <span className={s.fileName}>{r.name}<span className={s.ext}>.{r.ext}</span></span>
+        <span className={s.fileName}><Found text={r.name} words={words} /><span className={s.ext}>.{r.ext}</span></span>
         <span className={s.fileWhere}>
           {r.group}
           {r.color && <><Icon name="chevron-right" size={11} /><i style={{ background: r.color.color }} />{r.color.name}</>}
@@ -412,7 +460,7 @@ const FileRow = memo(function FileRow({ r, at, max, onOpen }) {
       <Icon name="arrow-right" size={15} className={s.fileGo} />
     </button>
   );
-}, (a, b) => a.r === b.r && a.at === b.at && a.max === b.max);
+}, (a, b) => a.r === b.r && a.at === b.at && a.col === b.col && a.cols === b.cols && a.max === b.max && a.words === b.words);
 
 function Chip({ children, color, onClear }) {
   const t = useT();

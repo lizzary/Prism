@@ -185,15 +185,20 @@ export function getScope(query) {
   };
 }
 
+const norm = (x) => String(x ?? '').normalize('NFKC').toLowerCase();
+
 /**
- * A scope's files, the largest first: query as getScope, plus bucket (a SIZE_BUCKETS id) and type (a FILE_TYPES one or
- * 'other'), limit. → { total, bytes, rows: [ref + { size, groupId, group (its name), color: { id, name, color } | null, importedAt }] }
+ * A scope's files, the largest first: query as getScope, plus bucket (a SIZE_BUCKETS id), type (a FILE_TYPES one or
+ * 'other'), text (words that must all be in the file's name) and limit.
+ * → { total, bytes, rows: [ref + { size, groupId, group (its name), color: { id, name, color } | null, importedAt }] }
  */
-export function getScopeFiles({ bucket = null, type = null, limit = 400, ...query } = {}) {
+export function getScopeFiles({ bucket = null, type = null, text = '', limit = 400, ...query } = {}) {
   const L = currentLibrary();
   const at = resolve(L, query);
   const b = bucket ? SIZE_BUCKETS.findIndex((x) => x.id === bucket) : -1;
-  const files = filesIn(L, at).filter((f) => (b < 0 || bucketOf(f.size) === b) && (!type || typeOf(f.ext) === type));
+  const words = norm(text).split(/\s+/).filter(Boolean);
+  const named = (f) => { if (!words.length) return true; const n = norm(`${f.name}.${f.ext}`); return words.every((w) => n.includes(w)); };
+  const files = filesIn(L, at).filter((f) => (b < 0 || bucketOf(f.size) === b) && (!type || typeOf(f.ext) === type) && named(f));
   files.sort((x, y) => y.size - x.size || (x.importedAt < y.importedAt ? 1 : -1));
   // each file's colour group: in the configuration the scope is split by, or (from the whole gallery) its group's own
   const configs = new Map();

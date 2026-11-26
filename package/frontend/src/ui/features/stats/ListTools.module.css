@@ -1,0 +1,36 @@
+.tools { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; flex-shrink: 0; }
+
+/* the find field: a faint magnifier, opening into a field when reached for */
+.find {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 26px;
+  height: 26px;
+  overflow: hidden;
+  border-radius: var(--r-2);
+  transition: width 280ms var(--ease-out), background-color 200ms, box-shadow 200ms;
+}
+.find[data-open] { width: 172px; background: var(--field); box-shadow: 0 0 0 1px var(--line) inset; }
+.find[data-open]:focus-within { background: var(--bg-raised); box-shadow: 0 0 0 1px var(--accent) inset, 0 0 0 3px var(--accent-soft); }
+.findIcon { display: grid; place-items: center; flex-shrink: 0; width: 26px; height: 26px; border-radius: var(--r-2); color: var(--ink-4); transition: color var(--dur-1), background-color var(--dur-1); }
+.find:not([data-open]) .findIcon:hover { color: var(--ink); background: var(--hover); }
+.find[data-open] .findIcon { color: var(--ink-3); cursor: default; }
+.findInput { flex: 1; min-width: 0; height: 100%; padding: 0 6px 0 0; border: 0; background: transparent; color: var(--ink); font-size: 12.5px; }
+.findInput:focus, .findInput:focus-visible { box-shadow: none; }
+.find:not([data-open]) .findInput { pointer-events: none; }
+.findClear { display: grid; place-items: center; flex-shrink: 0; width: 20px; height: 20px; margin-right: 3px; border-radius: var(--r-1); color: var(--ink-3); }
+.findClear:hover { background: var(--hover); color: var(--ink); }
+
+/* one or two columns */
+.cols { display: inline-flex; align-items: center; gap: 1px; }
+.col { display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-1); color: var(--ink-4); transition: color var(--dur-1), background-color var(--dur-1); }
+.col:hover { color: var(--ink); }
+.col[aria-checked='true'] { color: var(--ink-3); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+
+/* the list under the pointer (or a tool in use) brings its tools forward a little */
+:global([data-list-panel]:hover) .findIcon, .tools[data-active] .findIcon { color: var(--ink-3); }
+:global([data-list-panel]:hover) .col[aria-checked='true'], .tools[data-active] .col[aria-checked='true'] { color: var(--ink-2); }
+:global([data-list-panel]:hover) .col:not([aria-checked='true']) { color: var(--ink-3); }
+
+.mark { padding: 0 1px; margin: 0 -1px; border-radius: 2px; background: var(--star-soft); color: inherit; box-shadow: 0 1px 0 color-mix(in srgb, var(--star) 60%, transparent); }

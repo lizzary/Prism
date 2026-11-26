@@ -7,13 +7,15 @@ import { mediaUrl, statsRules, useActivity, useActivityDay } from '../../../brid
 import { useT } from '../../../i18n/index.jsx';
 import { Icon } from '../../icons/Icon.jsx';
 import { Segmented } from '../../components/controls.jsx';
+import { Popover } from '../../components/overlay.jsx';
+import { Calendar } from '../../components/calendar.jsx';
 import { Spinner } from '../../components/feedback.jsx';
 import { GroupCover } from '../../components/GroupSelector.jsx';
 import { METRIC_COLOR, useStatsFormat } from './look.js';
 import { niceScale, monthTicks, weekTicks } from './chartScale.js';
 import s from './Activity.module.css';
 
-const { movingAverage, metricOf, addDays } = statsRules.rules;
+const { movingAverage, metricOf, addDays, daysBetween, usedOn } = statsRules.rules;
 const PAD_L = 52, PAD_R = 10;
 const GB = 1024 ** 3;
 
@@ -33,11 +35,17 @@ export const Activity = memo(function Activity({ range, onRange, day, onDay, hov
   const ranges = useMemo(() => Object.keys(statsRules.RANGES).map((k) => ({ value: k, label: t(`stats.ranges.${k}`) })), [t]);
   const units = useMemo(() => [{ value: 'files', label: t('stats.totals.files') }, { value: 'size', label: t('stats.totals.size') }], [t]);
 
+  // a preset (the last N days, or all of them) or days chosen by hand ({ from, to }, kept within the record)
+  const custom = typeof range === 'object' && range !== null;
   const days = useMemo(() => {
     if (!data) return [];
+    if (custom) {
+      const picked = data.days.filter((d) => d.day >= range.from && d.day <= range.to);
+      return picked.length ? picked : data.days.slice(-1);
+    }
     const n = statsRules.RANGES[range];
     return Number.isFinite(n) ? data.days.slice(-n) : data.days;
-  }, [data, range]);
+  }, [data, range, custom]);
   const chosen = day ?? data?.today ?? null;
   if (!data) return <div className={s.wait}><Spinner size={20} /></div>;
 
@@ -62,8 +70,8 @@ export const Activity = memo(function Activity({ range, onRange, day, onDay, hov
   return (
     <div className={s.activity}>
       <header className={s.bar}>
-        <Segmented size="sm" value={range} onChange={onRange} options={ranges} label={t('stats.tabs.activity')} />
-        <span className={s.barNote}>{f.dateSmart(days[0]?.day)} – {f.dateSmart(data.today)}</span>
+        <Segmented size="sm" value={custom ? null : range} onChange={onRange} options={ranges} label={t('stats.tabs.activity')} />
+        <RangeButton custom={custom} from={days[0]?.day} to={days.at(-1)?.day} first={data.first} today={data.today} records={data.days} onRange={onRange} />
       </header>
       <div className={s.grid}>
         <div className={s.charts}>
@@ -72,7 +80,7 @@ export const Activity = memo(function Activity({ range, onRange, day, onDay, hov
             onPointerLeave={() => onHover(null)} onKeyDown={onKey}
             onClick={(e) => { const d = days[indexAt(e.clientX)].day; onDay(d === data.today ? null : d); }}>
             <Totals days={days} unit={unit} onUnit={setUnit} units={units} w={w} xOf={xOf} step={step} hi={hi} sel={sel}
-              snapshots={data.snapshots} range={range} first={data.first} />
+              snapshots={data.snapshots} range={custom ? 'custom' : range} first={data.first} />
             <div className={s.dailyHead}><h3>{t('stats.daily')}</h3><span className={s.avgKey}><i />{t('stats.average')}</span></div>
             {statsRules.METRICS.map((m) => (
               <Daily key={m} metric={m} days={days} w={w} xOf={xOf} step={step} hi={hi} sel={sel} />
@@ -86,6 +94,42 @@ export const Activity = memo(function Activity({ range, onRange, day, onDay, hov
     </div>
   );
 });
+
+/**
+ * The days shown, as a quiet button beside the presets: it opens a calendar to choose any first and last day of the
+ * record (the days spent in Prism are dotted). Lit while a range chosen by hand is shown.
+ */
+function RangeButton({ custom, from, to, first, today, records, onRange }) {
+  const t = useT();
+  const f = useStatsFormat();
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  // a dot on every day with Prism, as bright as it was long
+  const marks = useMemo(() => {
+    const out = {};
+    for (const r of records) if (usedOn(r)) out[r.day] = Math.round(r.seconds / 60);
+    return out;
+  }, [records]);
+  const n = from && to ? daysBetween(from, to) + 1 : 0;
+  return (
+    <>
+      <button ref={ref} type="button" className={s.rangeBtn} data-on={custom || undefined} aria-expanded={open} aria-label={t('stats.ranges.custom')}
+        onClick={() => setOpen((o) => !o)}>
+        <Icon name="calendar" size={14} />
+        <span className="num">{f.dateSmart(from)} – {f.dateSmart(to)}</span>
+        {custom && <span className={`${s.rangeDays} num`}>{t('stats.rangeDays', { n: f.number(n), count: n })}</span>}
+        <Icon name="chevron-down" size={13} className={s.rangeChev} />
+      </button>
+      <Popover open={open} onClose={() => setOpen(false)} anchor={ref} placement="bottom-start" trapFocus={false} label={t('stats.ranges.custom')}>
+        <div className={s.rangePop}>
+          <Calendar mode="range" value={{ from, to }} marks={marks} minDay={first} maxDay={today} onChange={() => {}}
+            onRangeDone={(r) => { onRange({ from: r.from, to: r.to }); setOpen(false); }} />
+          <p className={s.rangeHint}><Icon name="calendar" size={13} />{t('stats.rangeHint')}</p>
+        </div>
+      </Popover>
+    </>
+  );
+}
 
 /** The vertical hairline of the day pointed at, and the band of the day chosen — the same in every chart. */
 function Marks({ xOf, step, hi, sel, h }) {
@@ -127,10 +171,13 @@ const Totals = memo(function Totals({ days, unit, onUnit, units, w, xOf, step, h
   const last = days.at(-1), firstDay = days[0];
   const delta = unit === 'files' ? last.files - firstDay.files : last.bytes - firstDay.bytes;
   const deltaText = unit === 'files' ? f.number(Math.abs(delta)) : f.bytes(Math.abs(delta));
-  const rangeText = t(`stats.ranges.${range}`);
-  const change = !delta ? t('stats.totals.same', { range: rangeText })
-    : range === 'all' ? t('stats.totals.since', { sign: delta > 0 ? '+' : '−', n: deltaText, date: f.dateSmart(first) })
-      : t('stats.totals.change', { sign: delta > 0 ? '+' : '−', n: deltaText, range: rangeText });
+  const sign = delta > 0 ? '+' : '−';
+  const between = { from: f.dateSmart(firstDay.day), to: f.dateSmart(last.day) };
+  const rangeText = range === 'custom' ? '' : t(`stats.ranges.${range}`);
+  const change = range === 'custom' ? (delta ? t('stats.totals.between', { sign, n: deltaText, ...between }) : t('stats.totals.sameBetween', between))
+    : !delta ? t('stats.totals.same', { range: rangeText })
+      : range === 'all' ? t('stats.totals.since', { sign, n: deltaText, date: f.dateSmart(first) })
+        : t('stats.totals.change', { sign, n: deltaText, range: rangeText });
   const shown = hi >= 0 ? days[hi] : last;
   const marks = snapshots.map((x) => ({ ...x, i: days.findIndex((d) => d.day === x.at.slice(0, 10)) })).filter((x) => x.i >= 0);
   return (

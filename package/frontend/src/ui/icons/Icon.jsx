@@ -187,6 +187,9 @@ const I = {
   /* the colour groups as a list beside the files: a bullet and a line for each (the toolbar draws its bullets in the
      colour groups' own colours) */
   list: '<circle cx="5.2" cy="6.5" r="1.9" fill="currentColor" stroke="none"/><path d="M9.6 6.5h9.5"/><circle cx="5.2" cy="12" r="1.9" fill="currentColor" stroke="none"/><path d="M9.6 12h9.5"/><circle cx="5.2" cy="17.5" r="1.9" fill="currentColor" stroke="none"/><path d="M9.6 17.5h6.5"/>',
+  /* a list in one column of rows · in two columns side by side */
+  rows: '<circle cx="5.4" cy="6.5" r="1.1" fill="currentColor" stroke="none"/><path d="M8.6 6.5h10.4"/><circle cx="5.4" cy="12" r="1.1" fill="currentColor" stroke="none"/><path d="M8.6 12h10.4"/><circle cx="5.4" cy="17.5" r="1.1" fill="currentColor" stroke="none"/><path d="M8.6 17.5h10.4"/>',
+  'rows-2': '<circle cx="4.6" cy="6.5" r="1.1" fill="currentColor" stroke="none"/><path d="M7.2 6.5h3.6"/><circle cx="4.6" cy="12" r="1.1" fill="currentColor" stroke="none"/><path d="M7.2 12h3.6"/><circle cx="4.6" cy="17.5" r="1.1" fill="currentColor" stroke="none"/><path d="M7.2 17.5h3.6"/><circle cx="14.4" cy="6.5" r="1.1" fill="currentColor" stroke="none"/><path d="M17 6.5h3"/><circle cx="14.4" cy="12" r="1.1" fill="currentColor" stroke="none"/><path d="M17 12h3"/><circle cx="14.4" cy="17.5" r="1.1" fill="currentColor" stroke="none"/><path d="M17 17.5h3"/>',
   /* to the very top / bottom of a list */
   'to-top': '<path d="M6 4.8h12"/><path d="M12 19.2V9.2"/><path d="m7.6 13.4 4.4-4.4 4.4 4.4"/>',
   'to-bottom': '<path d="M6 19.2h12"/><path d="M12 4.8v10"/><path d="m7.6 10.6 4.4 4.4 4.4-4.4"/>',
